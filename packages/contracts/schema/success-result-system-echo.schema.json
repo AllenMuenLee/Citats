@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "correlation": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "sessionId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "taskId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "userId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "userId"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "retrievedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "snippet": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "sourceUrl": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceUrl",
+          "title",
+          "snippet",
+          "retrievedAt"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "payload": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "maxLength": 2000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "object"
+    },
+    "sensitivity": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmationRequired": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "enum": [
+              "payment",
+              "account_change",
+              "irreversible_submission",
+              "other"
+            ],
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "sensitive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sensitive",
+        "confirmationRequired"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "const": "success",
+      "type": "string"
+    },
+    "toolCallId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "correlation",
+    "toolCallId",
+    "status",
+    "payload",
+    "sensitivity"
+  ],
+  "type": "object"
+}

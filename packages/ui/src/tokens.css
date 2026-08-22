@@ -1,0 +1,77 @@
+/*
+ * Semantic theme tokens for the AI-Native Browser desktop renderer.
+ *
+ * Source of truth: docs/desktop-architecture-and-ui-specification.md,
+ * "Semantic color tokens" table, plus the 4px spacing grid and radius
+ * scale from "Typography and geometry". Kept in sync with
+ * ../src/tokens.ts by tests/tokens.test.ts.
+ *
+ * Theme resolution order (per spec: "Default to the operating-system
+ * preference and persist a user override locally"):
+ *   1. :root carries the light palette as the baseline.
+ *   2. prefers-color-scheme: dark swaps to dark automatically when there is
+ *      no explicit user override (guarded by :not([data-theme="light"])).
+ *   3. An explicit [data-theme="dark"] / [data-theme="light"] attribute on
+ *      the root element (set by the renderer once a user override is
+ *      persisted) wins over both of the above.
+ */
+
+:root {
+  --color-bg-canvas: #f6f7f9;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #eef1f5;
+  --color-text-primary: #172033;
+  --color-text-secondary: #5c667a;
+  --color-border: #d9dee8;
+  --color-accent: #5865f2;
+  --color-accent-hover: #4652d9;
+  --color-success: #16845b;
+  --color-warning: #a15c00;
+  --color-danger: #c43d4b;
+  --color-focus: #2563eb;
+
+  /* 4px spacing grid. */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* Radius scale: controls / cards & panels / overlays. */
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-overlay: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-canvas: #0d1017;
+    --color-bg-surface: #151a23;
+    --color-bg-elevated: #1d2430;
+    --color-text-primary: #f3f6fc;
+    --color-text-secondary: #aab4c5;
+    --color-border: #303949;
+    --color-accent: #8992ff;
+    --color-accent-hover: #a2a9ff;
+    --color-success: #45c995;
+    --color-warning: #f2b85b;
+    --color-danger: #ff7a88;
+    --color-focus: #8bb5ff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg-canvas: #0d1017;
+  --color-bg-surface: #151a23;
+  --color-bg-elevated: #1d2430;
+  --color-text-primary: #f3f6fc;
+  --color-text-secondary: #aab4c5;
+  --color-border: #303949;
+  --color-accent: #8992ff;
+  --color-accent-hover: #a2a9ff;
+  --color-success: #45c995;
+  --color-warning: #f2b85b;
+  --color-danger: #ff7a88;
+  --color-focus: #8bb5ff;
+}

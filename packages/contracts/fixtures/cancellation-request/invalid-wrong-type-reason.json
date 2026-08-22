@@ -1,0 +1,10 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0002",
+    "userId": "user-0001",
+    "sessionId": "sess-0001",
+    "taskId": "task-0001"
+  },
+  "reason": 123
+}

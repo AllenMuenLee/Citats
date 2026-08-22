@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "correlation": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "sessionId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "taskId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "userId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "userId"
+      ],
+      "type": "object"
+    },
+    "message": {
+      "maxLength": 500,
+      "type": "string"
+    },
+    "partialPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "maxLength": 2000,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "phase": {
+      "enum": [
+        "queued",
+        "started",
+        "in_progress",
+        "awaiting_confirmation",
+        "finalizing"
+      ],
+      "type": "string"
+    },
+    "toolCallId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "correlation",
+    "toolCallId",
+    "phase"
+  ],
+  "type": "object"
+}

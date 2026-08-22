@@ -1,0 +1,50 @@
+# Phase 0 local development infrastructure: Postgres and Redis only.
+#
+# apps/web and services/browser are intentionally NOT containerized here.
+# In local dev they run directly on the host (via `npm run dev` / `uv run
+# uvicorn ...`) and reach these services over `localhost` using the
+# POSTGRES_HOST=localhost / REDIS_HOST=localhost values in .env.example. A
+# future container profile for the app services can add a `network` and
+# switch those host values to the compose service names (`postgres`,
+# `redis`) without changing this file's shape.
+#
+# All credentials below are non-production development defaults. Do not
+# reuse them outside local development.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ai_browser_dev
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: ai_browser_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_browser_dev -d ai_browser_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "devpassword"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a devpassword ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  redis-data:

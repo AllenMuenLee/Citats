@@ -1,0 +1,25 @@
+{
+  "name": "@ai-browser/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron main process and preload for the AI-Native Browser desktop shell. Owns window/security policy, the services/browser child-process lifecycle, the per-launch local-service auth token, and loading apps/renderer. See docs/desktop-architecture-and-ui-specification.md.",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "tsc -p tsconfig.json",
+    "lint": "echo \"[apps/desktop] no lint config yet (Phase 0 known limitation, see docs/features/p00-f01-monorepo-environment.md)\" && exit 0",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "package": "electron-builder --dir"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

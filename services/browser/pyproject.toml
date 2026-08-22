@@ -1,0 +1,61 @@
+[project]
+name = "browser-service"
+version = "0.1.0"
+description = "FastAPI service wrapping Nodriver for AI-Native Browser tool-call dispatch (Phase 0: scaffolding and health endpoints only)."
+readme = "README.md"
+authors = [
+    { name = "Allen Lee", email = "limuen.allen@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.74.0",
+    "httpx>=0.28.1",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+# Generated file (see scripts/generate_contracts.py) -- never hand-edited,
+# so lines that exceed the project's style line-length (a long regex
+# `pattern=` constant, a long `Literal[...]` enum union) are left as
+# datamodel-code-generator/black produced them rather than reformatted, and
+# black's import wrapping (line-length aware) is allowed to disagree with
+# ruff/isort's own wrapping opinion (I001) for the same reason.
+[tool.ruff.lint.per-file-ignores]
+"src/browser_service/contracts/generated/*.py" = ["E501", "I001"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+explicit_package_bases = true
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+exclude = "^\\.venv/"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

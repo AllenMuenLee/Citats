@@ -1,0 +1,15 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001",
+    "sessionId": "sess-0001",
+    "taskId": "task-0001"
+  },
+  "toolCallId": "call-0001",
+  "phase": "in_progress",
+  "message": "Still processing the request.",
+  "partialPayload": {
+    "message": "partial ech"
+  }
+}

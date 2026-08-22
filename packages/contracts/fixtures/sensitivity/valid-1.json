@@ -1,0 +1,5 @@
+{
+  "sensitive": true,
+  "reasons": ["payment"],
+  "confirmationRequired": true
+}

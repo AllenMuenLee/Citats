@@ -1,0 +1,44 @@
+# --- Secrets / local environment overrides ---
+# Never commit real env files. .env.example (and per-workspace
+# .env.example) files ARE tracked -- they contain names/placeholders only.
+.env
+.env.local
+.env.*.local
+!.env.example
+!**/.env.example
+
+# --- Node / npm workspaces ---
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+dist/
+# electron-builder output (apps/desktop/electron-builder.yml: directories.output)
+release/
+*.tsbuildinfo
+npm-debug.log*
+.pnpm-debug.log*
+
+# --- Python / uv ---
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+**/.venv/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+.pytest_cache/
+**/.pytest_cache/
+*.egg-info/
+
+# --- Editors / OS ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Docker / compose runtime data (named volumes are managed by Docker, not the repo) ---
+docker-data/

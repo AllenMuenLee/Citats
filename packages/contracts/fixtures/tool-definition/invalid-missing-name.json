@@ -1,0 +1,7 @@
+{
+  "contractVersion": 1,
+  "description": "Echoes back the provided message.",
+  "argsSchemaVersion": 1,
+  "argsSchemaRef": "system.echo.v1",
+  "sensitiveByDefault": false
+}

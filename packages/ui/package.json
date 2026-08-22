@@ -1,0 +1,23 @@
+{
+  "name": "@ai-browser/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared theme tokens (and, in later phases, UI primitives) for the AI-Native Browser desktop renderer. Phase 0 scope: semantic color tokens, spacing grid, and radius scale only -- see docs/desktop-architecture-and-ui-specification.md.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "lint": "echo \"[packages/ui] no lint config yet (Phase 0: tokens only)\" && exit 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^4.1.11",
+    "@types/node": "^22"
+  }
+}

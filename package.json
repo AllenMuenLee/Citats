@@ -1,0 +1,24 @@
+{
+  "name": "ai-native-browser",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI-native browser monorepo root: npm workspaces for the Electron desktop app (apps/desktop), the Next.js desktop renderer (apps/renderer), and shared TypeScript packages (packages/contracts, packages/ui), plus a uv-managed Python service under services/browser (not an npm workspace member).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "docker compose up -d --wait",
+    "dev": "concurrently -k -n renderer,browser -c blue,green \"npm run dev --workspace apps/renderer\" \"cd services/browser && uv run uvicorn browser_service.app:app --reload --port 8000\"",
+    "lint": "npm run lint --workspaces --if-present && cd services/browser && uv run ruff check .",
+    "typecheck": "npm run typecheck --workspaces --if-present && cd services/browser && uv run mypy .",
+    "test": "npm run test --workspaces --if-present && cd services/browser && uv run pytest -q",
+    "package": "npm run build --workspace apps/renderer && npm run build --workspace apps/desktop && npm run package --workspace apps/desktop",
+    "compose:up": "docker compose up -d --wait",
+    "compose:down": "docker compose down",
+    "compose:config": "docker compose config"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

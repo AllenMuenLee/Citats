@@ -1,0 +1,25 @@
+{
+  "name": "@ai-browser/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Canonical tool-call contract schemas shared between apps/desktop, apps/renderer, and services/browser (P00-F03). Source of truth per ADR 0004: TypeScript + Zod schemas in src/, with JSON Schema generated to schema/ and Pydantic models generated into services/browser/src/browser_service/contracts/.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "echo \"[packages/contracts] no lint config yet (see P00-F03 known limitations)\" && exit 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "generate:schema": "tsx scripts/generate-schema.ts",
+    "check:schema": "tsx scripts/generate-schema.ts --check"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^4.1.11",
+    "tsx": "^4.23.12",
+    "@types/node": "^22"
+  }
+}

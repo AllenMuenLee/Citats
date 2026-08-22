@@ -1,0 +1,50 @@
+# electron-builder config for the AI-Native Browser desktop shell.
+#
+# Phase 0 scope (see docs/features/p00-f01-monorepo-environment.md,
+# "Packaging"): prove the packaging *configuration* is reasonable via
+# `electron-builder --dir` (unpacked output, no installer/signing). Bundling
+# a redistributable Python runtime for services/browser is an explicit,
+# documented gap -- extraResources below copies the Python *source* only;
+# a target machine still needs `uv` (or a future bundled interpreter) to run
+# it. See the known-limitations section of that doc for the concrete
+# follow-up.
+appId: com.aibrowser.desktop
+productName: AI-Native Browser
+# electron-builder's auto version-detection does not find `electron` when
+# it is hoisted to the monorepo root by npm workspaces (a known
+# electron-builder/npm-workspaces interaction -- see
+# https://github.com/electron-userland/electron-builder/issues/3984).
+# Pinning it explicitly here works around that; keep in sync with the
+# `electron` devDependency version actually installed at the repo root.
+electronVersion: 33.4.11
+directories:
+  buildResources: build
+  output: release
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../../services/browser
+    to: services/browser
+    filter:
+      - "src/**/*"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "README.md"
+      - "!**/__pycache__/**"
+      - "!**/.venv/**"
+      - "!**/.mypy_cache/**"
+      - "!**/.ruff_cache/**"
+      - "!**/.pytest_cache/**"
+  - from: ../renderer/.next/standalone
+    to: renderer-standalone
+  - from: ../renderer/.next/static
+    to: renderer-standalone/apps/renderer/.next/static
+  - from: ../renderer/public
+    to: renderer-standalone/apps/renderer/public
+win:
+  target: dir
+mac:
+  target: dir
+linux:
+  target: dir
