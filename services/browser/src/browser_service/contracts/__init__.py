@@ -55,6 +55,10 @@ from browser_service.contracts.generated.error_result import ErrorResult
 from browser_service.contracts.generated.evidence_item import (
     EvidenceItem as _GeneratedEvidenceItem,
 )
+from browser_service.contracts.generated.generative_ui_part import GenerativeUiPart
+from browser_service.contracts.generated.invocation_invoke_discovered_api import (
+    InvocationInvokeDiscoveredApi as _GeneratedInvocationInvokeDiscoveredApi,
+)
 from browser_service.contracts.generated.invocation_navigate_and_extract import (
     InvocationNavigateAndExtract as _GeneratedInvocationNavigateAndExtract,
 )
@@ -65,6 +69,9 @@ from browser_service.contracts.generated.progress_event_system_echo import (
     ProgressEventSystemEcho as _GeneratedProgressEventSystemEcho,
 )
 from browser_service.contracts.generated.sensitivity import Sensitivity
+from browser_service.contracts.generated.success_result_invoke_discovered_api import (
+    SuccessResultInvokeDiscoveredApi as _GeneratedSuccessResultInvokeDiscoveredApi,
+)
 from browser_service.contracts.generated.success_result_navigate_and_extract import (
     SuccessResultNavigateAndExtract as _GeneratedSuccessResultNavigateAndExtract,
 )
@@ -72,6 +79,7 @@ from browser_service.contracts.generated.success_result_system_echo import (
     SuccessResultSystemEcho as _GeneratedSuccessResultSystemEcho,
 )
 from browser_service.contracts.generated.tool_definition import ToolDefinition
+from browser_service.contracts.generated.ui_command import UiCommand
 
 __all__ = [
     "ForbiddenCredentialFieldError",
@@ -88,7 +96,27 @@ __all__ = [
     "CancellationResult",
     "InvocationNavigateAndExtract",
     "SuccessResultNavigateAndExtract",
+    "GenerativeUiPart",
+    "UiCommand",
+    "InvocationInvokeDiscoveredApi",
+    "SuccessResultInvokeDiscoveredApi",
 ]
+
+
+class InvocationInvokeDiscoveredApi(_GeneratedInvocationInvokeDiscoveredApi):
+    @model_validator(mode="after")
+    def _check_parameters_for_forbidden_fields(self) -> InvocationInvokeDiscoveredApi:
+        assert_no_forbidden_fields(
+            self.arguments.model_dump()["parameters"], base_path="arguments.parameters"
+        )
+        return self
+
+
+class SuccessResultInvokeDiscoveredApi(_GeneratedSuccessResultInvokeDiscoveredApi):
+    @model_validator(mode="after")
+    def _check_records_for_forbidden_fields(self) -> SuccessResultInvokeDiscoveredApi:
+        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
+        return self
 
 
 class EvidenceItem(_GeneratedEvidenceItem):

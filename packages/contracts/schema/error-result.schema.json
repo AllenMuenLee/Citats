@@ -47,6 +47,10 @@
         "TIMEOUT",
         "CANCELLED",
         "UPSTREAM_UNAVAILABLE",
+        "POLICY_BLOCKED",
+        "STALE_MAP",
+        "RESPONSE_DRIFT",
+        "RATE_LIMITED",
         "INTERNAL"
       ],
       "type": "string"

@@ -94,6 +94,19 @@ class FixtureRequestHandler(http.server.BaseHTTPRequestHandler):
             self._respond_json_ok()
             return
 
+        if split.path == "/api/products":
+            body = (
+                b'{"products":[{"id":"fixture-1","name":"Fixture headphones",'
+                b'"merchant":"Fixture shop","availability":"available",'
+                b'"priceAmount":99,"currency":"USD"}]}'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if split.path == "/api/big":
             body = b'{"blob": "' + (b"a" * 300_000) + b'"}'
             self.send_response(200)

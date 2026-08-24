@@ -325,6 +325,29 @@ class SitePolicy(BaseModel):
             return False
         return any(_route_matches(pattern, path) for pattern in self.allowed_routes)
 
+    def domain_allowed(self, domain: str) -> bool:
+        try:
+            normalized = normalize_domain(domain)
+        except ValueError:
+            return False
+        if normalized == self.canonical_domain:
+            return True
+        suffix = f".{self.canonical_domain}"
+        if not normalized.endswith(suffix):
+            return False
+        relative = normalized[: -len(suffix)]
+        for entry in self.allowed_subdomains:
+            if not entry.startswith("*.") and relative == entry:
+                return True
+            if entry.startswith("*."):
+                fixed_suffix = entry[2:]
+                relative_suffix = f".{fixed_suffix}"
+                if relative.endswith(relative_suffix):
+                    wildcard_label = relative[: -len(relative_suffix)]
+                    if wildcard_label and "." not in wildcard_label:
+                        return True
+        return False
+
 
 def _route_matches(pattern: str, path: str) -> bool:
     if not pattern.endswith("/*"):

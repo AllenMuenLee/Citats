@@ -8,14 +8,14 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
+from browser_service.sites.lint import lint
 from browser_service.sites.loader import (
-    SitePolicyLoadError,
     SitePolicyLoader,
+    SitePolicyLoadError,
     default_sites_root,
     parse_site_policy_file,
 )
 from browser_service.sites.schema import Decision, SitePolicy
-from scripts.lint_site_policies import lint
 
 
 def base_policy_fields(**overrides: Any) -> dict[str, Any]:
@@ -169,6 +169,16 @@ def test_route_and_method_allowed_rejects_non_safe_method_even_if_requested() ->
     assert policy.route_and_method_allowed("DELETE", "/v1/items/42") is False
 
 
+def test_domain_allowed_normalizes_and_matches_only_declared_depth() -> None:
+    policy = SitePolicy.model_validate(base_policy_fields())
+    assert policy.domain_allowed("EXAMPLE.com") is True
+    assert policy.domain_allowed("api.example.com") is True
+    assert policy.domain_allowed("cdn.static.example.com") is True
+    assert policy.domain_allowed("deep.cdn.static.example.com") is False
+    assert policy.domain_allowed("api.example.com.evil.test") is False
+    assert policy.domain_allowed("not a domain") is False
+
+
 # --- loader.py ---------------------------------------------------------
 
 
@@ -213,6 +223,35 @@ def test_loader_kill_switch_blocks_even_when_approved(tmp_path: Path) -> None:
     loader = SitePolicyLoader(root=tmp_path)
     assert loader.is_capture_allowed("test-site") is False
     assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is False
+
+
+def test_loader_emergency_override_is_checked_despite_cached_policy(tmp_path: Path) -> None:
+    write_site_yaml(tmp_path, "test-site", base_policy_fields())
+    disabled: set[str] = set()
+    loader = SitePolicyLoader(
+        root=tmp_path,
+        ttl_seconds=300,
+        emergency_disabled=lambda site_id: site_id in disabled,
+    )
+    assert loader.is_capture_allowed("test-site") is True
+    disabled.add("test-site")
+    assert loader.is_capture_allowed("test-site") is False
+    assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is False
+
+
+def test_loader_checks_normalized_domain_for_capture_and_replay(tmp_path: Path) -> None:
+    write_site_yaml(tmp_path, "test-site", base_policy_fields())
+    loader = SitePolicyLoader(root=tmp_path)
+    assert loader.is_capture_allowed("test-site", "API.EXAMPLE.COM") is True
+    assert loader.is_capture_allowed("test-site", "evil.example.net") is False
+    assert loader.is_replay_allowed("test-site", "GET", "/v1/users", "example.com") is True
+    assert loader.is_replay_allowed("test-site", "GET", "/v1/users", "evil.test") is False
+
+
+@pytest.mark.parametrize("ttl", [0, -1, 301])
+def test_loader_rejects_unbounded_cache_ttl(tmp_path: Path, ttl: float) -> None:
+    with pytest.raises(ValueError, match="ttl_seconds_must_be_between"):
+        SitePolicyLoader(root=tmp_path, ttl_seconds=ttl)
 
 
 def test_loader_expired_approval_blocks(tmp_path: Path) -> None:

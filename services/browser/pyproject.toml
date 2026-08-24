@@ -11,6 +11,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
+    "httpx>=0.28.1",
     "nodriver>=0.50.3",
     "pyyaml>=6.0",
     "uvicorn[standard]>=0.52.4",
@@ -23,7 +24,6 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "datamodel-code-generator>=0.74.0",
-    "httpx>=0.28.1",
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
@@ -64,3 +64,7 @@ exclude = "^\\.venv/"
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "browser_service.contracts.generated.*"
+disable_error_code = ["valid-type"]

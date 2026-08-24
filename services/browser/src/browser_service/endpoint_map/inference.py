@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 from collections import Counter, defaultdict
 from collections.abc import Sequence
-from typing import TypeVar
+from urllib.parse import quote, unquote, urlsplit
 
 from browser_service.endpoint_map.models import (
     BodyShapeSchema,
@@ -47,11 +47,32 @@ logger = logging.getLogger("browser_service.endpoint_map.inference")
 _VARIABLE_SEGMENT = "{var}"
 _REPETITION_SATURATION = 5.0
 
-_T = TypeVar("_T")
-
-
 def _segments(path: str) -> tuple[str, ...]:
-    return tuple(part for part in path.split("/") if part != "")
+    split = urlsplit(path)
+    normalized: list[str] = []
+    for part in split.path.split("/"):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if normalized:
+                normalized.pop()
+            continue
+        normalized.append(quote(unquote(part), safe="!$&'()*+,;=:@-._~"))
+    return tuple(normalized)
+
+
+def _origin(origin: str) -> str:
+    parsed = urlsplit(origin)
+    if parsed.scheme.lower() not in {"http", "https"} or parsed.hostname is None:
+        raise ValueError("observation origin must be HTTP(S)")
+    host = parsed.hostname.lower().rstrip(".")
+    port = parsed.port
+    include_port = port is not None and not (
+        (parsed.scheme.lower() == "http" and port == 80)
+        or (parsed.scheme.lower() == "https" and port == 443)
+    )
+    authority = f"{host}:{port}" if include_port else host
+    return f"{parsed.scheme.lower()}://{authority}"
 
 
 def _join_template(segments: Sequence[str]) -> str:
@@ -116,7 +137,7 @@ def _templates_for_method_origin(
     return groups
 
 
-def _mode(counts: Counter[_T]) -> _T:
+def _mode[T](counts: Counter[T]) -> T:
     """Deterministically pick the highest-count key, breaking ties on the
     key's string form so the result never depends on dict/set iteration
     order (which in turn could otherwise depend on input observation
@@ -226,8 +247,10 @@ def infer_operations(
     by_id: dict[str, SanitizedNetworkObservation] = {}
     by_method_origin: dict[tuple[str, str], list[tuple[tuple[str, ...], str]]] = defaultdict(list)
     for obs in observations:
+        if obs.observation_id in by_id:
+            raise ValueError("observation ids must be unique")
         by_id[obs.observation_id] = obs
-        by_method_origin[(obs.method.upper(), obs.origin)].append(
+        by_method_origin[(obs.method.upper(), _origin(obs.origin))].append(
             (_segments(obs.path), obs.observation_id)
         )
 
@@ -237,7 +260,9 @@ def infer_operations(
         groups = _templates_for_method_origin(by_method_origin[method_origin])
         for group in sorted(groups, key=lambda g: g.path_template):
             group_observations = [by_id[oid] for oid in group.observation_ids]
-            operations.append(_build_operation(method, origin, group.path_template, group_observations))
+            operations.append(
+                _build_operation(method, origin, group.path_template, group_observations)
+            )
 
     logger.debug(
         "inferred %d operation(s) from %d observation(s)", len(operations), len(observations)

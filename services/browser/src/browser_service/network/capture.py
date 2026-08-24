@@ -45,6 +45,7 @@ ObservationSink = Callable[[SanitizedNetworkObservation], Awaitable[None] | None
 # to the sanitizer or held in a RawExchange -- keeps a single oversized body
 # from ballooning task-local memory even transiently.
 MAX_RAW_BODY_CHARS = 1_000_000
+MAX_PENDING_EXCHANGES = 1_000
 
 _CAPTURED_RESOURCE_TYPES = frozenset({cdp_network.ResourceType.XHR, cdp_network.ResourceType.FETCH})
 
@@ -63,8 +64,9 @@ def _is_text_like(content_type: str | None) -> bool:
     if not content_type:
         return True
     base = content_type.split(";", 1)[0].strip().lower()
-    return base.startswith(("application/json", "application/ld+json", "application/xml", "text/")) or (
-        "x-www-form-urlencoded" in base
+    return (
+        base.startswith(("application/json", "application/ld+json", "application/xml", "text/"))
+        or "x-www-form-urlencoded" in base
     )
 
 
@@ -78,6 +80,7 @@ class _Pending:
     wall_time: float
     request_body_text: str | None
     request_content_type: str | None
+    request_body_truncated: bool
     response: cdp_network.Response | None = None
     response_resource_type: str | None = None
 
@@ -114,16 +117,26 @@ async def capture_network(
     pending: dict[str, _Pending] = {}
 
     async def on_request_will_be_sent(event: cdp_network.RequestWillBeSent, tab: Tab) -> None:
+        resource_type = event.type_.value if event.type_ is not None else None
+        if resource_type not in {item.value for item in _CAPTURED_RESOURCE_TYPES}:
+            return
+        if len(pending) >= MAX_PENDING_EXCHANGES:
+            pending.pop(next(iter(pending)))
         request = event.request
+        request_body = request.post_data
+        request_body_truncated = request_body is not None and len(request_body) > MAX_RAW_BODY_CHARS
         pending[str(event.request_id)] = _Pending(
             method=request.method,
             url=request.url,
-            resource_type=event.type_.value if event.type_ is not None else None,
+            resource_type=resource_type,
             initiator_type=event.initiator.type_,
             request_timestamp=float(event.timestamp),
             wall_time=float(event.wall_time),
-            request_body_text=request.post_data,
+            request_body_text=request_body[:MAX_RAW_BODY_CHARS]
+            if request_body is not None
+            else None,
             request_content_type=_header_value(request.headers, "content-type"),
+            request_body_truncated=request_body_truncated,
         )
 
     async def on_response_received(event: cdp_network.ResponseReceived, tab: Tab) -> None:
@@ -149,10 +162,15 @@ async def capture_network(
 
         content_type = response.mime_type or _header_value(response.headers, "content-type")
         response_body_text: str | None = None
+        response_body_binary = False
+        response_body_truncated = False
         if _is_text_like(content_type):
             with contextlib.suppress(Exception):
                 body, is_base64 = await tab.send(cdp_network.get_response_body(event.request_id))
-                if not is_base64 and body:
+                if is_base64:
+                    response_body_binary = True
+                elif body:
+                    response_body_truncated = len(body) > MAX_RAW_BODY_CHARS
                     response_body_text = body[:MAX_RAW_BODY_CHARS]
                 # is_base64 True means the body is actually binary despite
                 # a text-ish content-type claim -- leave response_body_text
@@ -173,6 +191,8 @@ async def capture_network(
             request_body_text=entry.request_body_text,
             request_content_type=entry.request_content_type,
             response_body_text=response_body_text,
+            response_body_binary=response_body_binary,
+            pre_truncated=entry.request_body_truncated or response_body_truncated,
         )
 
         origin = page_origin

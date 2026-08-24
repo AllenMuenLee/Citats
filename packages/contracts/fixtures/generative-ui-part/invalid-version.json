@@ -1,0 +1,13 @@
+{
+  "component_type": "product_results",
+  "schema_version": "2.0",
+  "instance_id": "instance-1",
+  "result_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "props": {},
+  "provenance": { "invocation_id": "invocation-1", "sources": [] },
+  "allowed_commands": [],
+  "correlation_id": "correlation-1",
+  "freshness": { "retrieved_at": "2026-08-24T10:00:00+08:00" },
+  "warnings": [],
+  "fallback_text": "Unavailable."
+}

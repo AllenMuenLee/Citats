@@ -8,6 +8,7 @@ import { SensitivityFlagsSchema } from "./sensitivity";
 import { CONTRACT_MAJOR_VERSION } from "./version";
 import { SystemEchoResultSchema } from "./tools/system-echo";
 import { NavigateAndExtractResultSchema } from "./tools/navigate-and-extract";
+import { InvokeDiscoveredApiResultSchema } from "./tools/invoke-discovered-api";
 
 /**
  * Generic factory for a tool success result: correlation metadata echoed
@@ -41,6 +42,12 @@ export const NavigateAndExtractSuccessResultSchema = makeToolSuccessResultSchema
   NavigateAndExtractResultSchema,
 );
 export type NavigateAndExtractSuccessResult = z.infer<typeof NavigateAndExtractSuccessResultSchema>;
+
+export const InvokeDiscoveredApiSuccessResultSchema = makeToolSuccessResultSchema(
+  InvokeDiscoveredApiResultSchema,
+);
+
+export type InvokeDiscoveredApiSuccessResult = z.infer<typeof InvokeDiscoveredApiSuccessResultSchema>;
 
 /**
  * Tool error result. `errorCode` is the closed set from `errors.ts`;

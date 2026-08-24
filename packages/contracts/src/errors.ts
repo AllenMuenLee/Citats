@@ -19,6 +19,10 @@ export const ToolErrorCodeSchema = z.enum([
   "CANCELLED",
   /** A required upstream dependency (browser, page, network) was unavailable. */
   "UPSTREAM_UNAVAILABLE",
+  "POLICY_BLOCKED",
+  "STALE_MAP",
+  "RESPONSE_DRIFT",
+  "RATE_LIMITED",
   /** Any other failure. The catch-all -- never leaks internal detail (see `message`). */
   "INTERNAL",
 ]);

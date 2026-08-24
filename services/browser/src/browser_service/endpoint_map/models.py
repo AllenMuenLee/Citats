@@ -15,10 +15,11 @@ governance); this package only ever references a site by its opaque
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
+from urllib.parse import urlsplit
 
 
-class ApprovalState(str, Enum):
+class ApprovalState(StrEnum):
     """Lifecycle state of an :class:`EndpointMapVersion`.
 
     ``PENDING`` is the state every freshly inferred snapshot starts in --
@@ -31,6 +32,41 @@ class ApprovalState(str, Enum):
     PENDING = "pending"
     ACTIVE = "active"
     SUPERSEDED = "superseded"
+
+
+class DriftKind(StrEnum):
+    REMOVED = "removed"
+    STATUS_CHANGED = "status_changed"
+    CONTENT_TYPE_CHANGED = "content_type_changed"
+    PARAMETER_INCOMPATIBLE = "parameter_incompatible"
+    RESPONSE_INCOMPATIBLE = "response_incompatible"
+
+
+@dataclass(frozen=True)
+class Site:
+    site_id: str
+    canonical_origin: str
+    created_at: str
+
+    def __post_init__(self) -> None:
+        parsed = urlsplit(self.canonical_origin)
+        if not self.site_id or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("site requires an id and canonical HTTP(S) origin")
+
+
+@dataclass(frozen=True)
+class DriftAlert:
+    operation_key: tuple[str, str, str]
+    kinds: tuple[DriftKind, ...]
+
+
+@dataclass(frozen=True)
+class ActivationRecord:
+    site_id: str
+    version_id: str
+    activated_at: str
+    activated_by: str
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -96,6 +132,17 @@ class NormalizedOperation:
     def operation_key(self) -> tuple[str, str, str]:
         return (self.method, self.origin, self.path_template)
 
+    def __post_init__(self) -> None:
+        parsed = urlsplit(self.origin)
+        if self.method != self.method.upper():
+            raise ValueError("method must be uppercase")
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.path:
+            raise ValueError("origin must be a normalized HTTP(S) origin")
+        if not self.path_template.startswith("/") or not 0 <= self.confidence <= 1:
+            raise ValueError("invalid path template or confidence")
+        if tuple(sorted(set(self.provenance))) != self.provenance:
+            raise ValueError("provenance must be sorted and unique")
+
 
 @dataclass(frozen=True)
 class EndpointMapVersion:
@@ -123,13 +170,31 @@ class EndpointMapVersion:
     def is_active(self) -> bool:
         return self.approval_state is ApprovalState.ACTIVE
 
+    def __post_init__(self) -> None:
+        if not self.version_id or not self.site_id:
+            raise ValueError("map version requires ids")
+        keys = tuple(operation.operation_key for operation in self.operations)
+        if keys != tuple(sorted(keys)) or len(keys) != len(set(keys)):
+            raise ValueError("operations must be sorted and unique")
+        activation_fields = (self.activated_at, self.activated_by, self.activation_reason)
+        if self.is_active and any(value is None or value == "" for value in activation_fields):
+            raise ValueError("active versions require complete activation metadata")
+        if self.approval_state is ApprovalState.PENDING and any(
+            value is not None for value in activation_fields
+        ):
+            raise ValueError("pending versions cannot carry activation metadata")
+
 
 __all__ = [
     "ApprovalState",
+    "ActivationRecord",
     "BodyShapeSchema",
+    "DriftAlert",
+    "DriftKind",
     "EndpointMapVersion",
     "FieldPresence",
     "NormalizedOperation",
     "ParameterSchema",
     "ResponseSchema",
+    "Site",
 ]

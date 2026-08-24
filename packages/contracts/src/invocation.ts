@@ -8,6 +8,7 @@ import {
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractArgsSchema,
 } from "./tools/navigate-and-extract";
+import { INVOKE_DISCOVERED_API_TOOL_NAME, InvokeDiscoveredApiArgsSchema } from "./tools/invoke-discovered-api";
 
 /**
  * Generic factory for a tool invocation envelope: correlation metadata,
@@ -49,3 +50,10 @@ export const NavigateAndExtractInvocationSchema = makeToolInvocationSchema(
 );
 
 export type NavigateAndExtractInvocation = z.infer<typeof NavigateAndExtractInvocationSchema>;
+
+export const InvokeDiscoveredApiInvocationSchema = makeToolInvocationSchema(
+  INVOKE_DISCOVERED_API_TOOL_NAME,
+  InvokeDiscoveredApiArgsSchema,
+);
+
+export type InvokeDiscoveredApiInvocation = z.infer<typeof InvokeDiscoveredApiInvocationSchema>;

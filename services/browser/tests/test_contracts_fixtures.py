@@ -23,13 +23,17 @@ from browser_service.contracts import (
     CorrelationMetadata,
     ErrorResult,
     EvidenceItem,
+    GenerativeUiPart,
+    InvocationInvokeDiscoveredApi,
     InvocationNavigateAndExtract,
     InvocationSystemEcho,
     ProgressEventSystemEcho,
     Sensitivity,
+    SuccessResultInvokeDiscoveredApi,
     SuccessResultNavigateAndExtract,
     SuccessResultSystemEcho,
     ToolDefinition,
+    UiCommand,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -48,6 +52,10 @@ FIXTURE_MODEL_REGISTRY: dict[str, type[BaseModel]] = {
     "correlation-metadata": CorrelationMetadata,
     "invocation-navigate-and-extract": InvocationNavigateAndExtract,
     "success-result-navigate-and-extract": SuccessResultNavigateAndExtract,
+    "generative-ui-part": GenerativeUiPart,
+    "ui-command": UiCommand,
+    "invocation-invoke-discovered-api": InvocationInvokeDiscoveredApi,
+    "success-result-invoke-discovered-api": SuccessResultInvokeDiscoveredApi,
 }
 
 

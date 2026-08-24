@@ -20,12 +20,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from browser_service.contracts import (
+    InvocationInvokeDiscoveredApi,
     InvocationNavigateAndExtract,
     InvocationSystemEcho,
+    SuccessResultInvokeDiscoveredApi,
     SuccessResultNavigateAndExtract,
     SuccessResultSystemEcho,
 )
 from browser_service.tool_outcome import ToolHandlerOutcome
+from browser_service.tools.invoke_discovered_api import run_invoke_discovered_api
 from browser_service.tools.navigate_and_extract import run_navigate_and_extract
 
 MAX_ARTIFICIAL_DELAY_MS = 2_000
@@ -39,9 +42,7 @@ async def system_echo(
     """Echo the bounded message, with an optional test-only bounded delay."""
     delay_value = (invocation.arguments.context or {}).get("delayMs", 0)
     delay_ms = (
-        delay_value
-        if isinstance(delay_value, int) and not isinstance(delay_value, bool)
-        else 0
+        delay_value if isinstance(delay_value, int) and not isinstance(delay_value, bool) else 0
     )
     delay_ms = min(max(delay_ms, 0), MAX_ARTIFICIAL_DELAY_MS)
     if delay_ms:
@@ -72,5 +73,10 @@ TOOL_REGISTRY: dict[str, ToolRegistration] = {
     "system.echo": ToolRegistration(InvocationSystemEcho, system_echo, SuccessResultSystemEcho),
     "browser.navigate_and_extract": ToolRegistration(
         InvocationNavigateAndExtract, run_navigate_and_extract, SuccessResultNavigateAndExtract
+    ),
+    "browser.invoke_discovered_api": ToolRegistration(
+        InvocationInvokeDiscoveredApi,
+        run_invoke_discovered_api,
+        SuccessResultInvokeDiscoveredApi,
     ),
 }

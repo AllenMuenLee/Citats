@@ -10,7 +10,9 @@ export type ArtifactPart = MessagePartBase & { type: "artifact"; artifactType: "
 /** A source cited somewhere in a completed answer: title, destination origin, and retrieval time (see docs/desktop-architecture-and-ui-specification.md's citation requirements). */
 export type CitationSource = { id: string; url: string; title: string; retrievedAt: string };
 export type CitationSourcesPart = MessagePartBase & { type: "citation-sources"; sources: CitationSource[] };
-export type ChatPart = UserPart | AssistantPart | ToolStatusPart | ArtifactPart | ErrorPart | CitationSourcesPart;
+export type GenerativeUiChatPart = MessagePartBase & { type: "generative-ui"; payload: unknown };
+export type GenerativeUiWarningPart = MessagePartBase & { type: "generative-ui-warning"; text: string };
+export type ChatPart = UserPart | AssistantPart | ToolStatusPart | ArtifactPart | ErrorPart | CitationSourcesPart | GenerativeUiChatPart | GenerativeUiWarningPart;
 export type ChatStreamEvent =
   | { type: "text-delta"; delta: string }
   | { type: "tool-status"; id?: string; label: string; state: ToolStatusPart["state"] }
@@ -18,4 +20,6 @@ export type ChatStreamEvent =
   | { type: "error"; message: string; retryable?: boolean }
   | { type: "citation-marker"; id: string; citationId: string; sourceId: string; position: number }
   | { type: "citation-sources"; id: string; sources: CitationSource[] }
+  | { type: "generative-ui"; id?: string; payload: unknown }
+  | { type: "generative-ui-warning"; id?: string; text: string }
   | { type: "done" };

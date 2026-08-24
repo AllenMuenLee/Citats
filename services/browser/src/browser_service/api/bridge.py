@@ -12,9 +12,15 @@ from pydantic import ValidationError
 from browser_service.auth import require_service_token
 from browser_service.tool_outcome import ToolExecutionError
 from browser_service.tool_registry import TOOL_REGISTRY
+from browser_service.tools.invoke_discovered_api import get_discovered_tool_definitions
 
 router = APIRouter(prefix="/v1/tools", dependencies=[Depends(require_service_token)])
 logger = logging.getLogger("browser_service.api.bridge")
+
+
+@router.get("/discovered")
+async def discovered_tools() -> dict[str, object]:
+    return {"tools": await get_discovered_tool_definitions()}
 
 
 def _error(body: dict[str, Any], code: str, message: str, retryable: bool) -> dict[str, Any]:

@@ -92,6 +92,8 @@ class RawExchange:
     request_body_text: str | None = None
     request_content_type: str | None = None
     response_body_text: str | None = None
+    response_body_binary: bool = False
+    pre_truncated: bool = False
 
 
 def _map_initiator(initiator_type: str) -> InitiatorCategory:
@@ -185,6 +187,9 @@ def sanitize_exchange(
     if raw.resource_type not in CAPTURED_RESOURCE_TYPES:
         return None
 
+    if raw.response_body_binary:
+        return None
+
     content_type = raw.response_content_type
     if content_type and not _is_text_like_content_type(content_type):
         # Binary/media/font-shaped response body -- skip entirely, never
@@ -222,11 +227,27 @@ def sanitize_exchange(
         captured_at = datetime.now(tz=UTC).isoformat()
 
     truncated_content_type = content_type
-    if truncated_content_type is not None and len(truncated_content_type) > limits.max_content_type_length:
+    content_type_truncated = (
+        truncated_content_type is not None
+        and len(truncated_content_type) > limits.max_content_type_length
+    )
+    if content_type_truncated and truncated_content_type is not None:
         truncated_content_type = truncated_content_type[: limits.max_content_type_length]
 
-    redacted = query_result.redacted or header_result.redacted or request_body.redacted or response_body.redacted
-    truncated = query_result.truncated or header_result.truncated or request_body.truncated or response_body.truncated
+    redacted = (
+        query_result.redacted
+        or header_result.redacted
+        or request_body.redacted
+        or response_body.redacted
+    )
+    truncated = (
+        raw.pre_truncated
+        or content_type_truncated
+        or query_result.truncated
+        or header_result.truncated
+        or request_body.truncated
+        or response_body.truncated
+    )
 
     try:
         return SanitizedNetworkObservation(

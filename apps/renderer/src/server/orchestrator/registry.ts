@@ -4,6 +4,10 @@ import {
   CONTRACT_MAJOR_VERSION,
   MAX_URL_LENGTH,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  INVOKE_DISCOVERED_API_TOOL_NAME,
+  InvokeDiscoveredApiArgsSchema,
+  InvokeDiscoveredApiInvocationSchema,
+  InvokeDiscoveredApiSuccessResultSchema,
   NavigateAndExtractArgsSchema,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
@@ -13,9 +17,11 @@ import {
   SystemEchoSuccessResultSchema,
   ToolErrorResultSchema,
   type NavigateAndExtractInvocation,
+  type InvokeDiscoveredApiInvocation,
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
 import type { MistralToolDefinition } from "../ai/mistral";
+import type { DiscoveredTool } from "../browser-service/client";
 
 export interface EchoToolExecutor {
   invoke(invocation: SystemEchoInvocation, signal?: AbortSignal): Promise<unknown>;
@@ -73,6 +79,88 @@ export interface NavigateAndExtractToolExecutor {
   invoke(invocation: NavigateAndExtractInvocation, signal?: AbortSignal): Promise<unknown>;
 }
 
+export interface InvokeDiscoveredApiToolExecutor {
+  invoke(invocation: InvokeDiscoveredApiInvocation, signal?: AbortSignal): Promise<unknown>;
+}
+
+export function createInvokeDiscoveredApiTool(executor: InvokeDiscoveredApiToolExecutor): RegisteredTool {
+  return {
+    definition: {
+      name: INVOKE_DISCOVERED_API_TOOL_NAME,
+      description: "Invokes an approved read-only discovered API operation using logical parameters. Never accepts URLs, headers, cookies, or mutation methods.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["siteId", "operationId", "parameters"],
+        properties: {
+          siteId: { type: "string", minLength: 1, maxLength: 80 },
+          operationId: { type: "string", minLength: 1, maxLength: 128 },
+          parameters: { type: "object", additionalProperties: true, maxProperties: 50 },
+        },
+      },
+    },
+    sensitive: false,
+    parseArguments: (value) => InvokeDiscoveredApiArgsSchema.parse(value),
+    async execute(args, context) {
+      const invocation = InvokeDiscoveredApiInvocationSchema.parse({
+        contractVersion: CONTRACT_MAJOR_VERSION,
+        correlation: {
+          requestId: context.requestId,
+          userId: context.userId,
+          sessionId: context.sessionId,
+        },
+        toolCallId: context.invocationId,
+        toolName: INVOKE_DISCOVERED_API_TOOL_NAME,
+        arguments: args,
+      });
+      const result = await executor.invoke(invocation, context.signal);
+      return InvokeDiscoveredApiSuccessResultSchema.or(ToolErrorResultSchema).parse(result);
+    },
+  };
+}
+
+function dynamicDiscoveredToolName(definition: DiscoveredTool): string {
+  const site = definition.siteId.replaceAll("-", "_").replace(/[^a-z0-9_]/g, "");
+  const operation = definition.operationId.toLowerCase().replace(/[^a-z0-9_]/g, "");
+  return `discovered.${site}.${operation}`.slice(0, 64);
+}
+
+export function createDiscoveredOperationTool(
+  executor: InvokeDiscoveredApiToolExecutor,
+  discovered: DiscoveredTool,
+): RegisteredTool {
+  return {
+    definition: {
+      name: dynamicDiscoveredToolName(discovered),
+      description: `Read-only ${discovered.resultKind.replaceAll("_", " ")} operation approved for ${discovered.siteId}.`,
+      parameters: discovered.parameters,
+    },
+    sensitive: false,
+    parseArguments(value) {
+      return InvokeDiscoveredApiArgsSchema.parse({
+        siteId: discovered.siteId,
+        operationId: discovered.operationId,
+        parameters: value,
+      }).parameters;
+    },
+    async execute(parameters, context) {
+      const invocation = InvokeDiscoveredApiInvocationSchema.parse({
+        contractVersion: CONTRACT_MAJOR_VERSION,
+        correlation: { requestId: context.requestId, userId: context.userId, sessionId: context.sessionId },
+        toolCallId: context.invocationId,
+        toolName: INVOKE_DISCOVERED_API_TOOL_NAME,
+        arguments: {
+          siteId: discovered.siteId,
+          operationId: discovered.operationId,
+          parameters,
+        },
+      });
+      const result = await executor.invoke(invocation, context.signal);
+      return InvokeDiscoveredApiSuccessResultSchema.or(ToolErrorResultSchema).parse(result);
+    },
+  };
+}
+
 /**
  * Registers the read-only `browser.navigate_and_extract` tool (P02-F04).
  * URL-only input, never sensitive, and its arguments/result are validated
@@ -127,6 +215,8 @@ export function createNavigateAndExtractTool(executor: NavigateAndExtractToolExe
 export function createToolRegistry(options: {
   echoExecutor?: EchoToolExecutor;
   navigateAndExtractExecutor?: NavigateAndExtractToolExecutor;
+  invokeDiscoveredApiExecutor?: InvokeDiscoveredApiToolExecutor;
+  discoveredApiDefinitions?: readonly DiscoveredTool[];
 }): ReadonlyMap<string, RegisteredTool> {
   const tools = new Map<string, RegisteredTool>();
   if (options.echoExecutor) {
@@ -136,6 +226,13 @@ export function createToolRegistry(options: {
   }
   if (options.navigateAndExtractExecutor) {
     tools.set(NAVIGATE_AND_EXTRACT_TOOL_NAME, createNavigateAndExtractTool(options.navigateAndExtractExecutor));
+  }
+  if (options.invokeDiscoveredApiExecutor) {
+    tools.set(INVOKE_DISCOVERED_API_TOOL_NAME, createInvokeDiscoveredApiTool(options.invokeDiscoveredApiExecutor));
+    for (const definition of options.discoveredApiDefinitions ?? []) {
+      const tool = createDiscoveredOperationTool(options.invokeDiscoveredApiExecutor, definition);
+      tools.set(tool.definition.name, tool);
+    }
   }
   return tools;
 }

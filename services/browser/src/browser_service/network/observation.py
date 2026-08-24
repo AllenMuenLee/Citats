@@ -13,10 +13,10 @@ default-deny redaction this feeds from.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class InitiatorCategory(str, Enum):
+class InitiatorCategory(StrEnum):
     """Coarse classification of what triggered a captured request (mirrors
     CDP ``Network.Initiator.type``, collapsed to the categories the mapper
     actually needs)."""

@@ -10,6 +10,7 @@ export type OrchestratorEvent =
   | { type: "text-delta"; delta: string }
   | { type: "tool-status"; id: string; label: string; state: "running" | "completed" | "failed" }
   | { type: "artifact"; id: string; artifactType: "image" | "file" | "source"; title: string; url?: string; mediaType?: string }
+  | { type: "generative-ui"; payload: unknown }
   | { type: "error"; message: string; retryable: boolean }
   /**
    * Inline reference tying a position in the streamed assistant text to a

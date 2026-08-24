@@ -1,0 +1,360 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "query": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        },
+        "command_type": {
+          "const": "product.refresh",
+          "type": "string"
+        },
+        "component_instance_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "component_type": {
+          "const": "product_results",
+          "type": "string"
+        },
+        "correlation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "originating_result_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "component_instance_id",
+        "originating_result_digest",
+        "correlation_id",
+        "component_type",
+        "command_type",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "enum": [
+                "available",
+                "unavailable",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            "max_price": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "merchant": {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            "min_price": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "query": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        },
+        "command_type": {
+          "const": "product.filter",
+          "type": "string"
+        },
+        "component_instance_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "component_type": {
+          "const": "product_results",
+          "type": "string"
+        },
+        "correlation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "originating_result_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "component_instance_id",
+        "originating_result_digest",
+        "correlation_id",
+        "component_type",
+        "command_type",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "query": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        },
+        "command_type": {
+          "const": "flight.refresh",
+          "type": "string"
+        },
+        "component_instance_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "component_type": {
+          "const": "flight_comparison",
+          "type": "string"
+        },
+        "correlation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "originating_result_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "component_instance_id",
+        "originating_result_digest",
+        "correlation_id",
+        "component_type",
+        "command_type",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "departure_window": {
+              "enum": [
+                "morning",
+                "afternoon",
+                "evening",
+                "overnight"
+              ],
+              "type": "string"
+            },
+            "max_price": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "max_stops": {
+              "maximum": 4,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "query": {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        },
+        "command_type": {
+          "const": "flight.filter",
+          "type": "string"
+        },
+        "component_instance_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "component_type": {
+          "const": "flight_comparison",
+          "type": "string"
+        },
+        "correlation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "originating_result_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "component_instance_id",
+        "originating_result_digest",
+        "correlation_id",
+        "component_type",
+        "command_type",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "itinerary_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "itinerary_id"
+          ],
+          "type": "object"
+        },
+        "command_type": {
+          "const": "flight.detail",
+          "type": "string"
+        },
+        "component_instance_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "component_type": {
+          "const": "flight_comparison",
+          "type": "string"
+        },
+        "correlation_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 128,
+          "minLength": 16,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "originating_result_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "component_instance_id",
+        "originating_result_digest",
+        "correlation_id",
+        "component_type",
+        "command_type",
+        "arguments"
+      ],
+      "type": "object"
+    }
+  ]
+}

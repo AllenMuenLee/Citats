@@ -132,9 +132,7 @@ def looks_like_pii_value(value: str) -> bool:
     if _SSN_RE.match(candidate):
         return True
     digits = re.sub(r"\D", "", candidate)
-    if _PHONE_DIGITS_RE.match(candidate) and len(digits) >= 9:
-        return True
-    return False
+    return bool(_PHONE_DIGITS_RE.match(candidate) and len(digits) >= 9)
 
 
 @dataclass(frozen=True)
@@ -255,7 +253,10 @@ def redact_response_header_names(
     redacted = False
     for name in header_names:
         lowered = name.strip().lower()
-        if lowered in ALWAYS_BLOCKED_HEADER_NAMES or lowered not in STABLE_RESPONSE_HEADER_ALLOWLIST:
+        if (
+            lowered in ALWAYS_BLOCKED_HEADER_NAMES
+            or lowered not in STABLE_RESPONSE_HEADER_ALLOWLIST
+        ):
             redacted = True
             continue
         allowed.append(lowered)

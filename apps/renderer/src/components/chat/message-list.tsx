@@ -1,16 +1,33 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Image from "next/image";
 import type { ImageLoaderProps } from "next/image";
 import { buildSourceIndex, SourceList } from "../citations";
 import type { ChatPart } from "./chat-types";
 import { renderMarkdown } from "./markdown";
+import { GeneratedUiView } from "../generative-ui/generated-ui-view";
+import { resolveGenerativeUiComponent } from "../generative-ui/registry";
+import { recordGenerativeUiMetric } from "../generative-ui/telemetry";
 import styles from "./chat.module.css";
 
 const passthroughImageLoader = ({ src }: ImageLoaderProps) => src;
 
-export function MessageList({ parts }: { parts: ChatPart[] }) {
+function GeneratedPart({ payload, sessionId }: { payload: unknown; sessionId: string }) {
+  const resolved = useMemo(() => resolveGenerativeUiComponent(payload), [payload]);
+  useEffect(() => {
+    if (resolved.ok) return;
+    const record = payload && typeof payload === "object" ? payload as Record<string, unknown> : undefined;
+    const componentType = record?.component_type === "flight_comparison" ? "flight_comparison" : "product_results";
+    recordGenerativeUiMetric({ componentType, schemaVersion: "1.0", event: "render_fallback", fallbackReason: resolved.reason });
+  }, [payload, resolved]);
+  if (!resolved.ok) {
+    return <section role="alert"><strong>Generated view unavailable</strong><p>{resolved.fallbackText}</p></section>;
+  }
+  return <GeneratedUiView part={resolved.part} sessionId={sessionId} />;
+}
+
+export function MessageList({ parts, sessionId = "desktop-session" }: { parts: ChatPart[]; sessionId?: string }) {
   const sourceIndex = useMemo(() => buildSourceIndex(parts), [parts]);
 
   if (!parts.length) {
@@ -25,6 +42,8 @@ export function MessageList({ parts }: { parts: ChatPart[] }) {
       {part.url ? <a href={part.url} target="_blank" rel="noreferrer">{part.title}</a> : <figcaption>{part.title}</figcaption>}
     </figure>}
     {part.type === "citation-sources" && <SourceList sources={part.sources} />}
+    {part.type === "generative-ui" && <GeneratedPart payload={part.payload} sessionId={sessionId} />}
+    {part.type === "generative-ui-warning" && <section role="alert"><strong>Generated view unavailable</strong><p>{part.text}</p></section>}
     {part.type === "error" && <><strong>Response failed</strong><p>{part.message}</p></>}
   </li>)}</ol>;
 }

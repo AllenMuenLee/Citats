@@ -12,13 +12,13 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from browser_service.network.observation import InitiatorCategory
+from browser_service.network.observation import InitiatorCategory, SanitizedNetworkObservation
+from browser_service.network.sanitizer import RawExchange as _RawExchange
 from browser_service.network.sanitizer import (
     SanitizerLimits,
     normalize_origin,
     sanitize_exchange,
 )
-from browser_service.network.sanitizer import RawExchange as _RawExchange
 
 HIGH_ENTROPY_TOKEN = "aZ9kL2mQ7xR4vB8nC1pW6sT3yU0dF5gH"  # noqa: S105 -- synthetic fixture value
 FAKE_COOKIE_VALUE = "session_id=deadbeef1234567890abcdef; Path=/"  # noqa: S105
@@ -48,7 +48,9 @@ def test_get_request_json_response_sanitizes_cleanly() -> None:
     raw = make_raw(
         response_body_text=json.dumps({"id": 1, "name": "widget"}),
     )
-    obs = sanitize_exchange(raw, task_id="task-1", session_id="sess-1", page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="task-1", session_id="sess-1", page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert obs.method == "GET"
     assert obs.origin == "https://api.example.com"
@@ -70,7 +72,9 @@ def test_post_json_request_body_shape_captured() -> None:
         request_body_text=json.dumps({"title": "hello", "count": 3}),
         response_body_text=json.dumps({"ok": True}),
     )
-    obs = sanitize_exchange(raw, task_id="task-1", session_id=None, page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="task-1", session_id=None, page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert obs.method == "POST"
     assert obs.request_body_shape is not None
@@ -86,7 +90,9 @@ def test_post_form_encoded_request_body_shape_captured() -> None:
         response_body_text=None,
         response_content_type=None,
     )
-    obs = sanitize_exchange(raw, task_id="task-1", session_id=None, page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="task-1", session_id=None, page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert obs.request_body_shape is not None
     assert obs.request_body_shape.kind == "object"
@@ -136,20 +142,40 @@ def test_unparseable_body_becomes_primitive_shape_not_discarded() -> None:
 
 
 def test_non_xhr_fetch_resource_type_discarded() -> None:
-    for resource_type in ["Document", "Script", "Stylesheet", "Image", "Media", "Font", "WebSocket", "Ping"]:
+    for resource_type in [
+        "Document",
+        "Script",
+        "Stylesheet",
+        "Image",
+        "Media",
+        "Font",
+        "WebSocket",
+        "Ping",
+    ]:
         obs = sanitize_exchange(
             make_raw(resource_type=resource_type),
             task_id="t",
             session_id=None,
             page_origin="https://api.example.com",
         )
-        assert obs is None, f"resource_type={resource_type} should be discarded, not partially recorded"
+        assert obs is None, (
+            f"resource_type={resource_type} should be discarded, not partially recorded"
+        )
 
 
 def test_binary_content_type_response_discarded_entirely() -> None:
-    for content_type in ["image/png", "font/woff2", "audio/mpeg", "video/mp4", "application/octet-stream"]:
+    for content_type in [
+        "image/png",
+        "font/woff2",
+        "audio/mpeg",
+        "video/mp4",
+        "application/octet-stream",
+    ]:
         obs = sanitize_exchange(
-            make_raw(response_content_type=content_type, response_body_text="binary-ish-bytes-not-decoded"),
+            make_raw(
+                response_content_type=content_type,
+                response_body_text="binary-ish-bytes-not-decoded",
+            ),
             task_id="t",
             session_id=None,
             page_origin="https://api.example.com",
@@ -157,8 +183,34 @@ def test_binary_content_type_response_discarded_entirely() -> None:
         assert obs is None, f"content_type={content_type} should be discarded entirely"
 
 
+def test_base64_response_body_is_discarded_even_when_content_type_claims_json() -> None:
+    obs = sanitize_exchange(
+        make_raw(response_body_binary=True),
+        task_id="t",
+        session_id=None,
+        page_origin="https://api.example.com",
+    )
+    assert obs is None
+
+
+def test_capture_level_truncation_is_reflected_on_observation() -> None:
+    obs = sanitize_exchange(
+        make_raw(pre_truncated=True),
+        task_id="t",
+        session_id=None,
+        page_origin="https://api.example.com",
+    )
+    assert obs is not None
+    assert obs.truncated is True
+
+
 def test_text_and_json_content_types_are_not_discarded() -> None:
-    for content_type in ["application/json", "application/json; charset=utf-8", "text/plain", "application/xml"]:
+    for content_type in [
+        "application/json",
+        "application/json; charset=utf-8",
+        "text/plain",
+        "application/xml",
+    ]:
         obs = sanitize_exchange(
             make_raw(response_content_type=content_type, response_body_text=None),
             task_id="t",
@@ -232,7 +284,9 @@ def test_size_limits_truncate_oversized_body() -> None:
     limits = SanitizerLimits(max_body_sample_bytes=50)
     huge_value = "x" * 1000
     raw = make_raw(response_body_text=json.dumps({"blob": huge_value}))
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits)
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits
+    )
     assert obs is not None
     assert obs.truncated is True
 
@@ -241,7 +295,9 @@ def test_size_limits_cap_query_key_count() -> None:
     limits = SanitizerLimits(max_query_keys=2)
     query = "&".join(f"k{i}=v{i}" for i in range(10))
     raw = make_raw(url=f"https://api.example.com/v1/x?{query}")
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits)
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits
+    )
     assert obs is not None
     assert len(obs.query_keys) == 2
     assert obs.truncated is True
@@ -251,7 +307,9 @@ def test_size_limits_cap_body_key_count() -> None:
     limits = SanitizerLimits(max_body_keys=3)
     body = {f"field{i}": "v" for i in range(10)}
     raw = make_raw(response_body_text=json.dumps(body))
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits)
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits
+    )
     assert obs is not None
     assert obs.response_body_shape is not None
     assert len(obs.response_body_shape.keys) == 3
@@ -261,7 +319,9 @@ def test_size_limits_cap_body_key_count() -> None:
 def test_size_limits_cap_response_header_count() -> None:
     limits = SanitizerLimits(max_response_headers=1)
     raw = make_raw(response_header_names=("Content-Type", "Cache-Control", "Vary", "Etag"))
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits)
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com", limits=limits
+    )
     assert obs is not None
     assert len(obs.stable_response_headers) == 1
     assert obs.truncated is True
@@ -274,7 +334,9 @@ def test_redaction_canary_cookie_and_auth_headers_never_retained() -> None:
     raw = make_raw(
         response_header_names=("Content-Type", "Set-Cookie", "Authorization"),
     )
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert "set-cookie" not in obs.stable_response_headers
     assert "authorization" not in obs.stable_response_headers
@@ -294,7 +356,9 @@ def test_redaction_canary_secret_and_pii_body_fields_never_retained() -> None:
         "note": "hello world",
     }
     raw = make_raw(response_body_text=json.dumps(body))
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert obs.response_body_shape is not None
     kept = set(obs.response_body_shape.keys)
@@ -310,7 +374,9 @@ def test_redaction_canary_high_entropy_query_value_drops_key_entirely() -> None:
     raw = make_raw(
         url=f"https://api.example.com/v1/x?session={HIGH_ENTROPY_TOKEN}&page=2",
     )
-    obs = sanitize_exchange(raw, task_id="t", session_id=None, page_origin="https://api.example.com")
+    obs = sanitize_exchange(
+        raw, task_id="t", session_id=None, page_origin="https://api.example.com"
+    )
     assert obs is not None
     assert "session" not in obs.query_keys
     assert "page" in obs.query_keys
@@ -358,7 +424,7 @@ def test_zero_secret_snapshot_across_full_exchange() -> None:
         assert secret not in serialized, f"leaked secret substring: {secret!r}"
 
 
-def _observation_to_jsonable(obs: object) -> object:
+def _observation_to_jsonable(obs: SanitizedNetworkObservation) -> object:
     def default(value: object) -> object:
         if dataclasses.is_dataclass(value) and not isinstance(value, type):
             return dataclasses.asdict(value)
@@ -366,4 +432,4 @@ def _observation_to_jsonable(obs: object) -> object:
             return value.value
         return str(value)
 
-    return json.loads(json.dumps(dataclasses.asdict(obs), default=default))  # type: ignore[arg-type]
+    return json.loads(json.dumps(dataclasses.asdict(obs), default=default))

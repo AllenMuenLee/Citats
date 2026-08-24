@@ -3,6 +3,9 @@ import "server-only";
 import { z } from "zod";
 import {
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  INVOKE_DISCOVERED_API_TOOL_NAME,
+  InvokeDiscoveredApiInvocationSchema,
+  InvokeDiscoveredApiSuccessResultSchema,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
   SYSTEM_ECHO_TOOL_NAME,
@@ -11,6 +14,8 @@ import {
   ToolErrorResultSchema,
   type NavigateAndExtractInvocation,
   type NavigateAndExtractSuccessResult,
+  type InvokeDiscoveredApiInvocation,
+  type InvokeDiscoveredApiSuccessResult,
   type SystemEchoInvocation,
   type SystemEchoSuccessResult,
   type ToolErrorResult,
@@ -31,13 +36,29 @@ export interface BrowserServiceClientOptions {
   log?: (record: Record<string, unknown>) => void;
 }
 
+const DiscoveredToolSchema = z.object({
+  siteId: z.string().min(1).max(80),
+  operationId: z.string().min(1).max(128),
+  method: z.enum(["GET", "HEAD"]),
+  resultKind: z.enum(["product_results", "flight_comparison", "generic_records"]),
+  parameters: z.object({
+    type: z.literal("object"),
+    additionalProperties: z.literal(false),
+    properties: z.record(z.string(), z.unknown()),
+    required: z.array(z.string()),
+  }).strict(),
+}).strict();
+
+export type DiscoveredTool = z.infer<typeof DiscoveredToolSchema>;
+
 /** Every invocation shape `invoke` accepts, keyed by their `toolName` literal. */
-export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation;
+export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation | InvokeDiscoveredApiInvocation;
 
 /** Maps each known tool's `toolName` literal to its success-result type, so `invoke`'s return type is inferred from the invocation passed in. */
 interface ToolSuccessResultMap {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResult;
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResult;
+  [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiSuccessResult;
 }
 
 export type InvokeResult<TInvocation extends KnownInvocation> =
@@ -53,11 +74,13 @@ export type InvokeResult<TInvocation extends KnownInvocation> =
 const INVOCATION_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoInvocationSchema,
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractInvocationSchema,
+  [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiInvocationSchema,
 };
 
 const SUCCESS_RESULT_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResultSchema,
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResultSchema,
+  [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiSuccessResultSchema,
 };
 
 function validateLoopbackBaseUrl(raw: string): URL {
@@ -83,6 +106,25 @@ export class BrowserServiceClient {
     this.#timeoutMs = options.timeoutMs ?? 5_000;
     this.#fetch = options.fetchImpl ?? fetch;
     this.#log = options.log ?? (() => undefined);
+  }
+
+  async listDiscoveredTools(signal?: AbortSignal): Promise<DiscoveredTool[]> {
+    const timeout = AbortSignal.timeout(this.#timeoutMs);
+    const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    let response: Response;
+    try {
+      response = await this.#fetch(new URL("v1/tools/discovered", this.#baseUrl), {
+        headers: { "x-service-token": this.#serviceToken },
+        signal: combinedSignal,
+      });
+    } catch (error) {
+      if (timeout.aborted) throw new BrowserServiceTimeoutError("Browser service request timed out.", { cause: error });
+      throw new BrowserServiceUnavailableError("Browser service is unavailable.", { cause: error });
+    }
+    if (!response.ok) throw new BrowserServiceUnavailableError(`Browser service returned HTTP ${response.status}.`);
+    const parsed = z.object({ tools: z.array(DiscoveredToolSchema).max(200) }).strict().safeParse(await response.json());
+    if (!parsed.success) throw new BrowserServiceContractError("Browser service tool catalog violated the contract.");
+    return parsed.data.tools;
   }
 
   async invoke<TInvocation extends KnownInvocation>(

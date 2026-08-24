@@ -1,0 +1,20 @@
+{
+  "contractVersion": 1,
+  "correlation": { "requestId": "request-1", "userId": "user-1" },
+  "toolCallId": "call-1",
+  "status": "success",
+  "payload": {
+    "siteId": "local-fixture",
+    "operationId": "1234567890abcdef12345678",
+    "mapVersion": "map-version-1",
+    "resultKind": "generic_records",
+    "records": [],
+    "sources": [{ "sourceId": "source-1", "title": "Local fixture", "url": "http://localhost/api/products" }],
+    "retrievedAt": "2026-08-24T10:00:00+08:00",
+    "warnings": [],
+    "redacted": false,
+    "truncated": false,
+    "untrusted": false
+  },
+  "sensitivity": { "sensitive": false, "confirmationRequired": false }
+}

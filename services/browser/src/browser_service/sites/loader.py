@@ -42,6 +42,7 @@ from browser_service.sites.schema import (
 logger = logging.getLogger("browser_service.sites.loader")
 
 DEFAULT_TTL_SECONDS = 30.0
+MAX_TTL_SECONDS = 300.0
 
 # An `approved` decision older than this (relative to the loader's clock)
 # is treated as expired -- i.e. as if it were `pending` -- rather than
@@ -63,7 +64,7 @@ def default_sites_root() -> Path:
     return Path(__file__).resolve().parents[5] / "config" / "sites"
 
 
-def parse_site_policy_file(path: Path) -> SitePolicy:
+def parse_site_policy_file(path: Path, *, enforce_filename: bool = True) -> SitePolicy:
     """Parse and validate one `config/sites/<site-id>.yaml` file.
 
     Public so `scripts/lint_site_policies.py` can reuse the exact same
@@ -91,7 +92,7 @@ def parse_site_policy_file(path: Path) -> SitePolicy:
         raise SitePolicyLoadError(f"{path.name}: schema_validation_failed: {exc}") from exc
 
     expected_site_id = path.stem.lower()
-    if policy.site_id != expected_site_id:
+    if enforce_filename and policy.site_id != expected_site_id:
         raise SitePolicyLoadError(
             f"{path.name}: site_id_filename_mismatch: file={expected_site_id!r} "
             f"site_id={policy.site_id!r}"
@@ -110,12 +111,16 @@ class SitePolicyLoader:
         approval_staleness_days: int | None = DEFAULT_APPROVAL_STALENESS_DAYS,
         clock: Callable[[], float] | None = None,
         today_fn: Callable[[], date] | None = None,
+        emergency_disabled: Callable[[str], bool] | None = None,
     ) -> None:
+        if not 0 < ttl_seconds <= MAX_TTL_SECONDS:
+            raise ValueError(f"ttl_seconds_must_be_between_0_and_{MAX_TTL_SECONDS:g}")
         self._root = Path(root) if root is not None else default_sites_root()
         self._ttl_seconds = ttl_seconds
         self._approval_staleness_days = approval_staleness_days
         self._clock = clock or time.monotonic
         self._today_fn = today_fn or date.today
+        self._emergency_disabled = emergency_disabled or (lambda _site_id: False)
         self._cache: dict[str, SitePolicy] = {}
         self._cache_loaded_at: float | None = None
 
@@ -128,12 +133,20 @@ class SitePolicyLoader:
             return self._cache
 
         policies: dict[str, SitePolicy] = {}
+        filename_mismatches: list[str] = []
         if self._root.is_dir():
             for path in sorted(self._root.glob("*.yaml")):
-                policy = parse_site_policy_file(path)
+                policy = parse_site_policy_file(path, enforce_filename=False)
                 if policy.site_id in policies:
                     raise SitePolicyLoadError(f"duplicate_site_id: {policy.site_id!r}")
+                if policy.site_id != path.stem.lower():
+                    filename_mismatches.append(
+                        f"{path.name}: site_id_filename_mismatch: file={path.stem.lower()!r} "
+                        f"site_id={policy.site_id!r}"
+                    )
                 policies[policy.site_id] = policy
+        if filename_mismatches:
+            raise SitePolicyLoadError(filename_mismatches[0])
 
         self._cache = policies
         self._cache_loaded_at = now
@@ -147,7 +160,7 @@ class SitePolicyLoader:
         return self._load_all().get(site_id.strip().lower())
 
     def _is_approval_active(self, policy: SitePolicy) -> bool:
-        if policy.kill_switch_enabled:
+        if policy.kill_switch_enabled or self._emergency_disabled(policy.site_id):
             return False
         if policy.decision != Decision.APPROVED:
             return False
@@ -159,7 +172,7 @@ class SitePolicyLoader:
                 return False
         return True
 
-    def is_capture_allowed(self, site_id: str) -> bool:
+    def is_capture_allowed(self, site_id: str, domain: str | None = None) -> bool:
         """Emergency-disable-aware check: may discovery/capture run for
         `site_id` right now? Callers MUST call this before starting any
         network capture for a site.
@@ -167,9 +180,13 @@ class SitePolicyLoader:
         policy = self.get_policy(site_id)
         if policy is None or not self._is_approval_active(policy):
             return False
+        if domain is not None and not policy.domain_allowed(domain):
+            return False
         return policy.discovery_permitted
 
-    def is_replay_allowed(self, site_id: str, method: str, path: str) -> bool:
+    def is_replay_allowed(
+        self, site_id: str, method: str, path: str, domain: str | None = None
+    ) -> bool:
         """Emergency-disable-aware check: may `method path` be replayed
         against `site_id` right now? Callers MUST call this before
         invoking any discovered endpoint.
@@ -178,5 +195,7 @@ class SitePolicyLoader:
         if policy is None or not self._is_approval_active(policy):
             return False
         if not policy.replay_permitted:
+            return False
+        if domain is not None and not policy.domain_allowed(domain):
             return False
         return policy.route_and_method_allowed(method, path)

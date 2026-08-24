@@ -1,0 +1,306 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "correlation": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "sessionId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "taskId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        },
+        "userId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "userId"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "retrievedAt": {
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "snippet": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "sourceUrl": {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceUrl",
+          "title",
+          "snippet",
+          "retrievedAt"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+    },
+    "payload": {
+      "additionalProperties": false,
+      "properties": {
+        "mapVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "operationId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "records": {
+          "items": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "maxLength": 500,
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "propertyNames": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            "propertyNames": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "redacted": {
+          "type": "boolean"
+        },
+        "resultKind": {
+          "enum": [
+            "product_results",
+            "flight_comparison",
+            "generic_records"
+          ],
+          "type": "string"
+        },
+        "retrievedAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "siteId": {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "sourceId": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "url": {
+                "maxLength": 2048,
+                "type": "string"
+              }
+            },
+            "required": [
+              "sourceId",
+              "title",
+              "url"
+            ],
+            "type": "object"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "type": "array"
+        },
+        "staleAfter": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "untrusted": {
+          "const": true,
+          "type": "boolean"
+        },
+        "warnings": {
+          "items": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "type": "array"
+        }
+      },
+      "required": [
+        "siteId",
+        "operationId",
+        "mapVersion",
+        "resultKind",
+        "records",
+        "sources",
+        "retrievedAt",
+        "warnings",
+        "redacted",
+        "truncated",
+        "untrusted"
+      ],
+      "type": "object"
+    },
+    "sensitivity": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmationRequired": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "enum": [
+              "payment",
+              "account_change",
+              "irreversible_submission",
+              "other"
+            ],
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "sensitive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sensitive",
+        "confirmationRequired"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "const": "success",
+      "type": "string"
+    },
+    "toolCallId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "correlation",
+    "toolCallId",
+    "status",
+    "payload",
+    "sensitivity"
+  ],
+  "type": "object"
+}

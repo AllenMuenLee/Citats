@@ -4,6 +4,9 @@ import { readBrowserServiceConfig } from "../../../server/browser-service/config
 import { InMemoryConversationRepository } from "../../../server/conversation";
 import { ChatOrchestrator, createToolRegistry, OrchestratorError, type OrchestratorEvent } from "../../../server/orchestrator";
 import { z } from "zod";
+import { validateGenerativeUiPart } from "../../../server/generative-ui/registry";
+import { registerGenerativeUiInstance } from "../../../server/generative-ui/instance-registration";
+import { uiCommandInstanceStore } from "../../../server/generative-ui/instance-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,11 +18,11 @@ const RequestSchema = z.object({
 
 const conversations = new InMemoryConversationRepository();
 
-function eventFrame(event: OrchestratorEvent): Uint8Array {
+function eventFrame(event: OrchestratorEvent | { type: "generative-ui-warning"; text: string }): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
-function createDefaultOrchestrator(): ChatOrchestrator {
+async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
   const browserServiceConfig = readBrowserServiceConfig();
   const browserServiceClient = browserServiceConfig
     ? new BrowserServiceClient({
@@ -27,6 +30,9 @@ function createDefaultOrchestrator(): ChatOrchestrator {
         serviceToken: browserServiceConfig.serviceToken,
       })
     : undefined;
+  const discoveredApiDefinitions = browserServiceClient
+    ? await browserServiceClient.listDiscoveredTools().catch(() => [])
+    : [];
   return new ChatOrchestrator({
     model: createMistralConversationsAdapter(readMistralConfig()),
     conversations,
@@ -34,7 +40,11 @@ function createDefaultOrchestrator(): ChatOrchestrator {
     // isn't configured (e.g. local dev without services/browser running),
     // browser.navigate_and_extract is simply omitted rather than failing
     // the whole endpoint.
-    tools: createToolRegistry({ navigateAndExtractExecutor: browserServiceClient }),
+    tools: createToolRegistry({
+      navigateAndExtractExecutor: browserServiceClient,
+      invokeDiscoveredApiExecutor: browserServiceClient,
+      discoveredApiDefinitions,
+    }),
   });
 }
 
@@ -54,7 +64,19 @@ export function createChatPost(orchestrator: ChatOrchestrator) {
             ownerId: "desktop-local-user",
             text: input.text,
             signal: request.signal,
-          })) controller.enqueue(eventFrame(event));
+          })) {
+            if (event.type !== "generative-ui") {
+              controller.enqueue(eventFrame(event));
+              continue;
+            }
+            const validated = validateGenerativeUiPart(event.payload);
+            if (!validated.ok) {
+              controller.enqueue(eventFrame({ type: "generative-ui-warning", text: validated.fallback.text }));
+              continue;
+            }
+            const registered = registerGenerativeUiInstance(uiCommandInstanceStore, validated.part, { sessionId: input.sessionId, ownerId: "desktop-local-user" });
+            controller.enqueue(eventFrame({ type: "generative-ui", payload: registered }));
+          }
         } catch (error) {
           if (!request.signal.aborted) {
             const policyFailure = error instanceof OrchestratorError && ["UNKNOWN_TOOL", "REPEATED_TOOL_CALL", "CONTRACT_ERROR"].includes(error.code);
@@ -81,7 +103,7 @@ export function createChatPost(orchestrator: ChatOrchestrator) {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    return await createChatPost(createDefaultOrchestrator())(request);
+    return await createChatPost(await createDefaultOrchestrator())(request);
   } catch {
     return Response.json({ error: "The local AI service is not configured." }, { status: 503 });
   }

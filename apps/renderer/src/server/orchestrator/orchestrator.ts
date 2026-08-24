@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import {
   CONTRACT_MAJOR_VERSION,
+  INVOKE_DISCOVERED_API_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractSuccessResultSchema,
   type Citation,
@@ -31,6 +32,7 @@ import {
 import type { RegisteredTool } from "./registry";
 import { classifyRoute, findExplicitSafeUrl, type RoutingDecision, type RoutingRoute } from "./routing";
 import { OrchestratorError, type OrchestratorCitationSource, type OrchestratorEvent, type OrchestratorState } from "./types";
+import { generativeUiFromDiscoveredApi } from "../generative-ui/from-discovered-api";
 
 /** Correlation-safe routing telemetry (P02-F05 step 5) -- never carries the request text or page content. */
 export interface RouteDecisionMetric {
@@ -357,6 +359,25 @@ export class ChatOrchestrator {
             }
           }
           state = "result-append";
+          if (call.name === INVOKE_DISCOVERED_API_TOOL_NAME || call.name.startsWith("discovered.")) {
+            try {
+              const generated = generativeUiFromDiscoveredApi(result, {
+                query: parsed.text,
+                correlationId: requestId,
+                invocationId: call.id,
+              });
+              if (generated) yield { type: "generative-ui", payload: generated };
+            } catch {
+              yield {
+                type: "generative-ui",
+                payload: {
+                  component_type: "unavailable",
+                  schema_version: "1.0",
+                  fallback_text: "The discovered API result could not be displayed safely.",
+                },
+              };
+            }
+          }
           result = namespaceEvidenceChunkIds(call.id, call.name, result);
           committedTools.push({ name: call.name, id: call.id, result });
           const evidence = extractEvidenceFromToolResult(call.id, call.name, result);

@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "component_type": "flight_comparison",
+  "command_type": "flight.detail",
+  "component_instance_id": "instance-1",
+  "originating_result_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "correlation_id": "correlation-1",
+  "arguments": { "itinerary_id": "itinerary-1" }
+}

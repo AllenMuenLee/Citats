@@ -50,7 +50,9 @@ def test_high_entropy_secret_detection() -> None:
     assert looks_like_high_entropy_secret("4f9c2a1e8b7d6035f1a2c3d4e5f60718")  # hex-ish blob
     assert not looks_like_high_entropy_secret("hello")
     assert not looks_like_high_entropy_secret("short")
-    assert not looks_like_high_entropy_secret("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")  # low entropy, repeated
+    assert not looks_like_high_entropy_secret(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    )  # low entropy, repeated
     assert not looks_like_high_entropy_secret("this is a normal english sentence value")
 
 

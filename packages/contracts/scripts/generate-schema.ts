@@ -29,12 +29,18 @@ import {
   EvidenceItemSchema,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
+  InvokeDiscoveredApiInvocationSchema,
+  InvokeDiscoveredApiSuccessResultSchema,
   SensitivityFlagsSchema,
   SystemEchoInvocationSchema,
   SystemEchoProgressEventSchema,
   SystemEchoSuccessResultSchema,
   ToolDefinitionSchema,
   ToolErrorResultSchema,
+  flightComparisonPropsSchema,
+  generativeUiPartSchema,
+  productResultPropsSchema,
+  uiCommandSchema,
 } from "../src/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,8 +63,14 @@ const REGISTRY: Record<string, z.ZodTypeAny> = {
   "progress-event-system-echo": SystemEchoProgressEventSchema,
   "invocation-navigate-and-extract": NavigateAndExtractInvocationSchema,
   "success-result-navigate-and-extract": NavigateAndExtractSuccessResultSchema,
+  "invocation-invoke-discovered-api": InvokeDiscoveredApiInvocationSchema,
+  "success-result-invoke-discovered-api": InvokeDiscoveredApiSuccessResultSchema,
   "cancellation-request": CancellationRequestSchema,
   "cancellation-result": CancellationResultSchema,
+  "flight-comparison-props": flightComparisonPropsSchema,
+  "generative-ui-part": generativeUiPartSchema,
+  "product-result-props": productResultPropsSchema,
+  "ui-command": uiCommandSchema,
 };
 
 function sortKeysDeep(value: unknown): unknown {

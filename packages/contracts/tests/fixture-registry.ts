@@ -17,12 +17,16 @@ import {
   EvidenceItemSchema,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
+  InvokeDiscoveredApiInvocationSchema,
+  InvokeDiscoveredApiSuccessResultSchema,
   SensitivityFlagsSchema,
   SystemEchoInvocationSchema,
   SystemEchoProgressEventSchema,
   SystemEchoSuccessResultSchema,
   ToolDefinitionSchema,
   ToolErrorResultSchema,
+  generativeUiPartSchema,
+  uiCommandSchema,
 } from "../src/index.js";
 
 export const FIXTURE_SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
@@ -38,4 +42,8 @@ export const FIXTURE_SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
   "correlation-metadata": CorrelationMetadataSchema,
   "invocation-navigate-and-extract": NavigateAndExtractInvocationSchema,
   "success-result-navigate-and-extract": NavigateAndExtractSuccessResultSchema,
+  "invocation-invoke-discovered-api": InvokeDiscoveredApiInvocationSchema,
+  "success-result-invoke-discovered-api": InvokeDiscoveredApiSuccessResultSchema,
+  "generative-ui-part": generativeUiPartSchema,
+  "ui-command": uiCommandSchema,
 };

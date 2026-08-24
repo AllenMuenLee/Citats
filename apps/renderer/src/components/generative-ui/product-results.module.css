@@ -1,0 +1,25 @@
+.panel { color: var(--color-text-primary); background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 16px; }
+.header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.header h2, .card h3, .header p, .card p { margin: 0; }
+.eyebrow, .freshness, .sources { color: var(--color-text-secondary); font-size: 12px; }
+.warning, .itemWarning { color: var(--color-warning); }
+.warning { display: grid; gap: 4px; border: 1px solid var(--color-warning); border-radius: 6px; padding: 8px; margin: 12px 0; }
+.controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 16px 0; }
+.controls label { display: grid; gap: 4px; color: var(--color-text-secondary); }
+.controls input, .controls select, .controls button, .panel button { min-height: 40px; color: var(--color-text-primary); background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px 12px; }
+.controls button:focus-visible, .controls input:focus-visible, .controls select:focus-visible, .panel button:focus-visible, .card:focus-visible, .sources a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+.card { display: flex; gap: 12px; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 10px; padding: 12px; }
+.card img { width: 80px; height: 80px; object-fit: contain; border-radius: 6px; }
+.body { min-width: 0; display: grid; align-content: start; gap: 8px; }
+.price { font-weight: 700; }
+.card dl { display: grid; gap: 4px; margin: 0; }
+.card dl div { display: flex; justify-content: space-between; gap: 12px; }
+.card dt { color: var(--color-text-secondary); }
+.card dd { margin: 0; text-align: right; }
+.sources a { color: var(--color-accent); }
+.empty { padding: 24px; text-align: center; color: var(--color-text-secondary); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+@media (max-width: 560px) { .header { display: grid; } .controls { display: grid; } .controls label, .controls input, .controls select, .controls button { width: 100%; } .list { display: block; } .card { margin-bottom: 8px; } }
+@media (prefers-reduced-motion: reduce) { .panel * { scroll-behavior: auto; } }
+
