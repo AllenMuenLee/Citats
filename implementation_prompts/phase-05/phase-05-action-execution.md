@@ -4,6 +4,10 @@
 
 Add form actions and approved direct API mutations in sandboxes/test accounts, always behind policy evaluation and exact user confirmation when sensitive or irreversible. Default deny live-site mutation.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read only the requirements, `Claude.md`, this prompt, relevant code/docs, and approved test-site records. Do not read any other implementation prompt. Tell subagents the same.

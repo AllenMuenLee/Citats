@@ -6,6 +6,10 @@ Build an installable Electron desktop application, not a website. Next.js/React 
 
 Create the monorepo foundation, the Next.js/TypeScript ↔ Python/Nodriver service boundary, and the canonical Mistral tool-call contract. Do not implement chat UX or real browsing.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read only the project requirements, `docs/desktop-architecture-and-ui-specification.md`, `Claude.md`, this prompt, and relevant source/config files. **Never read another implementation prompt.** Tell every subagent the same. Stop when this phase is complete.

@@ -4,6 +4,10 @@
 
 Repair the Phase 2 Mistral integration so the model can choose between hosted Web Search and the local read-only browser path without losing custom tool definitions or tool results. General research should use Web Search; requests that require inspecting website content should discover URLs when necessary and then read them through `browser.navigate_and_extract`.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read only the requirements, `Claude.md`, `AGENTS.md`, `implementation_prompts/phase-02/phase-02-read-only-browsing.md`, and the relevant Mistral adapter, orchestrator, browser-service client, contract, and test files. Do not read another implementation prompt; impose this on subagents.

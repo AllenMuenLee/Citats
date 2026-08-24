@@ -4,6 +4,10 @@
 
 Render safe, accessible, task-specific React components from validated structured tool results for a narrow pilot set: product results and flight comparisons. No free-form model-generated code and no transaction execution.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read the requirements, `Claude.md`, this prompt, relevant source, and relevant feature docs only. Never read other implementation prompts. Repeat this constraint in every subagent task.

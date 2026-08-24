@@ -4,6 +4,10 @@
 
 On manually approved pilot sites, observe XHR/fetch traffic, redact it, infer stable endpoint templates, and expose strictly read-only callable mappings. Do not execute state-changing requests.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Use only the requirements, `Claude.md`, this prompt, relevant source, feature docs, and approved-site review records. Never read other implementation prompts. Tell subagents likewise.

@@ -4,6 +4,10 @@
 
 Expand sites and use cases through evidence-based adapters and conformance tests. Expand transaction capability only after explicit trust/reliability thresholds and human approval are met.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read the requirements, `Claude.md`, this prompt, relevant code/feature docs, alpha evidence, and candidate-site review only. Never read any other implementation prompt. Require subagents to obey this.

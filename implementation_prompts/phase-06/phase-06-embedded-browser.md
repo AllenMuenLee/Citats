@@ -4,6 +4,10 @@
 
 Provide a secure, usable live browser pane for explicitly whitelisted stateful/visual sites, initially policy entries for Google Docs and Instagram. Authentic-site interaction remains inside the browser boundary; do not recreate these sites.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read the requirements, `Claude.md`, this prompt, relevant code/docs, and site policy records only. Never read another implementation prompt; enforce this for subagents.

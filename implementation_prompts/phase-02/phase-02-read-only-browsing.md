@@ -4,6 +4,10 @@
 
 Allow the agent to navigate public pages, extract bounded content, and answer with verifiable citations. It must not click state-changing controls, submit forms, use authenticated sessions, or discover/replay private APIs.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read only the requirements, `Claude.md`, this prompt, relevant code, and relevant completed feature docs. Never read another implementation prompt; impose this on subagents.

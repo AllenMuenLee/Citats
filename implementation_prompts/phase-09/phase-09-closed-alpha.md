@@ -4,6 +4,10 @@
 
 Prepare and operate a narrow, research/comparison-first closed alpha with consented users, observable reliability, feedback loops, and fast rollback. Transactions remain disabled unless separately and explicitly approved.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read only the requirements, `Claude.md`, this prompt, relevant code/feature docs, and approved alpha policy/materials. Never read other implementation prompts. Enforce this in subagent tasks.

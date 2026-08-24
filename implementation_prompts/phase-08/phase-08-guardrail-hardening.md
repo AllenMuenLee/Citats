@@ -4,6 +4,10 @@
 
 Harden the complete system against indirect prompt injection, sensitive-domain abuse, cross-boundary data leakage, and resource misuse. Measure risk reduction against a fixed adversarial corpus.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read the requirements, `Claude.md`, this prompt, relevant source/feature docs, and approved security references/fixtures only. Never read another implementation prompt. Tell all subagents the same.

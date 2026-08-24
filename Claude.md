@@ -2,7 +2,11 @@
 
 ## Purpose
 
-Build this project phase by phase from the standalone prompts in `implementation_prompts/`. Optimize for correctness, small context windows, safe parallel work, and maintainable code.
+Build this project phase by phase from the standalone prompts in `implementation_prompts/`. Optimize for correctness, small context windows, safe execution, and maintainable code.
+
+## Subagent prohibition
+
+Claude must not create, spawn, delegate to, or use subagents for any project task. Claude must perform all work directly in the primary agent context. This rule overrides every subagent, delegation, and agent-based concurrency instruction elsewhere in this file or in any implementation prompt.
 
 ## How to use an implementation prompt
 
@@ -12,7 +16,7 @@ Build this project phase by phase from the standalone prompts in `implementation
 4. Inspect only the repository areas named by the selected feature build before expanding the search.
 5. Make a plan from the prompt's feature builds. Respect every `Depends on` and `Concurrency` label.
 6. Execute every numbered item under `Build steps` in order within that feature. Treat named paths as the intended ownership boundary; if the existing repository structure requires a different path, preserve established runtime boundaries and conventions.
-7. For every group marked concurrent, delegate the individual builds to subagents and run them simultaneously. Give each subagent exclusive file ownership when possible and tell it not to read other implementation prompts.
+7. For every group marked concurrent, perform the builds directly without subagents. Use safe tool-level concurrency where practical, preserve file ownership boundaries, and respect dependency order.
 8. Integrate in dependency order and run each feature's validation followed by phase validation.
 9. Stop after the selected phase. In the final response, report completed and skipped numbered steps, changed source/config/test files, validations run, failures or risks, and the next phase that is unblocked.
 

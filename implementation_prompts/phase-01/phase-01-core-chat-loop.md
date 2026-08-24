@@ -6,6 +6,10 @@ This phase runs inside the Electron desktop application. Next.js is the renderer
 
 Deliver a streaming Mistral conversation with in-memory session context and a deterministic, validated tool-calling loop using only stub tools. No web browsing.
 
+## Claude execution restriction
+
+Claude must not create, spawn, delegate to, or use subagents while executing this prompt. Claude must perform all work directly in the primary agent context. This restriction overrides every subagent or agent-based concurrency instruction in this prompt.
+
 ## Isolation rule
 
 Read the requirements, `docs/desktop-architecture-and-ui-specification.md`, `Claude.md`, this prompt, relevant source files, and Phase 0 feature docs as needed. **Do not read other implementation prompts.** Apply this rule to subagents.
