@@ -62,6 +62,21 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
   5. Add end-to-end fixture scenarios for static, client-rendered, redirected, malformed, oversized, blocked, and malicious pages and collect navigation/extraction/citation/resource metrics per case.
 - **Validate:** golden page-question set for answer/extraction accuracy, navigation success rate, citation correctness, repeated-session resource use, and proof that mutation methods/tools are unavailable.
 
+### P02-F05 Research-versus-browser routing
+
+- **Tools:** Mistral Conversations/function calling, hosted web search, canonical tool registry, routing schemas, Vitest, end-to-end fixtures.
+- **Depends on:** P02-F04.
+- **Concurrency:** integrate after P02-F04; routing-policy tests and adapter-event fixtures may be prepared concurrently with exclusive test-file ownership.
+- **Build steps:**
+  1. Add a trusted, server-owned routing decision with a closed schema that requires Mistral to classify each request as either `web_search_only` or `website_read_required`; include a concise reason and reject malformed or unknown decisions without executing a browser tool.
+  2. Classify requests that only need general knowledge, current information, or source discovery as `web_search_only`; allow Mistral's hosted `web_search` for those requests and do not invoke `browser.navigate_and_extract`.
+  3. Classify requests that require reading, summarizing, comparing, quoting, or otherwise directly inspecting website content as `website_read_required`; when no URL is supplied, use `web_search` only to discover candidate public URLs, validate and deduplicate those URLs through the server-owned URL policy, and then invoke `browser.navigate_and_extract` for the selected pages. When the user supplies an explicit safe URL, skip redundant discovery and navigate directly.
+  4. Ensure the active Mistral adapter forwards the orchestrator's custom function definitions, maps custom function-call events into the existing tool loop, and returns local tool results to Mistral. Do not replace `request.tools` with a fixed hosted-tool list or discard `tool` result turns.
+  5. Make hosted tools request-scoped: expose `web_search` only for routes that permit it, expose `browser.navigate_and_extract` only for routes that require website reading, and prevent `code_interpreter` or `image_generation` from being enabled implicitly by this browsing flow.
+  6. Treat Web Search references as discovery evidence only when the route continues into website reading. Claims about inspected pages must be synthesized from `browser.navigate_and_extract` chunks and pass the existing local citation resolver; report blocked, failed, or truncated pages explicitly.
+  7. Add deterministic routing and end-to-end cases for an explicit URL, general current-information query, unknown-site research request, multi-source comparison, unsafe discovered URL, empty search result, malformed routing decision, hosted-search failure, and local navigation/extraction failure.
+- **Validate:** prove that general research uses only hosted Web Search, explicit safe URLs use only local navigation/extraction, discovery-plus-reading runs in that order, custom tool definitions/results survive the Mistral adapter boundary, and no state-changing browser capability is exposed.
+
 ## Phase acceptance
 
-Run the fixed read-only golden set and record accuracy, citation validity, success rate, latency, memory, and browser cleanup. All tests use local fixtures or explicitly approved public test pages.
+Run the fixed read-only golden set and record routing accuracy, tool-selection correctness, discovery-to-navigation ordering, answer accuracy, citation validity, success rate, latency, memory, and browser cleanup. All tests use local fixtures, mocked hosted-search events, or explicitly approved public test pages.

@@ -4,17 +4,19 @@ import { ALLOWED_CHANNELS, AppInfoSchema, isAllowedChannel } from "../src/shared
 
 describe("ALLOWED_CHANNELS (preload allowlist)", () => {
   it("is exactly the expected set of channels -- no accidental extra exposure", () => {
-    // Phase 0 exposes exactly one read-only channel. Any future feature
-    // that adds a channel must extend this list deliberately, which makes
-    // this test fail until it does -- that's the point: an accidental
-    // extra `ipcRenderer.invoke` call elsewhere in preload code would not
-    // be allowlisted and this test pins the allowlist to a known set.
-    expect([...ALLOWED_CHANNELS].sort()).toEqual(["app:get-info"]);
+    // Any future feature that adds a channel must extend this list
+    // deliberately, which makes this test fail until it does -- that's the
+    // point: an accidental extra `ipcRenderer.invoke` call elsewhere in
+    // preload code would not be allowlisted and this test pins the
+    // allowlist to a known set. P02-F03 adds "shell:open-external" as a
+    // deliberate, explicit exception to window.ts's default-deny
+    // navigation policy (opening a citation link in the OS browser).
+    expect([...ALLOWED_CHANNELS].sort()).toEqual(["app:get-info", "shell:open-external"]);
   });
 
   it("recognizes only allowlisted channel names", () => {
     expect(isAllowedChannel("app:get-info")).toBe(true);
-    expect(isAllowedChannel("shell:open-external")).toBe(false);
+    expect(isAllowedChannel("shell:open-external")).toBe(true);
     expect(isAllowedChannel("fs:read-file")).toBe(false);
     expect(isAllowedChannel("")).toBe(false);
   });

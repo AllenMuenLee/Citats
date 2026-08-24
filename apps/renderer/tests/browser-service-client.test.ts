@@ -27,7 +27,45 @@ const success = {
   sensitivity: { sensitive: false, confirmationRequired: false },
 };
 
+const navigateInvocation = {
+  contractVersion: 1 as const,
+  correlation: { requestId: "req-2", userId: "user-1" },
+  toolCallId: "call-2",
+  toolName: "browser.navigate_and_extract" as const,
+  arguments: { url: "https://example.com/article" },
+};
+
+const navigateSuccess = {
+  contractVersion: 1,
+  correlation: navigateInvocation.correlation,
+  toolCallId: navigateInvocation.toolCallId,
+  status: "success",
+  payload: {
+    metadata: {
+      title: "Example",
+      url: "https://example.com/article",
+      language: "en",
+      description: null,
+      publishedTime: null,
+      httpStatus: 200,
+      contentType: null,
+    },
+    chunks: [],
+    warnings: [],
+    truncations: [],
+    timing: { navigationMs: 1, extractionMs: 1, totalMs: 2 },
+    untrusted: true,
+  },
+  sensitivity: { sensitive: false, confirmationRequired: false },
+};
+
 describe("BrowserServiceClient", () => {
+  it("dispatches a second, differently-shaped tool by toolName", async () => {
+    const fetchImpl = vi.fn(async () => Response.json(navigateSuccess));
+    const client = new BrowserServiceClient({ baseUrl: "http://127.0.0.1:8123", serviceToken: "launch-secret", fetchImpl });
+    await expect(client.invoke(navigateInvocation)).resolves.toEqual(navigateSuccess);
+  });
+
   it("authenticates, propagates request IDs, and validates success", async () => {
     const fetchImpl = vi.fn(async (_url, init) => {
       expect(new Headers(init?.headers).get("x-service-token")).toBe("launch-secret");

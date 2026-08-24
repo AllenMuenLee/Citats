@@ -7,7 +7,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from browser_service.app import app
-from browser_service.contracts.generated.invocation_system_echo import InvocationSystemEcho
+from browser_service.contracts import InvocationSystemEcho
 from browser_service.redaction import REDACTED, redact
 from browser_service.tool_registry import system_echo
 

@@ -55,6 +55,9 @@ from browser_service.contracts.generated.error_result import ErrorResult
 from browser_service.contracts.generated.evidence_item import (
     EvidenceItem as _GeneratedEvidenceItem,
 )
+from browser_service.contracts.generated.invocation_navigate_and_extract import (
+    InvocationNavigateAndExtract as _GeneratedInvocationNavigateAndExtract,
+)
 from browser_service.contracts.generated.invocation_system_echo import (
     InvocationSystemEcho as _GeneratedInvocationSystemEcho,
 )
@@ -62,6 +65,9 @@ from browser_service.contracts.generated.progress_event_system_echo import (
     ProgressEventSystemEcho as _GeneratedProgressEventSystemEcho,
 )
 from browser_service.contracts.generated.sensitivity import Sensitivity
+from browser_service.contracts.generated.success_result_navigate_and_extract import (
+    SuccessResultNavigateAndExtract as _GeneratedSuccessResultNavigateAndExtract,
+)
 from browser_service.contracts.generated.success_result_system_echo import (
     SuccessResultSystemEcho as _GeneratedSuccessResultSystemEcho,
 )
@@ -80,6 +86,8 @@ __all__ = [
     "ProgressEventSystemEcho",
     "CancellationRequest",
     "CancellationResult",
+    "InvocationNavigateAndExtract",
+    "SuccessResultNavigateAndExtract",
 ]
 
 
@@ -152,3 +160,52 @@ class CancellationResult(_GeneratedCancellationResult):
         if not self.correlation.taskId:
             raise ValueError("correlation.taskId is required for a cancellation result")
         return self
+
+
+class InvocationNavigateAndExtract(_GeneratedInvocationNavigateAndExtract):
+    """Rejects credential-shaped field names in `arguments`; enforces the
+    `http`/`https` URL scheme on `arguments.url`."""
+
+    @model_validator(mode="after")
+    def _check_arguments_for_forbidden_fields(self) -> InvocationNavigateAndExtract:
+        assert_no_forbidden_fields(self.arguments.model_dump(), base_path="arguments")
+        return self
+
+    @field_validator("arguments")
+    @classmethod
+    def _check_url_scheme(cls, value: object) -> object:
+        url = getattr(value, "url", None)
+        if isinstance(url, str) and not is_http_or_https_url(url):
+            raise ValueError("arguments.url scheme must be 'http' or 'https'")
+        return value
+
+
+class SuccessResultNavigateAndExtract(_GeneratedSuccessResultNavigateAndExtract):
+    """Rejects credential-shaped field names in `payload`; enforces the
+    `http`/`https` URL scheme on `payload.metadata.url` and every
+    `evidence[].sourceUrl`."""
+
+    @model_validator(mode="after")
+    def _check_payload_for_forbidden_fields(self) -> SuccessResultNavigateAndExtract:
+        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
+        return self
+
+    @field_validator("payload")
+    @classmethod
+    def _check_metadata_url_scheme(cls, value: object) -> object:
+        metadata = getattr(value, "metadata", None)
+        url = getattr(metadata, "url", None)
+        if isinstance(url, str) and not is_http_or_https_url(url):
+            raise ValueError("payload.metadata.url scheme must be 'http' or 'https'")
+        return value
+
+    @field_validator("evidence")
+    @classmethod
+    def _check_evidence_urls(cls, value: list[object] | None) -> list[object] | None:
+        if value is None:
+            return value
+        for index, item in enumerate(value):
+            source_url = getattr(item, "sourceUrl", None)
+            if isinstance(source_url, str) and not is_http_or_https_url(source_url):
+                raise ValueError(f"evidence[{index}].sourceUrl scheme must be 'http' or 'https'")
+        return value

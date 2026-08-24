@@ -18,7 +18,7 @@ Build this project phase by phase from the standalone prompts in `implementation
 
 ## Documentation prohibition
 
-AI agents must not create, edit, delete, rename, move, generate, or reorganize documentation of any kind.
+AI agents must not create, edit, delete, rename, move, generate, or reorganize documentation of any kind when asked to follow an implementation prompt, except for README.md, however, the readme.md can only include information regrading setup and project introduction. You are only allowed to modify implementation prompts when asked to.
 
 - All existing documentation is read-only, including every Markdown file, README, architecture document, ADR, specification, guide, runbook, report, journal, changelog, decision record, template, diagram, and documentation directory.
 - Architectural documentation is strictly prohibited. Never create or update architecture maps, architecture notes, ADRs, diagrams, design documents, boundary descriptions, or feature-location records.

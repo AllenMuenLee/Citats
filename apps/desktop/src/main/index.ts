@@ -8,9 +8,9 @@
  *   - the single allowlisted IPC handler backing the preload bridge.
  */
 
-import { app, ipcMain } from "electron";
+import { app, ipcMain, shell } from "electron";
 
-import { AppInfoSchema } from "../shared/ipc-contract";
+import { AppInfoSchema, ShellOpenExternalResultSchema, validateExternalUrl } from "../shared/ipc-contract";
 import { type BrowserServiceHandle, startBrowserService } from "./browser-service";
 import { resolveBrowserServiceCwd, resolveRendererStandaloneServerPath } from "./paths";
 import { type RendererTarget, resolveRendererTarget } from "./renderer-target";
@@ -55,6 +55,10 @@ app.whenReady().then(async () => {
     rendererTarget = await resolveRendererTarget({
       isPackaged: app.isPackaged,
       standaloneServerPath: app.isPackaged ? resolveRendererStandaloneServerPath() : undefined,
+      serverEnvironment: app.isPackaged ? {
+        BROWSER_SERVICE_URL: browserService.baseUrl,
+        BROWSER_SERVICE_TOKEN: serviceToken,
+      } : undefined,
     });
 
     const win = createMainWindow({ allowedOrigins: [rendererTarget.url] });
@@ -68,6 +72,29 @@ app.whenReady().then(async () => {
         isPackaged: app.isPackaged,
       });
       return info;
+    });
+
+    // Deliberate, explicit exception to window.ts's default-deny
+    // navigation/new-window policy: open a citation's destination URL in
+    // the OS default browser, never inside this window. The URL is always
+    // validated (http/https only) before being handed to
+    // `shell.openExternal` -- never call it with unvalidated input, and
+    // never throw an unhandled exception across the IPC boundary (an
+    // invalid URL resolves to a typed failure instead).
+    ipcMain.handle("shell:open-external", async (_event, rawUrl: unknown) => {
+      const validated = validateExternalUrl(rawUrl);
+      if (!validated.ok) {
+        return ShellOpenExternalResultSchema.parse({ ok: false, reason: "invalid_url" });
+      }
+      try {
+        await shell.openExternal(validated.url);
+        return ShellOpenExternalResultSchema.parse({ ok: true });
+      } catch {
+        // shell.openExternal can reject (e.g. no OS handler for the
+        // scheme) -- never let that become an unhandled rejection across
+        // the IPC boundary.
+        return ShellOpenExternalResultSchema.parse({ ok: false, reason: "open_failed" });
+      }
     });
 
     await win.loadURL(rendererTarget.url);

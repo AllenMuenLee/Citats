@@ -1,0 +1,34 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001"
+  },
+  "toolCallId": "call-0001",
+  "status": "success",
+  "payload": {
+    "metadata": {
+      "title": "What is an AI-native browser?",
+      "url": "https://example.com/articles/ai-native-browsers",
+      "language": "en",
+      "description": null,
+      "publishedTime": null,
+      "httpStatus": 200,
+      "contentType": null
+    },
+    "chunks": [],
+    "warnings": [],
+    "truncations": [],
+    "timing": {
+      "navigationMs": 1,
+      "extractionMs": 1,
+      "totalMs": 2
+    },
+    "untrusted": true,
+    "rawHtml": "<html></html>"
+  },
+  "sensitivity": {
+    "sensitive": false,
+    "confirmationRequired": false
+  }
+}

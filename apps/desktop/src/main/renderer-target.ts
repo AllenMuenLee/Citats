@@ -30,6 +30,7 @@ export interface ResolveRendererTargetOptions {
   devServerUrl?: string;
   /** Packaged only: absolute path to the standalone server.js entry point. */
   standaloneServerPath?: string;
+  serverEnvironment?: Readonly<Record<string, string>>;
   waitTimeoutMs?: number;
   pollIntervalMs?: number;
 }
@@ -83,6 +84,7 @@ export async function resolveRendererTarget(options: ResolveRendererTargetOption
   const child: ChildProcess = spawn(process.execPath, [options.standaloneServerPath], {
     env: {
       ...process.env,
+      ...options.serverEnvironment,
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
     },

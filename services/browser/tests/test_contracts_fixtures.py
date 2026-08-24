@@ -23,9 +23,11 @@ from browser_service.contracts import (
     CorrelationMetadata,
     ErrorResult,
     EvidenceItem,
+    InvocationNavigateAndExtract,
     InvocationSystemEcho,
     ProgressEventSystemEcho,
     Sensitivity,
+    SuccessResultNavigateAndExtract,
     SuccessResultSystemEcho,
     ToolDefinition,
 )
@@ -44,6 +46,8 @@ FIXTURE_MODEL_REGISTRY: dict[str, type[BaseModel]] = {
     "evidence": EvidenceItem,
     "sensitivity": Sensitivity,
     "correlation-metadata": CorrelationMetadata,
+    "invocation-navigate-and-extract": InvocationNavigateAndExtract,
+    "success-result-navigate-and-extract": SuccessResultNavigateAndExtract,
 }
 
 

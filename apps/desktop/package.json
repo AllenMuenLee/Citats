@@ -13,6 +13,7 @@
     "package": "electron-builder --dir"
   },
   "dependencies": {
+    "@ai-browser/contracts": "*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

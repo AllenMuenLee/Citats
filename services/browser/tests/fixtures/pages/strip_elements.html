@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Contact Us</title>
+  <style>
+    body { color: red; }
+    .hidden-by-css { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Contact Us</h1>
+    <p>Reach out any time using the form below.</p>
+    <script>
+      console.log("this should never appear in extracted output");
+      window.alert("tracking pixel fired");
+    </script>
+    <noscript>Enable JavaScript to see the live chat widget.</noscript>
+    <form action="/submit" method="post">
+      <label>Email <input type="email" name="email" value="leaked@example.com"></label>
+      <label>Password <input type="password" name="password" value="hunter2"></label>
+      <button type="submit">Send</button>
+    </form>
+    <p>Thanks for visiting our contact page.</p>
+  </main>
+</body>
+</html>

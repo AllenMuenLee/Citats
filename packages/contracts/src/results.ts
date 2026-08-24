@@ -7,6 +7,7 @@ import { withCredentialGuard } from "./security/credential-guard";
 import { SensitivityFlagsSchema } from "./sensitivity";
 import { CONTRACT_MAJOR_VERSION } from "./version";
 import { SystemEchoResultSchema } from "./tools/system-echo";
+import { NavigateAndExtractResultSchema } from "./tools/navigate-and-extract";
 
 /**
  * Generic factory for a tool success result: correlation metadata echoed
@@ -35,6 +36,11 @@ export function makeToolSuccessResultSchema<Payload extends z.ZodTypeAny>(payloa
 
 export const SystemEchoSuccessResultSchema = makeToolSuccessResultSchema(SystemEchoResultSchema);
 export type SystemEchoSuccessResult = z.infer<typeof SystemEchoSuccessResultSchema>;
+
+export const NavigateAndExtractSuccessResultSchema = makeToolSuccessResultSchema(
+  NavigateAndExtractResultSchema,
+);
+export type NavigateAndExtractSuccessResult = z.infer<typeof NavigateAndExtractSuccessResultSchema>;
 
 /**
  * Tool error result. `errorCode` is the closed set from `errors.ts`;

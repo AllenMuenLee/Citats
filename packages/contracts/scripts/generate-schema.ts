@@ -27,6 +27,8 @@ import {
   CancellationResultSchema,
   CorrelationMetadataSchema,
   EvidenceItemSchema,
+  NavigateAndExtractInvocationSchema,
+  NavigateAndExtractSuccessResultSchema,
   SensitivityFlagsSchema,
   SystemEchoInvocationSchema,
   SystemEchoProgressEventSchema,
@@ -53,6 +55,8 @@ const REGISTRY: Record<string, z.ZodTypeAny> = {
   "invocation-system-echo": SystemEchoInvocationSchema,
   "success-result-system-echo": SystemEchoSuccessResultSchema,
   "progress-event-system-echo": SystemEchoProgressEventSchema,
+  "invocation-navigate-and-extract": NavigateAndExtractInvocationSchema,
+  "success-result-navigate-and-extract": NavigateAndExtractSuccessResultSchema,
   "cancellation-request": CancellationRequestSchema,
   "cancellation-result": CancellationResultSchema,
 };

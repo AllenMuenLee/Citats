@@ -1,0 +1,35 @@
+# Pilot-site governance record for the local HTTP fixture server used by
+# services/browser's own test suite
+# (services/browser/tests/fixtures/http/server.py). This is the ONLY site
+# seeded as `decision: approved` in this phase -- every real pilot site
+# must be added as `decision: pending` until a human supplies and signs
+# an actual review decision (see P03-F03 build step 4).
+#
+# The fixture server binds to an ephemeral loopback port per test run, so
+# this committed record intentionally describes the site by domain only
+# (`localhost`) rather than a fixed port; tests that need a concrete port
+# construct their own test-local policy YAML with the real port
+# substituted in (see services/browser/tests/fixtures/site_policy/).
+schema_version: 1
+site_id: local-fixture
+canonical_domain: localhost
+allowed_subdomains: []
+allowed_routes:
+  - /
+  - /redirect
+  - /oversized
+  - /slow
+  - /pages/*
+allowed_methods:
+  - GET
+  - HEAD
+discovery_permitted: true
+replay_permitted: true
+data_classification: internal
+retention_days: 30
+owner: "AI Browser platform team"
+reviewer: "Allen Lee"
+decision: approved
+decision_date: 2026-08-10
+review_date: 2026-08-10
+kill_switch_enabled: false

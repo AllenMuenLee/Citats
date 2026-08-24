@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+  <head><title>Network Traffic Fixture</title></head>
+  <body>
+    <h1>network-traffic</h1>
+    <script>
+      // Exposed for tests to call explicitly via Tab.evaluate(..., await_promise=True)
+      // once network capture is already enabled -- nothing here runs on
+      // page load itself.
+      window.runNetworkTraffic = async function (crossOriginBase) {
+        const results = [];
+
+        try {
+          await fetch("/api/echo?foo=bar&limit=5");
+          results.push("get-json");
+        } catch (e) {
+          results.push("get-json-error");
+        }
+
+        try {
+          await fetch("/api/echo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: "alice",
+              password: "hunter2-super-secret",
+              note: "hello",
+            }),
+          });
+          results.push("post-json");
+        } catch (e) {
+          results.push("post-json-error");
+        }
+
+        try {
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/echo");
+            xhr.setRequestHeader(
+              "Content-Type",
+              "application/x-www-form-urlencoded"
+            );
+            xhr.onloadend = () => resolve();
+            xhr.onerror = () => reject(new Error("xhr failed"));
+            const form = new URLSearchParams();
+            form.set("field_one", "value_one");
+            form.set("session_token", "aVeryLongOpaqueLookingTokenValue1234567890abcdef");
+            xhr.send(form.toString());
+          });
+          results.push("post-form");
+        } catch (e) {
+          results.push("post-form-error");
+        }
+
+        try {
+          await fetch("/api/binary");
+          results.push("binary");
+        } catch (e) {
+          results.push("binary-error");
+        }
+
+        try {
+          await fetch("/api/big");
+          results.push("big");
+        } catch (e) {
+          results.push("big-error");
+        }
+
+        if (crossOriginBase) {
+          try {
+            await fetch(crossOriginBase + "/api/echo");
+            results.push("cross-origin");
+          } catch (e) {
+            // A cross-origin request with no CORS headers on the response
+            // still reaches the network stack (and this capture module)
+            // even though the fetch() promise itself rejects here.
+            results.push("cross-origin-rejected");
+          }
+        }
+
+        return results;
+      };
+    </script>
+  </body>
+</html>

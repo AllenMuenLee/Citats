@@ -1,0 +1,13 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001"
+  },
+  "toolCallId": "call-0001",
+  "toolName": "browser.navigate_and_extract",
+  "arguments": {
+    "url": "https://example.com/articles/ai-native-browsers",
+    "clickSelector": "#submit"
+  }
+}

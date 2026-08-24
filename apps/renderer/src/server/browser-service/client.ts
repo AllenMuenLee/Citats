@@ -1,9 +1,16 @@
 import "server-only";
 
+import { z } from "zod";
 import {
+  NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  NavigateAndExtractInvocationSchema,
+  NavigateAndExtractSuccessResultSchema,
+  SYSTEM_ECHO_TOOL_NAME,
   SystemEchoInvocationSchema,
   SystemEchoSuccessResultSchema,
   ToolErrorResultSchema,
+  type NavigateAndExtractInvocation,
+  type NavigateAndExtractSuccessResult,
   type SystemEchoInvocation,
   type SystemEchoSuccessResult,
   type ToolErrorResult,
@@ -24,7 +31,34 @@ export interface BrowserServiceClientOptions {
   log?: (record: Record<string, unknown>) => void;
 }
 
-export type InvokeResult = SystemEchoSuccessResult | ToolErrorResult;
+/** Every invocation shape `invoke` accepts, keyed by their `toolName` literal. */
+export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation;
+
+/** Maps each known tool's `toolName` literal to its success-result type, so `invoke`'s return type is inferred from the invocation passed in. */
+interface ToolSuccessResultMap {
+  [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResult;
+  [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResult;
+}
+
+export type InvokeResult<TInvocation extends KnownInvocation> =
+  ToolSuccessResultMap[TInvocation["toolName"]] | ToolErrorResult;
+
+/**
+ * Runtime schema registry backing `invoke`'s generic dispatch -- one entry
+ * per tool this client knows how to call. Adding a new tool means adding
+ * one entry here (its invocation + success-result schemas) and one entry
+ * to `ToolSuccessResultMap` above for the inferred return type; nothing
+ * else in this class is tool-specific.
+ */
+const INVOCATION_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
+  [SYSTEM_ECHO_TOOL_NAME]: SystemEchoInvocationSchema,
+  [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractInvocationSchema,
+};
+
+const SUCCESS_RESULT_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
+  [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResultSchema,
+  [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResultSchema,
+};
 
 function validateLoopbackBaseUrl(raw: string): URL {
   const url = new URL(raw);
@@ -51,8 +85,16 @@ export class BrowserServiceClient {
     this.#log = options.log ?? (() => undefined);
   }
 
-  async invoke(invocation: SystemEchoInvocation, signal?: AbortSignal): Promise<InvokeResult> {
-    const payload = SystemEchoInvocationSchema.parse(invocation);
+  async invoke<TInvocation extends KnownInvocation>(
+    invocation: TInvocation,
+    signal?: AbortSignal,
+  ): Promise<InvokeResult<TInvocation>> {
+    const invocationSchema = INVOCATION_SCHEMA_BY_TOOL[invocation.toolName];
+    const successResultSchema = SUCCESS_RESULT_SCHEMA_BY_TOOL[invocation.toolName];
+    if (!invocationSchema || !successResultSchema) {
+      throw new TypeError(`Unknown tool '${invocation.toolName}'.`);
+    }
+    const payload = invocationSchema.parse(invocation) as TInvocation;
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     this.#log(redactForLog({ event: "bridge.request", ...payload.correlation }) as Record<string, unknown>);
@@ -82,11 +124,15 @@ export class BrowserServiceClient {
     } catch (error) {
       throw new BrowserServiceContractError("Browser service returned invalid JSON.", { cause: error });
     }
-    const parsed = SystemEchoSuccessResultSchema.or(ToolErrorResultSchema).safeParse(body);
-    if (!parsed.success || parsed.data.correlation.requestId !== payload.correlation.requestId) {
+    const parsed = successResultSchema.or(ToolErrorResultSchema).safeParse(body);
+    if (!parsed.success) {
       throw new BrowserServiceContractError("Browser service response violated the contract.");
     }
-    this.#log(redactForLog({ event: "bridge.response", ...parsed.data.correlation, status: parsed.data.status }) as Record<string, unknown>);
-    return parsed.data;
+    const data = parsed.data as InvokeResult<TInvocation>;
+    if (data.correlation.requestId !== payload.correlation.requestId) {
+      throw new BrowserServiceContractError("Browser service response violated the contract.");
+    }
+    this.#log(redactForLog({ event: "bridge.response", ...data.correlation, status: data.status }) as Record<string, unknown>);
+    return data;
   }
 }

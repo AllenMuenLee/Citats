@@ -4,6 +4,10 @@ import { IdSchema } from "./primitives";
 import { withCredentialGuard } from "./security/credential-guard";
 import { CONTRACT_MAJOR_VERSION } from "./version";
 import { SYSTEM_ECHO_TOOL_NAME, SystemEchoArgsSchema } from "./tools/system-echo";
+import {
+  NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  NavigateAndExtractArgsSchema,
+} from "./tools/navigate-and-extract";
 
 /**
  * Generic factory for a tool invocation envelope: correlation metadata,
@@ -37,3 +41,11 @@ export const SystemEchoInvocationSchema = makeToolInvocationSchema(
 );
 
 export type SystemEchoInvocation = z.infer<typeof SystemEchoInvocationSchema>;
+
+/** Concrete invocation envelope for the `browser.navigate_and_extract` tool. */
+export const NavigateAndExtractInvocationSchema = makeToolInvocationSchema(
+  NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  NavigateAndExtractArgsSchema,
+);
+
+export type NavigateAndExtractInvocation = z.infer<typeof NavigateAndExtractInvocationSchema>;

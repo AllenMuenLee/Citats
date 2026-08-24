@@ -15,6 +15,8 @@ import {
   CancellationResultSchema,
   CorrelationMetadataSchema,
   EvidenceItemSchema,
+  NavigateAndExtractInvocationSchema,
+  NavigateAndExtractSuccessResultSchema,
   SensitivityFlagsSchema,
   SystemEchoInvocationSchema,
   SystemEchoProgressEventSchema,
@@ -34,4 +36,6 @@ export const FIXTURE_SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
   evidence: EvidenceItemSchema,
   sensitivity: SensitivityFlagsSchema,
   "correlation-metadata": CorrelationMetadataSchema,
+  "invocation-navigate-and-extract": NavigateAndExtractInvocationSchema,
+  "success-result-navigate-and-extract": NavigateAndExtractSuccessResultSchema,
 };

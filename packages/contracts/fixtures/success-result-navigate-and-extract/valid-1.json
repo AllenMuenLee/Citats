@@ -1,0 +1,50 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001",
+    "sessionId": "sess-0001",
+    "taskId": "task-0001"
+  },
+  "toolCallId": "call-0001",
+  "status": "success",
+  "payload": {
+    "metadata": {
+      "title": "What is an AI-native browser?",
+      "url": "https://example.com/articles/ai-native-browsers",
+      "language": "en",
+      "description": "An overview of AI-native browsing.",
+      "publishedTime": "2026-08-01T09:00:00Z",
+      "httpStatus": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    "chunks": [
+      {
+        "chunkId": "chunk-0",
+        "text": "An AI-native browser lets a model drive real navigation.",
+        "startOffset": 0,
+        "endOffset": 58
+      }
+    ],
+    "warnings": [],
+    "truncations": [],
+    "timing": {
+      "navigationMs": 420.5,
+      "extractionMs": 12.25,
+      "totalMs": 432.75
+    },
+    "untrusted": true
+  },
+  "evidence": [
+    {
+      "sourceUrl": "https://example.com/articles/ai-native-browsers",
+      "title": "What is an AI-native browser?",
+      "snippet": "An AI-native browser lets a model drive real navigation.",
+      "retrievedAt": "2026-08-22T12:00:00Z"
+    }
+  ],
+  "sensitivity": {
+    "sensitive": false,
+    "confirmationRequired": false
+  }
+}
