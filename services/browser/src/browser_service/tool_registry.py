@@ -6,11 +6,10 @@ expected, safe-to-surface failure) -- `api/bridge.py` is generic over this
 shape and never hardcodes a tool-specific payload/result structure.
 
 This registry is closed and read-only: it exposes exactly the tools
-listed here, all read-only through Phase 3 (`system.echo` -- the P00
-reference/test tool; `browser.navigate_and_extract` -- P02-F04;
-`browser.invoke_discovered_api` -- P03-F04; `browser.navigate_extract_and_discover`
--- P03-F05). Nothing here (or anywhere reachable from it) exposes click,
-form, script-evaluation, or other mutation capability.
+listed here (`system.echo` -- the P00 reference/test tool;
+`browser.navigate_and_extract` -- P02-F04). Nothing here (or anywhere
+reachable from it) exposes click, form, script-evaluation, or other
+mutation capability.
 """
 
 from __future__ import annotations
@@ -21,21 +20,22 @@ from dataclasses import dataclass
 from typing import Any
 
 from browser_service.contracts import (
-    InvocationInvokeDiscoveredApi,
+    InvocationExploreWebsite,
+    InvocationGetPageUnderstandingSlice,
     InvocationNavigateAndExtract,
-    InvocationNavigateExtractAndDiscover,
+    InvocationProposeGenerativeUiPlan,
     InvocationSystemEcho,
-    SuccessResultInvokeDiscoveredApi,
+    SuccessResultExploreWebsite,
+    SuccessResultGetPageUnderstandingSlice,
     SuccessResultNavigateAndExtract,
-    SuccessResultNavigateExtractAndDiscover,
+    SuccessResultProposeGenerativeUiPlan,
     SuccessResultSystemEcho,
 )
 from browser_service.tool_outcome import ToolHandlerOutcome
-from browser_service.tools.invoke_discovered_api import run_invoke_discovered_api
+from browser_service.tools.explore_website import run_explore_website
+from browser_service.tools.get_page_understanding_slice import run_get_page_understanding_slice
 from browser_service.tools.navigate_and_extract import run_navigate_and_extract
-from browser_service.tools.navigate_extract_and_discover import (
-    run_navigate_extract_and_discover,
-)
+from browser_service.tools.propose_generative_ui_plan import run_propose_generative_ui_plan
 
 MAX_ARTIFICIAL_DELAY_MS = 2_000
 
@@ -80,14 +80,17 @@ TOOL_REGISTRY: dict[str, ToolRegistration] = {
     "browser.navigate_and_extract": ToolRegistration(
         InvocationNavigateAndExtract, run_navigate_and_extract, SuccessResultNavigateAndExtract
     ),
-    "browser.invoke_discovered_api": ToolRegistration(
-        InvocationInvokeDiscoveredApi,
-        run_invoke_discovered_api,
-        SuccessResultInvokeDiscoveredApi,
+    "browser.explore_website": ToolRegistration(
+        InvocationExploreWebsite, run_explore_website, SuccessResultExploreWebsite
     ),
-    "browser.navigate_extract_and_discover": ToolRegistration(
-        InvocationNavigateExtractAndDiscover,
-        run_navigate_extract_and_discover,
-        SuccessResultNavigateExtractAndDiscover,
+    "browser.get_page_understanding_slice": ToolRegistration(
+        InvocationGetPageUnderstandingSlice,
+        run_get_page_understanding_slice,
+        SuccessResultGetPageUnderstandingSlice,
+    ),
+    "ui.propose_generative_ui_plan": ToolRegistration(
+        InvocationProposeGenerativeUiPlan,
+        run_propose_generative_ui_plan,
+        SuccessResultProposeGenerativeUiPlan,
     ),
 }

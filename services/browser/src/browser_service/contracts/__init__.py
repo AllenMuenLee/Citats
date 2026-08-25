@@ -51,19 +51,22 @@ from browser_service.contracts.generated.cancellation_result import (
 from browser_service.contracts.generated.correlation_metadata import (
     CorrelationMetadata,
 )
+from browser_service.contracts.generated.compiled_generated_ui_artifact import CompiledGeneratedUiArtifact
 from browser_service.contracts.generated.error_result import ErrorResult
 from browser_service.contracts.generated.evidence_item import (
     EvidenceItem as _GeneratedEvidenceItem,
 )
-from browser_service.contracts.generated.generative_ui_part import GenerativeUiPart
-from browser_service.contracts.generated.invocation_invoke_discovered_api import (
-    InvocationInvokeDiscoveredApi as _GeneratedInvocationInvokeDiscoveredApi,
+from browser_service.contracts.generated.invocation_explore_website import (
+    InvocationExploreWebsite as _GeneratedInvocationExploreWebsite,
+)
+from browser_service.contracts.generated.invocation_get_page_understanding_slice import (
+    InvocationGetPageUnderstandingSlice as _GeneratedInvocationGetPageUnderstandingSlice,
 )
 from browser_service.contracts.generated.invocation_navigate_and_extract import (
     InvocationNavigateAndExtract as _GeneratedInvocationNavigateAndExtract,
 )
-from browser_service.contracts.generated.invocation_navigate_extract_and_discover import (
-    InvocationNavigateExtractAndDiscover as _GeneratedInvocationNavigateExtractAndDiscover,
+from browser_service.contracts.generated.invocation_propose_generative_ui_plan import (
+    InvocationProposeGenerativeUiPlan as _GeneratedInvocationProposeGenerativeUiPlan,
 )
 from browser_service.contracts.generated.invocation_system_echo import (
     InvocationSystemEcho as _GeneratedInvocationSystemEcho,
@@ -72,20 +75,24 @@ from browser_service.contracts.generated.progress_event_system_echo import (
     ProgressEventSystemEcho as _GeneratedProgressEventSystemEcho,
 )
 from browser_service.contracts.generated.sensitivity import Sensitivity
-from browser_service.contracts.generated.success_result_invoke_discovered_api import (
-    SuccessResultInvokeDiscoveredApi as _GeneratedSuccessResultInvokeDiscoveredApi,
+from browser_service.contracts.generated.success_result_explore_website import (
+    SuccessResultExploreWebsite as _GeneratedSuccessResultExploreWebsite,
+)
+from browser_service.contracts.generated.success_result_get_page_understanding_slice import (
+    SuccessResultGetPageUnderstandingSlice as _GeneratedSuccessResultGetPageUnderstandingSlice,
 )
 from browser_service.contracts.generated.success_result_navigate_and_extract import (
     SuccessResultNavigateAndExtract as _GeneratedSuccessResultNavigateAndExtract,
 )
-from browser_service.contracts.generated.success_result_navigate_extract_and_discover import (
-    SuccessResultNavigateExtractAndDiscover as _GeneratedSuccessResultNavigateExtractAndDiscover,
+from browser_service.contracts.generated.success_result_propose_generative_ui_plan import (
+    SuccessResultProposeGenerativeUiPlan as _GeneratedSuccessResultProposeGenerativeUiPlan,
 )
 from browser_service.contracts.generated.success_result_system_echo import (
     SuccessResultSystemEcho as _GeneratedSuccessResultSystemEcho,
 )
 from browser_service.contracts.generated.tool_definition import ToolDefinition
-from browser_service.contracts.generated.ui_command import UiCommand
+from browser_service.contracts.generated.ui_generation_request import UiGenerationRequest
+from browser_service.contracts.generated.ui_generation_response import UiGenerationResponse as _GeneratedUiGenerationResponse
 
 __all__ = [
     "ForbiddenCredentialFieldError",
@@ -102,29 +109,16 @@ __all__ = [
     "CancellationResult",
     "InvocationNavigateAndExtract",
     "SuccessResultNavigateAndExtract",
-    "GenerativeUiPart",
-    "UiCommand",
-    "InvocationInvokeDiscoveredApi",
-    "SuccessResultInvokeDiscoveredApi",
-    "InvocationNavigateExtractAndDiscover",
-    "SuccessResultNavigateExtractAndDiscover",
+    "InvocationExploreWebsite",
+    "SuccessResultExploreWebsite",
+    "InvocationGetPageUnderstandingSlice",
+    "SuccessResultGetPageUnderstandingSlice",
+    "InvocationProposeGenerativeUiPlan",
+    "SuccessResultProposeGenerativeUiPlan",
+    "UiGenerationRequest",
+    "UiGenerationResponse",
+    "CompiledGeneratedUiArtifact",
 ]
-
-
-class InvocationInvokeDiscoveredApi(_GeneratedInvocationInvokeDiscoveredApi):
-    @model_validator(mode="after")
-    def _check_parameters_for_forbidden_fields(self) -> InvocationInvokeDiscoveredApi:
-        assert_no_forbidden_fields(
-            self.arguments.model_dump()["parameters"], base_path="arguments.parameters"
-        )
-        return self
-
-
-class SuccessResultInvokeDiscoveredApi(_GeneratedSuccessResultInvokeDiscoveredApi):
-    @model_validator(mode="after")
-    def _check_records_for_forbidden_fields(self) -> SuccessResultInvokeDiscoveredApi:
-        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
-        return self
 
 
 class EvidenceItem(_GeneratedEvidenceItem):
@@ -136,6 +130,15 @@ class EvidenceItem(_GeneratedEvidenceItem):
         if not is_http_or_https_url(value):
             raise ValueError("sourceUrl scheme must be 'http' or 'https'")
         return value
+
+
+class UiGenerationResponse(_GeneratedUiGenerationResponse):
+    @model_validator(mode="after")
+    def _require_consistent_fallback(self) -> UiGenerationResponse:
+        is_fallback = self.fallbackReason is not None
+        if (self.tsxSource is None) != is_fallback or self.manifest.fallback != is_fallback:
+            raise ValueError("fallback response must omit source and mark its manifest")
+        return self
 
 
 class InvocationSystemEcho(_GeneratedInvocationSystemEcho):
@@ -247,12 +250,12 @@ class SuccessResultNavigateAndExtract(_GeneratedSuccessResultNavigateAndExtract)
         return value
 
 
-class InvocationNavigateExtractAndDiscover(_GeneratedInvocationNavigateExtractAndDiscover):
+class InvocationExploreWebsite(_GeneratedInvocationExploreWebsite):
     """Rejects credential-shaped field names in `arguments`; enforces the
     `http`/`https` URL scheme on `arguments.url`."""
 
     @model_validator(mode="after")
-    def _check_arguments_for_forbidden_fields(self) -> InvocationNavigateExtractAndDiscover:
+    def _check_arguments_for_forbidden_fields(self) -> InvocationExploreWebsite:
         assert_no_forbidden_fields(self.arguments.model_dump(), base_path="arguments")
         return self
 
@@ -265,13 +268,13 @@ class InvocationNavigateExtractAndDiscover(_GeneratedInvocationNavigateExtractAn
         return value
 
 
-class SuccessResultNavigateExtractAndDiscover(_GeneratedSuccessResultNavigateExtractAndDiscover):
+class SuccessResultExploreWebsite(_GeneratedSuccessResultExploreWebsite):
     """Rejects credential-shaped field names in `payload`; enforces the
     `http`/`https` URL scheme on `payload.document.metadata.url` and every
     `evidence[].sourceUrl`."""
 
     @model_validator(mode="after")
-    def _check_payload_for_forbidden_fields(self) -> SuccessResultNavigateExtractAndDiscover:
+    def _check_payload_for_forbidden_fields(self) -> SuccessResultExploreWebsite:
         assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
         return self
 
@@ -295,3 +298,39 @@ class SuccessResultNavigateExtractAndDiscover(_GeneratedSuccessResultNavigateExt
             if isinstance(source_url, str) and not is_http_or_https_url(source_url):
                 raise ValueError(f"evidence[{index}].sourceUrl scheme must be 'http' or 'https'")
         return value
+
+
+class InvocationGetPageUnderstandingSlice(_GeneratedInvocationGetPageUnderstandingSlice):
+    """Rejects credential-shaped field names in `arguments`."""
+
+    @model_validator(mode="after")
+    def _check_arguments_for_forbidden_fields(self) -> InvocationGetPageUnderstandingSlice:
+        assert_no_forbidden_fields(self.arguments.model_dump(), base_path="arguments")
+        return self
+
+
+class SuccessResultGetPageUnderstandingSlice(_GeneratedSuccessResultGetPageUnderstandingSlice):
+    """Rejects credential-shaped field names in `payload`."""
+
+    @model_validator(mode="after")
+    def _check_payload_for_forbidden_fields(self) -> SuccessResultGetPageUnderstandingSlice:
+        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
+        return self
+
+
+class InvocationProposeGenerativeUiPlan(_GeneratedInvocationProposeGenerativeUiPlan):
+    """Rejects credential-shaped field names in `arguments`."""
+
+    @model_validator(mode="after")
+    def _check_arguments_for_forbidden_fields(self) -> InvocationProposeGenerativeUiPlan:
+        assert_no_forbidden_fields(self.arguments.model_dump(), base_path="arguments")
+        return self
+
+
+class SuccessResultProposeGenerativeUiPlan(_GeneratedSuccessResultProposeGenerativeUiPlan):
+    """Rejects credential-shaped field names in `payload`."""
+
+    @model_validator(mode="after")
+    def _check_payload_for_forbidden_fields(self) -> SuccessResultProposeGenerativeUiPlan:
+        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
+        return self

@@ -147,8 +147,8 @@ def test_navigate_rejects_disallowed_targets_before_touching_browser(http_port: 
 def test_navigate_attaches_and_detaches_observer_around_navigation(http_port: int) -> None:
     """The trusted, server-only observer hook (P02-F01 step 3): attached
     immediately before navigation, detached in ``finally`` on success --
-    later phases (e.g. network capture for API discovery) rely on this
-    ordering to never miss the initial document's own traffic.
+    later phases (e.g. page-observation capture, P03-F01) rely on this
+    ordering to never miss the initial document's own state.
     """
     service = make_service(http_port)
     events: list[str] = []

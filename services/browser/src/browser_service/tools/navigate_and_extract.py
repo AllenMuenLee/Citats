@@ -5,9 +5,8 @@ read-only browser-automation primitives (P02-F01,
 
 Callers (the tool registry) never construct or reach into
 browser/navigation/extraction primitives directly -- they stay private to
-this module (and to `navigate_extract_and_discover.py`, which composes the
-same primitives plus discovery), per the phase's "keep lower-level browser
-primitives private" requirement. Nothing here exposes click, form,
+this module, per the phase's "keep lower-level browser primitives
+private" requirement. Nothing here exposes click, form,
 script-evaluation, or mutation capability: navigation is a single
 NAVIGATE + GET_CONTENT pair, exactly as `browser_service.browser`
 exposes. The one process-wide :class:`BrowserLifecycleManager` every

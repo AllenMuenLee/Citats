@@ -21,7 +21,6 @@ from browser_service.api.bridge import router as bridge_router
 from browser_service.auth import require_service_token
 from browser_service.config import get_postgres_target, get_redis_target
 from browser_service.health import check_tcp_reachable
-from browser_service.sites.lint import lint as lint_site_policies
 
 app = FastAPI(
     title="AI-Native Browser - Browser Service",
@@ -35,9 +34,6 @@ app = FastAPI(
 
 app.include_router(bridge_router)
 logger = logging.getLogger("browser_service.http")
-
-if lint_site_policies() != 0:
-    raise RuntimeError("Pilot site policy validation failed")
 
 
 @app.middleware("http")

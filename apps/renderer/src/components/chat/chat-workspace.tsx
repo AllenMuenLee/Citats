@@ -14,7 +14,7 @@ export function ChatWorkspace() {
   return <main className={styles.workspace}>
     <header className={styles.header}><div><span className={styles.eyebrow}>AI workspace</span><h1>Conversation</h1></div><button className={styles.secondaryButton} type="button" onClick={() => act(chat.newSession)}>New session</button></header>
     <section className={styles.conversation} aria-label="Chat workspace">
-      <div className={styles.scrollRegion}><MessageList parts={chat.parts} sessionId={chat.sessionId} /></div>
+      <div className={styles.scrollRegion}><MessageList parts={chat.parts} /></div>
       {chat.status === "failed" && chat.parts.some((part) => part.type === "error" && part.retryable) && <div className={styles.recovery}><span>Nothing was changed.</span><button type="button" onClick={() => act(chat.retry)}>Retry</button></div>}
       <p className={styles.srOnly} role="status" aria-live="polite">{statusText[chat.status]}</p>
       <ChatComposer disabled={!chat.canSend} streaming={chat.status === "streaming"} onSubmit={chat.send} onStop={() => act(chat.stop)} focusSignal={focusSignal} />

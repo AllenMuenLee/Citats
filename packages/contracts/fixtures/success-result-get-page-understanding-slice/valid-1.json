@@ -1,0 +1,28 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001"
+  },
+  "toolCallId": "call-0001",
+  "status": "success",
+  "payload": {
+    "found": true,
+    "nodes": [
+      {
+        "kind": "repeated_record",
+        "handle": "node-result-2",
+        "boundingBox": null,
+        "visibility": "visible",
+        "role": "search_result",
+        "collectionHandle": "collection-results",
+        "index": 1
+      }
+    ],
+    "relationships": [],
+    "truncated": false,
+    "warnings": [],
+    "untrusted": true
+  },
+  "sensitivity": { "sensitive": false, "confirmationRequired": false }
+}

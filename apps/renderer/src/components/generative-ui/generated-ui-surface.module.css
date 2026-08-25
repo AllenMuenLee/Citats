@@ -1,0 +1,10 @@
+.frame { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-bg-surface); }
+.header, .footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding: var(--space-8) var(--space-12); color: var(--color-text-secondary); font-size: 12px; background: var(--color-bg-elevated); }
+.header { border-bottom: 1px solid var(--color-border); }
+.footer { justify-content: flex-end; border-top: 1px solid var(--color-border); }
+.label { color: var(--color-text-primary); font-weight: 600; }
+.surface { display: block; width: 100%; min-height: 120px; max-height: 4096px; border: 0; background: var(--color-bg-canvas); }
+.footer button, .fallback button { min-height: 40px; padding: 0 var(--space-12); color: var(--color-text-primary); font: inherit; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-bg-surface); cursor: pointer; }
+.footer button:focus-visible, .fallback button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.fallback { display: grid; gap: var(--space-12); padding: var(--space-16); color: var(--color-text-primary); border: 1px solid var(--color-danger); border-radius: var(--radius-panel); background: var(--color-bg-surface); }
+.fallback button { justify-self: start; }

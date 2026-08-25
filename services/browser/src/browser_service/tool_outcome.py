@@ -21,10 +21,6 @@ VALID_TOOL_ERROR_CODES = frozenset(
         "TIMEOUT",
         "CANCELLED",
         "UPSTREAM_UNAVAILABLE",
-        "POLICY_BLOCKED",
-        "STALE_MAP",
-        "RESPONSE_DRIFT",
-        "RATE_LIMITED",
         "INTERNAL",
     }
 )

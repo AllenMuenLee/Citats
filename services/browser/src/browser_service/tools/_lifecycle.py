@@ -1,7 +1,6 @@
 """Owns the ONE shared :class:`BrowserLifecycleManager` for the whole
-service process. Every browser-driving tool (`navigate_and_extract`,
-`navigate_extract_and_discover`, ...) gets its page(s) through this single
-lazily-created manager -- never a second, independent one -- so the
+service process. Every browser-driving tool gets its page(s) through this
+single lazily-created manager -- never a second, independent one -- so the
 process's browser-resource limits (`LifecycleConfig.max_concurrent_contexts`
 and friends) apply across every tool, not per tool. Private to
 `browser_service.tools`; not part of the public tool surface.

@@ -1,0 +1,70 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001"
+  },
+  "toolCallId": "call-0001",
+  "status": "success",
+  "payload": {
+    "document": {
+      "metadata": {
+        "title": "Hotel search results",
+        "url": "javascript:alert(1)",
+        "language": "en",
+        "description": null,
+        "publishedTime": null,
+        "httpStatus": 200,
+        "contentType": "text/html"
+      },
+      "chunks": [],
+      "warnings": [],
+      "truncations": []
+    },
+    "pageUnderstanding": {
+      "schemaVersion": 1,
+      "observationId": "obs-0001",
+      "metadata": {
+        "finalUrl": "https://example.com/search?q=hotels",
+        "origin": "https://example.com",
+        "title": null,
+        "language": null,
+        "description": null,
+        "author": null,
+        "publishedTime": null,
+        "updatedTime": null,
+        "favicon": null,
+        "themeColor": null,
+        "viewportHint": null,
+        "documentDirection": null,
+        "contentType": null,
+        "charset": null,
+        "robots": null
+      },
+      "status": "complete",
+      "nodes": [],
+      "relationships": [],
+      "regions": [],
+      "collections": [],
+      "capabilities": [],
+      "sourceCandidates": [],
+      "viewport": { "width": 1280, "height": 800, "scrollX": 0, "scrollY": 0, "scrollHeight": 800, "devicePixelRatio": null },
+      "warnings": [],
+      "truncations": [],
+      "coverage": {
+        "observedControlCount": 0,
+        "safelyExploredControlCount": 0,
+        "prohibitedControlCount": 0,
+        "unknownControlCount": 0,
+        "inaccessibleRegionCount": 0,
+        "unobservedLazyStateCount": 0,
+        "notes": []
+      },
+      "observationDigest": "sha256-abc123",
+      "untrusted": true
+    },
+    "timing": { "navigationMs": 1, "extractionMs": 1, "observationMs": 1, "totalMs": 3 },
+    "untrusted": true
+  },
+  "sensitivity": { "sensitive": false, "confirmationRequired": false }
+}

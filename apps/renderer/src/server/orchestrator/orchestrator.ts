@@ -3,15 +3,18 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import {
   CONTRACT_MAJOR_VERSION,
-  INVOKE_DISCOVERED_API_TOOL_NAME,
+  EXPLORE_WEBSITE_TOOL_NAME,
+  ExploreWebsiteDocumentSchema,
+  ExploreWebsiteSuccessResultSchema,
+  GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
-  NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME,
   NavigateAndExtractSuccessResultSchema,
-  NavigateExtractAndDiscoverSuccessResultSchema,
   type Citation,
   type EvidenceChunk,
   type Source,
   type ToolErrorResult,
+  type GenerativeUiPlan,
+  type PageUnderstanding,
 } from "@ai-browser/contracts";
 import { z } from "zod";
 import type { MistralAdapter, MistralConversationTurn } from "../ai/mistral";
@@ -31,14 +34,10 @@ import {
   type EvidenceBundle,
   type MarkerScanResult,
 } from "../citations";
-import {
-  createDiscoveredOperationTool,
-  type InvokeDiscoveredApiToolExecutor,
-  type RegisteredTool,
-} from "./registry";
+import type { RegisteredTool } from "./registry";
 import { classifyRoute, findExplicitSafeUrl, type RoutingDecision, type RoutingRoute } from "./routing";
 import { OrchestratorError, type OrchestratorCitationSource, type OrchestratorEvent, type OrchestratorState } from "./types";
-import { generativeUiFromDiscoveredApi } from "../generative-ui/from-discovered-api";
+import type { GeneratedUiReference } from "../generative-ui";
 
 /** Correlation-safe routing telemetry (P02-F05 step 5) -- never carries the request text or page content. */
 export interface RouteDecisionMetric {
@@ -51,42 +50,31 @@ export interface OrchestratorOptions {
   model: MistralAdapter;
   conversations: ConversationRepository;
   tools: ReadonlyMap<string, RegisteredTool>;
-  /**
-   * Same executor `createInvokeDiscoveredApiTool`/`createDiscoveredOperationTool`
-   * (see `./registry`) were built from, supplied separately so `run` can
-   * mint new `discovered.*` tools mid-run (P03-F05 step 7) from operations a
-   * `browser.navigate_extract_and_discover` call just made active, without
-   * needing to reach back into an already-built `RegisteredTool`. Omit to
-   * disable mid-run catalog refresh (e.g. when the discovery tool itself
-   * isn't registered).
-   */
-  invokeDiscoveredApiExecutor?: InvokeDiscoveredApiToolExecutor;
   maxSteps?: number;
   deadlineMs?: number;
   maxMessages?: number;
   maxEstimatedTokens?: number;
   createId?: () => string;
   emitRouteDecision?: (metric: RouteDecisionMetric) => void;
+  generateUi?: (input: { ownerId: string; task: string; plan: GenerativeUiPlan; pageUnderstanding: PageUnderstanding; signal: AbortSignal }) => Promise<GeneratedUiReference | null>;
 }
 
 /**
  * Resolves the request-scoped tool surface for a routing decision (P02-F05
  * steps 2-5). Only gates the browsing-specific surface -- `web_search`
- * (hosted), `browser.navigate_and_extract`, and
- * `browser.navigate_extract_and_discover` -- and leaves any other
+ * (hosted) and `browser.navigate_and_extract` -- and leaves any other
  * registered tool (e.g. Phase 1's `system.echo`) untouched, since this
  * repair's routing concern is research-vs-browsing, not the whole registry:
- * `web_search_only` never sees either browsing tool, `website_read_required`
- * keeps whatever else is registered plus both browsing tools, and
+ * `web_search_only` never sees the browsing tool, `website_read_required`
+ * keeps whatever else is registered plus the browsing tool, and
  * `web_search` (hosted) is only offered when discovery is actually needed --
  * i.e. not when the user already supplied an explicit safe URL to read.
  * `code_interpreter`/`image_generation` are never enabled by this flow.
  *
  * Always returns a fresh, request-scoped `Map` copy (never `tools` itself)
- * -- `ChatOrchestrator.run` mutates the returned map in place for its
- * mid-run discovered-tool catalog refresh (P03-F05 step 7), and that must
- * never leak into the shared, constructor-supplied registry other runs and
- * other sessions also read from.
+ * so per-run tool-surface changes never leak into the shared,
+ * constructor-supplied registry other runs and other sessions also read
+ * from.
  */
 function resolveRouteTools(
   route: RoutingRoute,
@@ -96,7 +84,8 @@ function resolveRouteTools(
   const routeTools = new Map(tools);
   if (route === "web_search_only") {
     routeTools.delete(NAVIGATE_AND_EXTRACT_TOOL_NAME);
-    routeTools.delete(NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME);
+    routeTools.delete(EXPLORE_WEBSITE_TOOL_NAME);
+    routeTools.delete(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME);
     return { routeTools, hostedTools: ["web_search"], usedDiscovery: false };
   }
   const usedDiscovery = explicitUrl === undefined;
@@ -146,25 +135,28 @@ function toModelTurn(message: ConversationMessage): MistralConversationTurn {
  * `result` unchanged for any other tool, or an error/malformed result.
  */
 function namespaceEvidenceChunkIds(toolCallId: string, toolName: string, result: unknown): unknown {
-  if (toolName !== NAVIGATE_AND_EXTRACT_TOOL_NAME) return result;
-  const parsed = NavigateAndExtractSuccessResultSchema.safeParse(result);
+  const parsed = toolName === NAVIGATE_AND_EXTRACT_TOOL_NAME
+    ? NavigateAndExtractSuccessResultSchema.safeParse(result)
+    : toolName === EXPLORE_WEBSITE_TOOL_NAME ? ExploreWebsiteSuccessResultSchema.safeParse(result) : null;
+  if (!parsed?.success) return result;
   if (!parsed.success) return result;
   const prefix = createHash("sha256").update(toolCallId, "utf8").digest("hex").slice(0, 8);
-  const renamed = new Map(parsed.data.payload.chunks.map((chunk) => [chunk.chunkId, `${prefix}-${chunk.chunkId}`]));
+  const rawDocument = toolName === EXPLORE_WEBSITE_TOOL_NAME
+    ? (parsed.data.payload as { document: Record<string, unknown> }).document
+    : parsed.data.payload as Record<string, unknown>;
+  const document = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
+  const renamed = new Map(document.chunks.map((chunk) => [chunk.chunkId, `${prefix}-${chunk.chunkId}`]));
+  const renamedDocument = {
+    ...document,
+    chunks: document.chunks.map((chunk) => ({ ...chunk, chunkId: renamed.get(chunk.chunkId)! })),
+    warnings: document.warnings.map((warning) => warning.chunkId && renamed.has(warning.chunkId) ? { ...warning, chunkId: renamed.get(warning.chunkId) } : warning),
+    truncations: document.truncations.map((truncation) => truncation.atChunkId && renamed.has(truncation.atChunkId) ? { ...truncation, atChunkId: renamed.get(truncation.atChunkId) } : truncation),
+  };
   return {
     ...parsed.data,
-    payload: {
-      ...parsed.data.payload,
-      chunks: parsed.data.payload.chunks.map((chunk) => ({ ...chunk, chunkId: renamed.get(chunk.chunkId)! })),
-      warnings: parsed.data.payload.warnings.map((warning) =>
-        warning.chunkId && renamed.has(warning.chunkId) ? { ...warning, chunkId: renamed.get(warning.chunkId) } : warning,
-      ),
-      truncations: parsed.data.payload.truncations.map((truncation) =>
-        truncation.atChunkId && renamed.has(truncation.atChunkId)
-          ? { ...truncation, atChunkId: renamed.get(truncation.atChunkId) }
-          : truncation,
-      ),
-    },
+    payload: toolName === EXPLORE_WEBSITE_TOOL_NAME
+      ? { ...parsed.data.payload, document: renamedDocument }
+      : { ...parsed.data.payload, ...renamedDocument },
   };
 }
 
@@ -183,10 +175,14 @@ function extractEvidenceFromToolResult(
   toolName: string,
   result: unknown,
 ): { source: Source; chunks: EvidenceChunk[] } | null {
-  if (toolName !== NAVIGATE_AND_EXTRACT_TOOL_NAME) return null;
-  const parsed = NavigateAndExtractSuccessResultSchema.safeParse(result);
-  if (!parsed.success) return null;
-  const { metadata, chunks } = parsed.data.payload;
+  const parsed = toolName === NAVIGATE_AND_EXTRACT_TOOL_NAME
+    ? NavigateAndExtractSuccessResultSchema.safeParse(result)
+    : toolName === EXPLORE_WEBSITE_TOOL_NAME ? ExploreWebsiteSuccessResultSchema.safeParse(result) : null;
+  if (!parsed?.success) return null;
+  const rawDocument = toolName === EXPLORE_WEBSITE_TOOL_NAME
+    ? (parsed.data.payload as { document: Record<string, unknown> }).document
+    : parsed.data.payload as Record<string, unknown>;
+  const { metadata, chunks } = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
   const source: Source = {
     id: `source-${toolCallId}`,
     url: metadata.url,
@@ -226,35 +222,6 @@ export class ChatOrchestrator {
     this.maxMessages = options.maxMessages ?? 50;
     this.maxEstimatedTokens = options.maxEstimatedTokens ?? 16_000;
     this.createId = options.createId ?? randomUUID;
-  }
-
-  /**
-   * Mid-run discovered-tool catalog refresh (P03-F05 step 7): after a
-   * `browser.navigate_extract_and_discover` call commits, any operation in
-   * its `discovery.operations` becomes a `discovered.*` tool available for
-   * the *rest of this run* -- the next model step already re-reads
-   * `routeTools.values()` fresh (see the tool-definitions list built each
-   * iteration of the step loop), so mutating `routeTools` here is
-   * sufficient; no restart or second request is needed. `routeTools` is
-   * always this run's own request-scoped copy (see `resolveRouteTools`),
-   * never the shared registry the orchestrator was constructed with, so
-   * this never leaks a newly-active operation into another session or a
-   * later, unrelated run. An error-result or otherwise malformed `result`
-   * (e.g. a policy/timeout failure) simply refreshes nothing.
-   */
-  private registerNewlyDiscoveredOperations(
-    result: unknown,
-    routeTools: Map<string, RegisteredTool>,
-    executor: InvokeDiscoveredApiToolExecutor,
-  ): void {
-    const parsed = NavigateExtractAndDiscoverSuccessResultSchema.safeParse(result);
-    if (!parsed.success) return;
-    for (const operation of parsed.data.payload.discovery.operations) {
-      const tool = createDiscoveredOperationTool(executor, operation);
-      if (!routeTools.has(tool.definition.name)) {
-        routeTools.set(tool.definition.name, tool);
-      }
-    }
   }
 
   async *run(rawInput: RunConversationInput): AsyncGenerator<OrchestratorEvent> {
@@ -411,30 +378,20 @@ export class ChatOrchestrator {
             }
           }
           state = "result-append";
-          if (call.name === NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME && this.options.invokeDiscoveredApiExecutor) {
-            this.registerNewlyDiscoveredOperations(result, routeTools, this.options.invokeDiscoveredApiExecutor);
-          }
-          if (call.name === INVOKE_DISCOVERED_API_TOOL_NAME || call.name.startsWith("discovered.")) {
-            try {
-              const generated = generativeUiFromDiscoveredApi(result, {
-                query: parsed.text,
-                correlationId: requestId,
-                invocationId: call.id,
-              });
-              if (generated) yield { type: "generative-ui", payload: generated };
-            } catch {
-              yield {
-                type: "generative-ui",
-                payload: {
-                  component_type: "unavailable",
-                  schema_version: "1.0",
-                  fallback_text: "The discovered API result could not be displayed safely.",
-                },
-              };
-            }
-          }
           result = namespaceEvidenceChunkIds(call.id, call.name, result);
           committedTools.push({ name: call.name, id: call.id, result });
+          if (call.name === "ui.propose_generative_ui_plan" && this.options.generateUi) {
+            const exploration = [...committedTools].reverse().find((item) => item.name === EXPLORE_WEBSITE_TOOL_NAME);
+            const parsedExploration = exploration ? ExploreWebsiteSuccessResultSchema.safeParse(exploration.result) : null;
+            try {
+              const plan = JSON.parse(call.arguments) as GenerativeUiPlan;
+              if (parsedExploration?.success && parsedExploration.data.status === "success") {
+                const reference = await this.options.generateUi({ ownerId: parsed.ownerId, task: parsed.text, plan, pageUnderstanding: parsedExploration.data.payload.pageUnderstanding, signal });
+                if (reference) yield { type: "generated-ui", id: this.createId(), ...reference };
+              }
+            } catch {
+            }
+          }
           const evidence = extractEvidenceFromToolResult(call.id, call.name, result);
           if (evidence) {
             evidenceSources.set(evidence.source.id, evidence.source);

@@ -33,7 +33,7 @@ class ErrorResult(BaseModel):
     )
     contractVersion: Literal[1]
     correlation: Correlation
-    errorCode: Literal['INVALID_ARGUMENTS', 'UNKNOWN_TOOL', 'TIMEOUT', 'CANCELLED', 'UPSTREAM_UNAVAILABLE', 'POLICY_BLOCKED', 'STALE_MAP', 'RESPONSE_DRIFT', 'RATE_LIMITED', 'INTERNAL']
+    errorCode: Literal['INVALID_ARGUMENTS', 'UNKNOWN_TOOL', 'TIMEOUT', 'CANCELLED', 'UPSTREAM_UNAVAILABLE', 'INTERNAL']
     message: StrictStr = Field(..., max_length=500, min_length=1)
     retryable: StrictBool
     status: Literal['error']

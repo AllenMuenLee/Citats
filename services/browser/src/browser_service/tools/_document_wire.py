@@ -1,9 +1,7 @@
-"""Shared wire-shaping for the `document` sub-shape both
-`browser.navigate_and_extract` (P02-F04) and `browser.navigate_extract_and_discover`
-(P03-F05) return -- factored out so the two tools' identical `metadata`/
-`chunks`/`warnings`/`truncations`/`timing`/evidence shapes cannot drift
-from each other. Private to `browser_service.tools`; not part of the
-public tool surface.
+"""Wire-shaping for the `document` sub-shape `browser.navigate_and_extract`
+(P02-F04) returns: `metadata`/`chunks`/`warnings`/`truncations`/`timing`/
+evidence. Private to `browser_service.tools`; not part of the public tool
+surface.
 """
 
 from __future__ import annotations

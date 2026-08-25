@@ -8,11 +8,15 @@ import {
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractArgsSchema,
 } from "./tools/navigate-and-extract";
-import { INVOKE_DISCOVERED_API_TOOL_NAME, InvokeDiscoveredApiArgsSchema } from "./tools/invoke-discovered-api";
+import { EXPLORE_WEBSITE_TOOL_NAME, ExploreWebsiteArgsSchema } from "./tools/explore-website";
 import {
-  NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME,
-  NavigateExtractAndDiscoverArgsSchema,
-} from "./tools/navigate-extract-and-discover";
+  GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
+  GetPageUnderstandingSliceArgsSchema,
+} from "./tools/get-page-understanding-slice";
+import {
+  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
+  ProposeGenerativeUiPlanArgsSchema,
+} from "./tools/propose-generative-ui-plan";
 
 /**
  * Generic factory for a tool invocation envelope: correlation metadata,
@@ -55,19 +59,26 @@ export const NavigateAndExtractInvocationSchema = makeToolInvocationSchema(
 
 export type NavigateAndExtractInvocation = z.infer<typeof NavigateAndExtractInvocationSchema>;
 
-export const InvokeDiscoveredApiInvocationSchema = makeToolInvocationSchema(
-  INVOKE_DISCOVERED_API_TOOL_NAME,
-  InvokeDiscoveredApiArgsSchema,
+/** Concrete invocation envelope for the `browser.explore_website` tool. */
+export const ExploreWebsiteInvocationSchema = makeToolInvocationSchema(
+  EXPLORE_WEBSITE_TOOL_NAME,
+  ExploreWebsiteArgsSchema,
 );
 
-export type InvokeDiscoveredApiInvocation = z.infer<typeof InvokeDiscoveredApiInvocationSchema>;
+export type ExploreWebsiteInvocation = z.infer<typeof ExploreWebsiteInvocationSchema>;
 
-/** Concrete invocation envelope for the `browser.navigate_extract_and_discover` tool. */
-export const NavigateExtractAndDiscoverInvocationSchema = makeToolInvocationSchema(
-  NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME,
-  NavigateExtractAndDiscoverArgsSchema,
+/** Concrete invocation envelope for the `browser.get_page_understanding_slice` tool. */
+export const GetPageUnderstandingSliceInvocationSchema = makeToolInvocationSchema(
+  GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
+  GetPageUnderstandingSliceArgsSchema,
 );
 
-export type NavigateExtractAndDiscoverInvocation = z.infer<
-  typeof NavigateExtractAndDiscoverInvocationSchema
->;
+export type GetPageUnderstandingSliceInvocation = z.infer<typeof GetPageUnderstandingSliceInvocationSchema>;
+
+/** Concrete invocation envelope for the `ui.propose_generative_ui_plan` tool. */
+export const ProposeGenerativeUiPlanInvocationSchema = makeToolInvocationSchema(
+  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
+  ProposeGenerativeUiPlanArgsSchema,
+);
+
+export type ProposeGenerativeUiPlanInvocation = z.infer<typeof ProposeGenerativeUiPlanInvocationSchema>;

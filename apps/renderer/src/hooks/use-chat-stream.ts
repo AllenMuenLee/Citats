@@ -56,15 +56,7 @@ export function useChatStream() {
           setParts((current) => { const index = current.findIndex((part) => part.id === id); const next: ChatPart = { id, type: "tool-status", label: event.label, state: event.state }; return index < 0 ? [...current, next] : current.map((part, i) => i === index ? next : part); });
         }
         if (event.type === "artifact") setParts((current) => [...current, event]);
-        if (event.type === "generative-ui") {
-          const instanceId = event.payload && typeof event.payload === "object" && "instance_id" in event.payload && typeof event.payload.instance_id === "string" ? event.payload.instance_id : undefined;
-          const id = instanceId ?? event.id ?? localId("generative-ui");
-          setParts((current) => {
-            const next: ChatPart = { id, type: "generative-ui", payload: event.payload };
-            return current.some((part) => part.id === id) ? current.map((part) => part.id === id ? next : part) : [...current, next];
-          });
-        }
-        if (event.type === "generative-ui-warning") setParts((current) => [...current, { id: event.id ?? localId("generative-ui-warning"), type: "generative-ui-warning", text: event.text }]);
+        if (event.type === "generated-ui") setParts((current) => [...current.filter((part) => part.type !== "generated-ui" || part.instanceId !== event.instanceId), event]);
         if (event.type === "citation-marker") {
           setParts((current) => current.map((part) => {
             if (part.id !== assistantId || part.type !== "assistant") return part;

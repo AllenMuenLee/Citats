@@ -205,17 +205,16 @@ class NavigationService:
         completion.
 
         ``observer``, when given, is an already-constructed async context
-        manager -- e.g. ``browser_service.network.capture.capture_network(page, ...)``
-        -- that this method enters immediately before navigating and exits
-        in ``finally`` regardless of outcome. This is a trusted, server-only
-        hook for later phases (network-traffic capture for API discovery)
-        to observe a navigation: only this project's own server-side code
-        ever constructs one, it is never reachable from model- or
-        renderer-supplied input, and no capture/observation setting is
-        exposed as a tool argument anywhere. This method never inspects,
-        alters, or exposes whatever the observer itself collects, and an
-        observer can only watch -- it has no way to click, fill, submit, or
-        otherwise mutate the page.
+        manager that this method enters immediately before navigating and
+        exits in ``finally`` regardless of outcome. This is a trusted,
+        server-only hook for later phases (e.g. page-observation capture,
+        P03-F01) to observe a navigation: only this project's own
+        server-side code ever constructs one, it is never reachable from
+        model- or renderer-supplied input, and no capture/observation
+        setting is exposed as a tool argument anywhere. This method never
+        inspects, alters, or exposes whatever the observer itself collects,
+        and an observer can only watch -- it has no way to click, fill,
+        submit, or otherwise mutate the page.
         """
         cancel_event = cancelled if cancelled is not None else asyncio.Event()
         try:

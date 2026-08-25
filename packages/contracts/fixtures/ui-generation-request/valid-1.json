@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "promptVersion": "ui-prompt-v1",
+  "promptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "canonicalUserTask": "Compare the available items",
+  "brief": {
+    "observationId": "obs-1", "layoutKind": "comparison", "sourceCollectionHandles": [],
+    "selectedFields": [], "groupBy": null, "orderBy": null, "filters": [], "detailRegionHandles": [],
+    "mediaPlacement": "none", "provenance": { "sourceUrl": "https://example.com/items", "retrievedAt": "2026-08-25T00:00:00Z" },
+    "freshness": "live", "warnings": [], "localInteractionIntents": [], "externalWorkflowIntents": []
+  },
+  "graph": { "nodes": [], "relationships": [], "regions": [], "collections": [] },
+  "sourceBindings": [], "recordBindings": [], "mediaBindings": [], "capabilityBindings": [],
+  "coverage": { "observedControlCount": 0, "safelyExploredControlCount": 0, "prohibitedControlCount": 0, "unknownControlCount": 0, "inaccessibleRegionCount": 0, "unobservedLazyStateCount": 0, "notes": [] },
+  "freshness": "live", "warnings": [], "runtimeApiVersion": "1.0.0",
+  "theme": { "allowedTokens": ["canvas", "surface"], "minimumTargetSize": 44, "supportedThemes": ["light", "dark"], "supportsReducedMotion": true, "minimumViewport": { "width": 800, "height": 600 }, "maximumZoomPercent": 200 },
+  "limits": { "maxSourceBytes": 65536, "maxAstNodes": 10000, "maxComplexity": 100, "maxRenderNodes": 2000, "maxLocalStateEntries": 16 },
+  "correlation": { "requestId": "req-1", "userId": "user-1" }
+}

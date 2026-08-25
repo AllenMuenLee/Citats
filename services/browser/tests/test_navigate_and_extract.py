@@ -292,26 +292,20 @@ def test_interaction_rich_page_yields_descriptive_only_affordances(http_port: in
         assert "querySelector" not in dumped
 
         # Structural proof that no tool anywhere can turn one of these IDs
-        # into an actual interaction: the registry is closed, and every
+        # into an actual interaction: the registry is closed, and the
         # browsing tool's arguments accept nothing an affordance ID could
-        # be smuggled into (a URL, and -- for the discovery tool -- a
-        # bounded free-text goal).
+        # be smuggled into (a URL only).
         assert set(TOOL_REGISTRY) == {
             "system.echo",
             "browser.navigate_and_extract",
-            "browser.invoke_discovered_api",
-            "browser.navigate_extract_and_discover",
+            "browser.explore_website",
+            "browser.get_page_understanding_slice",
+            "ui.propose_generative_ui_plan",
         }
         navigate_fields = set(
             TOOL_REGISTRY["browser.navigate_and_extract"].invocation_model.model_fields["arguments"].annotation.model_fields
         )
         assert navigate_fields == {"url"}
-        discover_fields = set(
-            TOOL_REGISTRY["browser.navigate_extract_and_discover"]
-            .invocation_model.model_fields["arguments"]
-            .annotation.model_fields
-        )
-        assert discover_fields == {"url", "goal"}
 
     asyncio.run(run())
 

@@ -1,0 +1,20 @@
+{
+  "name": "@ai-browser/generated-ui-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": { ".": "./src/index.tsx" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": { "react": "^19.0.0" },
+  "devDependencies": {
+    "@types/react": "^19",
+    "react": "19.2.8",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

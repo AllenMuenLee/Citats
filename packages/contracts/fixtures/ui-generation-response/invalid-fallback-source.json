@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1, "tsxSource": "export default function GeneratedView(){}",
+  "manifest": { "observationIds": ["obs-1"], "sourceIds": [], "recordIds": [], "mediaIds": [], "capabilityIds": [], "emittedCommandKinds": [], "localInteractions": [], "accessibilityFeatures": [], "responsiveRegions": [], "runtimeImports": [], "fallback": true },
+  "modelIdentifier": "model", "promptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "inputDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "runtimeVersion": "1", "toolchainVersion": "1", "fallbackReason": "validation_failed"
+}

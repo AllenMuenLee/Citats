@@ -8,8 +8,9 @@ import { SensitivityFlagsSchema } from "./sensitivity";
 import { CONTRACT_MAJOR_VERSION } from "./version";
 import { SystemEchoResultSchema } from "./tools/system-echo";
 import { NavigateAndExtractResultSchema } from "./tools/navigate-and-extract";
-import { InvokeDiscoveredApiResultSchema } from "./tools/invoke-discovered-api";
-import { NavigateExtractAndDiscoverResultSchema } from "./tools/navigate-extract-and-discover";
+import { ExploreWebsiteResultSchema } from "./tools/explore-website";
+import { GetPageUnderstandingSliceResultSchema } from "./tools/get-page-understanding-slice";
+import { ProposeGenerativeUiPlanResultSchema } from "./tools/propose-generative-ui-plan";
 
 /**
  * Generic factory for a tool success result: correlation metadata echoed
@@ -44,18 +45,21 @@ export const NavigateAndExtractSuccessResultSchema = makeToolSuccessResultSchema
 );
 export type NavigateAndExtractSuccessResult = z.infer<typeof NavigateAndExtractSuccessResultSchema>;
 
-export const InvokeDiscoveredApiSuccessResultSchema = makeToolSuccessResultSchema(
-  InvokeDiscoveredApiResultSchema,
+export const ExploreWebsiteSuccessResultSchema = makeToolSuccessResultSchema(ExploreWebsiteResultSchema);
+export type ExploreWebsiteSuccessResult = z.infer<typeof ExploreWebsiteSuccessResultSchema>;
+
+export const GetPageUnderstandingSliceSuccessResultSchema = makeToolSuccessResultSchema(
+  GetPageUnderstandingSliceResultSchema,
 );
+export type GetPageUnderstandingSliceSuccessResult = z.infer<
+  typeof GetPageUnderstandingSliceSuccessResultSchema
+>;
 
-export type InvokeDiscoveredApiSuccessResult = z.infer<typeof InvokeDiscoveredApiSuccessResultSchema>;
-
-export const NavigateExtractAndDiscoverSuccessResultSchema = makeToolSuccessResultSchema(
-  NavigateExtractAndDiscoverResultSchema,
+export const ProposeGenerativeUiPlanSuccessResultSchema = makeToolSuccessResultSchema(
+  ProposeGenerativeUiPlanResultSchema,
 );
-
-export type NavigateExtractAndDiscoverSuccessResult = z.infer<
-  typeof NavigateExtractAndDiscoverSuccessResultSchema
+export type ProposeGenerativeUiPlanSuccessResult = z.infer<
+  typeof ProposeGenerativeUiPlanSuccessResultSchema
 >;
 
 /**

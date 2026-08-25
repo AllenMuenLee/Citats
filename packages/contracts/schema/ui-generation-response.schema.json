@@ -1,0 +1,241 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "fallbackReason": {
+      "anyOf": [
+        {
+          "enum": [
+            "insufficient_evidence",
+            "unsafe_input",
+            "unsupported_runtime",
+            "source_limit",
+            "model_refusal",
+            "generation_failed",
+            "validation_failed",
+            "compilation_failed",
+            "expired"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputDigest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "manifest": {
+      "additionalProperties": false,
+      "properties": {
+        "accessibilityFeatures": {
+          "items": {
+            "enum": [
+              "heading_order",
+              "landmarks",
+              "labels",
+              "descriptions",
+              "table_relationships",
+              "live_status",
+              "keyboard",
+              "visible_focus",
+              "accessible_media",
+              "modal_escape"
+            ],
+            "type": "string"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "capabilityIds": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "emittedCommandKinds": {
+          "items": {
+            "enum": [
+              "activate",
+              "select",
+              "set_value",
+              "open_detail",
+              "media_control"
+            ],
+            "type": "string"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "fallback": {
+          "type": "boolean"
+        },
+        "localInteractions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "boundedValues": {
+                "exclusiveMinimum": 0,
+                "maximum": 10000,
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "selection",
+                  "filter",
+                  "sort",
+                  "expansion",
+                  "tab",
+                  "gallery",
+                  "modal"
+                ],
+                "type": "string"
+              },
+              "stateKey": {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "stateKey",
+              "kind",
+              "boundedValues"
+            ],
+            "type": "object"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "mediaIds": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "observationIds": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "type": "array"
+        },
+        "recordIds": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "responsiveRegions": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "runtimeImports": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z][A-Za-z0-9]*$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "sourceIds": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "type": "array"
+        }
+      },
+      "required": [
+        "observationIds",
+        "sourceIds",
+        "recordIds",
+        "mediaIds",
+        "capabilityIds",
+        "emittedCommandKinds",
+        "localInteractions",
+        "accessibilityFeatures",
+        "responsiveRegions",
+        "runtimeImports",
+        "fallback"
+      ],
+      "type": "object"
+    },
+    "modelIdentifier": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "promptDigest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "runtimeVersion": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:+-]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "toolchainVersion": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:+-]+$",
+      "type": "string"
+    },
+    "tsxSource": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tsxSource",
+    "manifest",
+    "modelIdentifier",
+    "promptDigest",
+    "inputDigest",
+    "runtimeVersion",
+    "toolchainVersion",
+    "fallbackReason"
+  ],
+  "type": "object"
+}
