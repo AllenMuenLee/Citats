@@ -1,9 +1,0 @@
-{
-  "schema_version": "1.0",
-  "component_type": "product_results",
-  "command_type": "product.purchase",
-  "component_instance_id": "instance-1",
-  "originating_result_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "correlation_id": "correlation-1",
-  "arguments": { "product_id": "product-1" }
-}
