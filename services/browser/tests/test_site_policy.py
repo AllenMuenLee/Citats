@@ -198,24 +198,27 @@ def test_loader_approved_site_allows_capture_and_replay(tmp_path: Path) -> None:
     assert loader.is_replay_allowed("test-site", "HEAD", "/v1/items/42") is True
 
 
-def test_loader_unknown_site_blocked(tmp_path: Path) -> None:
+def test_loader_unknown_public_site_allows_read_only_access(tmp_path: Path) -> None:
     write_site_yaml(tmp_path, "test-site", base_policy_fields())
     loader = SitePolicyLoader(root=tmp_path)
     assert loader.is_capture_allowed("nonexistent") is False
-    assert loader.is_replay_allowed("nonexistent", "GET", "/v1/users") is False
+    assert loader.is_capture_allowed("nonexistent", "public.example") is True
+    assert loader.is_replay_allowed("nonexistent", "GET", "/v1/users", "public.example") is True
+    assert loader.is_replay_allowed("nonexistent", "HEAD", "/v1/users", "public.example") is True
+    assert loader.is_replay_allowed("nonexistent", "POST", "/v1/users", "public.example") is False
     assert loader.get_policy("nonexistent") is None
 
 
 @pytest.mark.parametrize("decision", ["pending", "rejected"])
-def test_loader_missing_approval_blocks_capture_and_replay(tmp_path: Path, decision: str) -> None:
+def test_loader_decision_is_metadata_for_public_web_access(tmp_path: Path, decision: str) -> None:
     write_site_yaml(
         tmp_path,
         "test-site",
         base_policy_fields(decision=decision, reviewer=None, decision_date=None),
     )
     loader = SitePolicyLoader(root=tmp_path)
-    assert loader.is_capture_allowed("test-site") is False
-    assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is False
+    assert loader.is_capture_allowed("test-site") is True
+    assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is True
 
 
 def test_loader_kill_switch_blocks_even_when_approved(tmp_path: Path) -> None:
@@ -254,7 +257,7 @@ def test_loader_rejects_unbounded_cache_ttl(tmp_path: Path, ttl: float) -> None:
         SitePolicyLoader(root=tmp_path, ttl_seconds=ttl)
 
 
-def test_loader_expired_approval_blocks(tmp_path: Path) -> None:
+def test_loader_expired_approval_does_not_block_public_web_access(tmp_path: Path) -> None:
     write_site_yaml(
         tmp_path,
         "test-site",
@@ -265,8 +268,8 @@ def test_loader_expired_approval_blocks(tmp_path: Path) -> None:
         approval_staleness_days=365,
         today_fn=lambda: date(2026, 1, 1),
     )
-    assert loader.is_capture_allowed("test-site") is False
-    assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is False
+    assert loader.is_capture_allowed("test-site") is True
+    assert loader.is_replay_allowed("test-site", "GET", "/v1/users") is True
 
 
 def test_loader_replay_rejects_unsafe_method_even_if_present(tmp_path: Path) -> None:

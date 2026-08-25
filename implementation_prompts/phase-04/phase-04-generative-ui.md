@@ -2,7 +2,7 @@
 
 ## Mission
 
-Render safe, accessible, task-specific React components from validated structured tool results for a narrow pilot set: product results and flight comparisons. No free-form model-generated code and no transaction execution.
+Render safe, accessible, task-specific React components from validated structured tool results, including adaptive generic collections when no specialized component matches. Generated interfaces may express local interactions and external workflow intents through opaque server-owned actions, but may not contain free-form model-generated code, raw API bindings, arbitrary prompts, or transaction execution.
 
 ## Claude execution restriction
 
@@ -20,8 +20,8 @@ Read the requirements, `Claude.md`, this prompt, relevant source, and relevant f
 - **Depends on:** P00-F03 and Phase 3 structured results.
 - **Concurrency:** parallel with P04-F02, P04-F03, and P04-F04 via subagents.
 - **Build steps:**
-  1. Add a versioned `GenerativeUiPart` discriminated union to `packages/contracts/src/ui/` with `component_type`, `schema_version`, `props`, `provenance`, `allowed_commands`, `correlation_id`, and freshness/warning fields.
-  2. Define separate strict prop schemas for each registered component; cap row/item/text sizes, require source references for externally derived values, and forbid HTML, scripts, callback source, style strings, and arbitrary component names.
+  1. Add a versioned `GenerativeUiPart` discriminated union to `packages/contracts/src/ui/` with `component_type`, `schema_version`, `props`, `provenance`, `allowed_commands`, `correlation_id`, state revision, result digest, and freshness/warning fields.
+  2. Define separate strict prop schemas for each registered component; cap row/item/text sizes, require source references for externally derived values, and forbid HTML, scripts, callback source, style strings, arbitrary component names, raw tool names, API URLs, HTTP methods, selectors, headers, cookies, credentials, and embedded model prompts.
   3. Create a server registry in `apps/renderer/src/server/generative-ui/` mapping component type/version to prop schema, command schema, result transformer, and text-fallback formatter.
   4. Create a client registry in `apps/renderer/src/components/generative-ui/registry.ts` mapping the same closed identifiers to statically imported React components; unknown identifiers must never trigger dynamic import/eval.
   5. Validate tool output server-side before streaming and again at the client boundary; on failure emit a typed warning plus escaped cited text fallback and record schema/version diagnostics.
@@ -35,7 +35,7 @@ Read the requirements, `Claude.md`, this prompt, relevant source, and relevant f
 - **Build steps:**
   1. Define `ProductResultProps` with stable item ID, name, normalized price/currency, merchant, availability qualifier, image URL policy, comparable attributes, source IDs, retrieved time, and partial-data warnings.
   2. Implement pure normalization in the server transformer: preserve original currency, never compare missing/non-equivalent units silently, cap attributes/items, and produce a deterministic default sort without changing source values.
-  3. Build `ProductResults` from semantic list/table primitives with compact/mobile layouts, visible source/freshness labels, empty/loading/error/partial states, safe images and external links, and no purchase control.
+  3. Build `ProductResults` from semantic list/table primitives with compact/mobile layouts, visible source/freshness labels, empty/loading/error/partial states, and safe images. Permit clearly labeled detail/continue/book controls only when backed by a server-issued action descriptor; the control starts a later workflow and must never imply that clicking it directly purchases or books.
   4. Implement local sorting/filtering for already-loaded fields and emit typed read-only commands only when a server refresh/additional filter is needed; include current query state and component instance ID.
   5. Add fixture stories for one/many/partial/stale/mixed-currency products and tests for keyboard navigation, announcements, sorting stability, sanitization, link provenance, and narrow viewport behavior.
 - **Validate:** schema-driven stories, interaction/a11y tests, partial/malformed data, responsive visual snapshots, source attribution.
@@ -59,17 +59,30 @@ Read the requirements, `Claude.md`, this prompt, relevant source, and relevant f
 - **Depends on:** P04-F01 contract.
 - **Concurrency:** parallel with component builds.
 - **Build steps:**
-  1. Define a `UiCommand` union keyed by registered component/command versions with component instance ID, originating result digest, typed arguments, correlation ID, and optional idempotency key.
+  1. Define a `UiCommand` union keyed by registered component/command versions with component instance ID, originating result digest, state revision, typed arguments, correlation ID, and optional idempotency key. Commands are classified as `local_state`, `read_only_external`, `workflow_intent`, or `live_website_handoff`.
   2. When streaming a component, store a short-lived server record containing user/session ownership, result digest, allowed commands, schemas, and provenance; send only the opaque instance ID to the browser.
-  3. Add a same-origin POST handler that authenticates session, checks CSRF/origin, loads the instance, verifies expiry/ownership/digest/allowlist, validates arguments, and maps the command to a fixed internal read-only tool.
-  4. Do not accept client-provided tool names, URLs, source records, or policy flags; reconstruct all trusted routing from the stored registry record and preserve original invocation/source IDs in the new result.
+  3. Add a same-origin POST handler that authenticates session, checks CSRF/origin, loads the instance, verifies expiry/ownership/digest/state revision/allowlist, validates arguments, and maps local/read-only commands to a fixed internal handler or emits a structured external workflow intent for Phase 5.
+  4. Do not accept client-provided tool names, URLs, source records, selectors, complete UI state, free-form prompts, or policy flags; submit only the command and bounded schema-approved state delta, reconstruct trusted context and routing from the stored registry record, and preserve original invocation/source/action IDs in the new result.
   5. Make repeated commands idempotent where applicable, rate-limit by session/instance, and return typed expired/stale/invalid-command results that let the UI refresh safely.
 - **Validate:** tampering, replay/idempotency, CSRF, unknown commands, and provenance continuity tests.
 
-### P04-F05 Stream integration and UX evaluation
+### P04-F05 Adaptive collection and action-aware comparison UI
+
+- **Tools:** strict generic-record schema, image policy, registered card/table/detail primitives, Testing Library, Playwright.
+- **Depends on:** P04-F01 and P04-F04.
+- **Concurrency:** parallel with specialized components after the protocol draft.
+- **Build steps:**
+  1. Add a bounded generic collection component for unfamiliar API shapes with server-selected display fields, stable record handles, title/subtitle/image/fact groups, provenance, freshness, partial-data warnings, and optional registered action descriptors. Never let the model name arbitrary React components or presentation code.
+  2. Merge comparable results from multiple providers without losing provider identity, source URL, currency/unit qualifiers, or provider-specific fields; deduplicate only with explicit stable evidence and otherwise show possible matches separately.
+  3. Render one control per allowed action descriptor using server-owned label constraints and semantic risk/purpose. Bind it to opaque `actionId` plus instance/digest/revision, not an exact API, URL, prompt, selector, or client callback.
+  4. Keep sorting, filtering, expanding, selection, pagination over loaded data, tabs, carousels, and other internal interactions local when no new external data is required. Send only minimal state deltas when an external refresh or workflow is requested.
+  5. Add accommodation fixtures spanning multiple providers with images, titles, amenities, price caveats, missing fields, stale availability, detail actions, and `continue_booking` workflow intents; also prove that the same generic protocol renders a previously unseen record category safely.
+- **Validate:** generic fallback, multi-provider provenance, safe images, local-versus-external command classification, opaque action binding, stale UI rejection, and no raw API/prompt leakage.
+
+### P04-F06 Stream integration and UX evaluation
 
 - **Tools:** Vercel AI SDK UI stream, Playwright, visual snapshots, small usability protocol.
-- **Depends on:** P04-F01–F04.
+- **Depends on:** P04-F01 through P04-F05.
 - **Concurrency:** integration step after dependencies.
 - **Build steps:**
   1. Extend the chat stream protocol/parser to accept generative-UI parts interleaved with text/tool status, buffer incomplete JSON parts, and render a stable placeholder keyed by component instance ID.

@@ -1,10 +1,6 @@
 # Pilot-site governance record for the local HTTP fixture server used by
 # services/browser's own test suite
 # (services/browser/tests/fixtures/http/server.py). This is the ONLY site
-# seeded as `decision: approved` in this phase -- every real pilot site
-# must be added as `decision: pending` until a human supplies and signs
-# an actual review decision (see P03-F03 build step 4).
-#
 # The fixture server binds to an ephemeral loopback port per test run, so
 # this committed record intentionally describes the site by domain only
 # (`localhost`) rather than a fixed port; tests that need a concrete port

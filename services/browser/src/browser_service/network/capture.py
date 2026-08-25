@@ -165,6 +165,24 @@ async def capture_network(
         response_body_binary = False
         response_body_truncated = False
         if _is_text_like(content_type):
+            # KNOWN LIMITATION: in headless Chrome, `Network.getResponseBody`
+            # frequently raises "No resource with given identifier found"
+            # here even for a request that just finished successfully with a
+            # real body -- a documented Chrome DevTools Protocol limitation
+            # in headless mode (reproduces identically with/without
+            # `browser.navigation`'s Fetch-domain interception concurrently
+            # active, and independent of `Network.enable`'s buffer-size
+            # params), not a bug in this module or in nodriver. When it
+            # fails, `response_body_text` simply stays `None` (kind "empty"
+            # per `_build_body_shape`) rather than the exchange being
+            # dropped -- callers that classify/validate against an inferred
+            # "empty" body must treat that as "unknown," not "confirmed
+            # empty" (see `discovered_api.invoker._shape_matches`). The
+            # reliable fix is Fetch-domain response-stage interception
+            # (pause + `Fetch.getResponseBody` + continue) instead of this
+            # call, which requires unifying Fetch-domain ownership with
+            # `browser.navigation`'s own use of it -- tracked as follow-up
+            # work, not done here.
             with contextlib.suppress(Exception):
                 body, is_base64 = await tab.send(cdp_network.get_response_body(event.request_id))
                 if is_base64:

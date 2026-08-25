@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <head><title>Flight Search</title></head>
+  <body>
+    <h1>Flight Search</h1>
+    <p>SFO to JFK from $250.</p>
+    <a href="/api/flights">Reserve seat</a>
+    <a href="/schedules">Full schedule</a>
+    <script>
+      fetch("/api/flights").catch(() => {});
+      fetch("/api/flights?date=2026-09-01").catch(() => {});
+      fetch("/api/flights?date=2026-09-02").catch(() => {});
+    </script>
+  </body>
+</html>

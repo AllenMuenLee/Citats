@@ -22,7 +22,7 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
 - **Build steps:**
   1. Create `services/browser/src/browser_service/browser/` with a lifecycle manager that starts one controlled Chrome process and allocates an isolated ephemeral context/profile per task; expose context creation through an async context manager.
   2. Implement a URL policy that accepts only configured `http`/`https`, rejects credentials/fragments where inappropriate, resolves hostnames, blocks loopback/private/link-local/metadata ranges, and rechecks every redirect target.
-  3. Add a navigation service with total and idle timeouts, cancellation, maximum redirects, response-size/resource-type controls, and an explicit read-only operation enum; do not expose click, form, script-evaluation, or mutation endpoints.
+  3. Add a navigation service with total and idle timeouts, cancellation, maximum redirects, response-size/resource-type controls, and an explicit read-only operation enum; provide a trusted server-only observer hook that later phases can attach before navigation and detach in `finally`, but do not expose capture settings, click, form, script-evaluation, or mutation endpoints to the model or renderer.
   4. Track contexts/pages/process resources in a registry; close them in `finally`, reap abandoned tasks, cap concurrent contexts/pages/memory, and restart an unhealthy browser process without mixing sessions.
   5. Add a test-only network-policy override limited to the local fixture server and make it impossible to activate in production configuration.
 - **Validate:** allowed public/local test navigation, blocked file/private/loopback targets except explicit test fixture configuration, redirect revalidation, timeout/cancel, and leak/stability tests.
@@ -35,7 +35,7 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
 - **Build steps:**
   1. Define Pydantic extraction models under `services/browser/src/browser_service/extraction/` for document metadata, ordered content blocks, source anchors, warnings, and truncation details.
   2. Obtain the post-render DOM through the browser adapter, remove scripts/styles/forms/noscript/templates and elements hidden by attributes or computed style, then select main content using semantic containers with a deterministic body fallback.
-  3. Normalize whitespace and Unicode while preserving headings, lists, tables, and link relationships; capture title, final/canonical URL, language, description, publication time when trustworthy, and anchor text/target.
+  3. Normalize whitespace and Unicode while preserving headings, lists, tables, and link relationships; capture title, final/canonical URL, language, description, publication time when trustworthy, anchor text/target, and bounded visible interactive affordances such as links, buttons, and form purposes. Assign document-local opaque affordance IDs and record only semantic role, visible label, safe destination when present, and disabled state; never return selectors, scripts, hidden values, or credentials.
   4. Scan extracted values for credential-shaped/high-risk fields and untrusted-instruction indicators, label all page content as untrusted, and omit binary/data URLs plus form values.
   5. Split content at structural boundaries into stable, bounded chunks with document-local IDs and character offsets; enforce document/chunk/count limits and emit explicit truncation warnings.
 - **Validate:** fixed diverse page set, extraction accuracy assertions, encoding/large-page handling, malicious hidden-text fixtures, and payload/token bounds.
@@ -63,7 +63,7 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
   2. Register the matching tool in the orchestrator with URL-only input, read-only sensitivity, result-size limits, and the shared evidence schema; serialize only bounded extracted chunks to Mistral.
   3. Update system/tool instructions to require claims about a fetched page to reference returned source/chunk IDs and to state when evidence is missing, blocked, timed out, or truncated.
   4. Validate model-emitted citations before sending final stream parts; retain valid cited text, mark unsupported output, and never manufacture a title, URL, or page claim on tool failure.
-  5. Add end-to-end fixture scenarios for static, client-rendered, redirected, malformed, oversized, blocked, and malicious pages and collect navigation/extraction/citation/resource metrics per case.
+  5. Add end-to-end fixture scenarios for static, client-rendered, redirected, malformed, oversized, blocked, malicious, and interaction-rich pages and collect navigation/extraction/citation/resource metrics per case. Prove that affordance metadata is descriptive only and cannot cause an interaction in this phase.
 - **Validate:** golden page-question set for answer/extraction accuracy, navigation success rate, citation correctness, repeated-session resource use, and proof that mutation methods/tools are unavailable.
 
 ### P02-F05 Research-versus-browser routing

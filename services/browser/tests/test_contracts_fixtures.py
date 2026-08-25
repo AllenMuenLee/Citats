@@ -26,11 +26,13 @@ from browser_service.contracts import (
     GenerativeUiPart,
     InvocationInvokeDiscoveredApi,
     InvocationNavigateAndExtract,
+    InvocationNavigateExtractAndDiscover,
     InvocationSystemEcho,
     ProgressEventSystemEcho,
     Sensitivity,
     SuccessResultInvokeDiscoveredApi,
     SuccessResultNavigateAndExtract,
+    SuccessResultNavigateExtractAndDiscover,
     SuccessResultSystemEcho,
     ToolDefinition,
     UiCommand,
@@ -56,6 +58,8 @@ FIXTURE_MODEL_REGISTRY: dict[str, type[BaseModel]] = {
     "ui-command": UiCommand,
     "invocation-invoke-discovered-api": InvocationInvokeDiscoveredApi,
     "success-result-invoke-discovered-api": SuccessResultInvokeDiscoveredApi,
+    "invocation-navigate-extract-and-discover": InvocationNavigateExtractAndDiscover,
+    "success-result-navigate-extract-and-discover": SuccessResultNavigateExtractAndDiscover,
 }
 
 

@@ -18,6 +18,8 @@ instructions.
 from __future__ import annotations
 
 from browser_service.extraction.models import (
+    Affordance,
+    AffordanceRole,
     Anchor,
     Chunk,
     ContentBlock,
@@ -38,6 +40,8 @@ from browser_service.extraction.models import (
 from browser_service.extraction.pipeline import extract_document
 
 __all__ = [
+    "Affordance",
+    "AffordanceRole",
     "Anchor",
     "Chunk",
     "ContentBlock",

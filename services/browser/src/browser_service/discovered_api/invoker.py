@@ -104,7 +104,19 @@ def _expand_path(template: str, parameters: Mapping[str, Any]) -> tuple[str, set
 def _shape_matches(value: Any, operation: NormalizedOperation) -> bool:
     expected = operation.response.body.kind
     if expected is None or expected == "empty":
-        return value is None or value == ""
+        # KNOWN LIMITATION: headless Chrome's `Network.getResponseBody` does
+        # not reliably return XHR/fetch response bodies (a documented
+        # Chrome DevTools Protocol limitation in headless mode, not a bug in
+        # this project's capture code -- see `network/capture.py`'s
+        # `on_loading_finished`), so a real discovered operation's inferred
+        # `body.kind` frequently comes back "empty" even when the endpoint's
+        # actual response has a body. Since the sanitized observation model
+        # cannot currently distinguish "genuinely empty" from "body sample
+        # unavailable," treat "empty" as "no assertion possible" here rather
+        # than rejecting every real (non-empty) live response as drift --
+        # `_records`/`_result_kind` below still work directly off the live
+        # response regardless of what was inferred.
+        return True
     if expected == "object" and not isinstance(value, dict):
         return False
     if expected == "array" and not isinstance(value, list):

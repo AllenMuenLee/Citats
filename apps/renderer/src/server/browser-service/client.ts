@@ -3,17 +3,22 @@ import "server-only";
 import { z } from "zod";
 import {
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME,
   INVOKE_DISCOVERED_API_TOOL_NAME,
   InvokeDiscoveredApiInvocationSchema,
   InvokeDiscoveredApiSuccessResultSchema,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
+  NavigateExtractAndDiscoverInvocationSchema,
+  NavigateExtractAndDiscoverSuccessResultSchema,
   SYSTEM_ECHO_TOOL_NAME,
   SystemEchoInvocationSchema,
   SystemEchoSuccessResultSchema,
   ToolErrorResultSchema,
   type NavigateAndExtractInvocation,
   type NavigateAndExtractSuccessResult,
+  type NavigateExtractAndDiscoverInvocation,
+  type NavigateExtractAndDiscoverSuccessResult,
   type InvokeDiscoveredApiInvocation,
   type InvokeDiscoveredApiSuccessResult,
   type SystemEchoInvocation,
@@ -52,12 +57,17 @@ const DiscoveredToolSchema = z.object({
 export type DiscoveredTool = z.infer<typeof DiscoveredToolSchema>;
 
 /** Every invocation shape `invoke` accepts, keyed by their `toolName` literal. */
-export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation | InvokeDiscoveredApiInvocation;
+export type KnownInvocation =
+  | SystemEchoInvocation
+  | NavigateAndExtractInvocation
+  | NavigateExtractAndDiscoverInvocation
+  | InvokeDiscoveredApiInvocation;
 
 /** Maps each known tool's `toolName` literal to its success-result type, so `invoke`'s return type is inferred from the invocation passed in. */
 interface ToolSuccessResultMap {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResult;
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResult;
+  [NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME]: NavigateExtractAndDiscoverSuccessResult;
   [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiSuccessResult;
 }
 
@@ -74,12 +84,14 @@ export type InvokeResult<TInvocation extends KnownInvocation> =
 const INVOCATION_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoInvocationSchema,
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractInvocationSchema,
+  [NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME]: NavigateExtractAndDiscoverInvocationSchema,
   [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiInvocationSchema,
 };
 
 const SUCCESS_RESULT_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [SYSTEM_ECHO_TOOL_NAME]: SystemEchoSuccessResultSchema,
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResultSchema,
+  [NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME]: NavigateExtractAndDiscoverSuccessResultSchema,
   [INVOKE_DISCOVERED_API_TOOL_NAME]: InvokeDiscoveredApiSuccessResultSchema,
 };
 

@@ -29,6 +29,14 @@ oversized-response, and slow-response handling:
 ``/api/binary``
     Responds 200 with a tiny non-text ``image/png`` body (used to exercise
     binary-body skip handling against real network capture).
+``/api/products``, ``/api/accommodation``, ``/api/flights``, ``/api/generic-records``
+    Each responds 200 with a small ``application/json`` body of a different
+    recognized/unrecognized shape (product list, hotel/room list -- same
+    ``products`` shape as a different vertical, flight list, and an
+    unrecognized-key list respectively), used by the adaptive
+    navigate+discover scenario tests to prove endpoint-map inference and
+    result-kind classification generalize across site shapes rather than
+    being hardcoded to one.
 """
 
 from __future__ import annotations
@@ -100,6 +108,40 @@ class FixtureRequestHandler(http.server.BaseHTTPRequestHandler):
                 b'"merchant":"Fixture shop","availability":"available",'
                 b'"priceAmount":99,"currency":"USD"}]}'
             )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if split.path == "/api/accommodation":
+            body = (
+                b'{"products":[{"id":"room-1","name":"Deluxe Room",'
+                b'"merchant":"Fixture Hotel","availability":"available",'
+                b'"priceAmount":150,"currency":"USD"}]}'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if split.path == "/api/flights":
+            body = (
+                b'{"flights":[{"id":"fl-1","origin":"SFO","destination":"JFK",'
+                b'"priceAmount":250,"currency":"USD"}]}'
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if split.path == "/api/generic-records":
+            body = b'{"items":[{"id":"rec-1","kind":"widget","value":42}]}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

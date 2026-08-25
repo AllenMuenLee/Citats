@@ -1,0 +1,43 @@
+{
+  "contractVersion": 1,
+  "correlation": {
+    "requestId": "req-0001",
+    "userId": "user-0001"
+  },
+  "toolCallId": "call-0001",
+  "status": "success",
+  "payload": {
+    "document": {
+      "metadata": {
+        "title": "Wireless headphones",
+        "url": "https://shop.example.com/products",
+        "language": "en",
+        "description": null,
+        "publishedTime": null,
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8"
+      },
+      "chunks": [],
+      "affordances": [],
+      "warnings": [],
+      "truncations": [],
+      "timing": { "navigationMs": 1, "extractionMs": 1, "totalMs": 2 },
+      "untrusted": true
+    },
+    "discovery": {
+      "observationCount": 0,
+      "operationCount": 0,
+      "candidateMapVersion": "map-0001",
+      "activeMapVersion": null,
+      "operations": [],
+      "actions": [],
+      "driftAlerts": [],
+      "warnings": [],
+      "rawRequestUrl": "https://shop.example.com/api/products?internal=1"
+    }
+  },
+  "sensitivity": {
+    "sensitive": false,
+    "confirmationRequired": false
+  }
+}

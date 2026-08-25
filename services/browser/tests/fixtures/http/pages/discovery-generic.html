@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <head><title>Unfamiliar Record Site</title></head>
+  <body>
+    <h1>Unfamiliar Record Site</h1>
+    <p>A site shape this system has never seen before.</p>
+    <a href="/api/generic-records">Delete record</a>
+    <a href="/help">Help center</a>
+    <script>
+      fetch("/api/generic-records").catch(() => {});
+      fetch("/api/generic-records?page=2").catch(() => {});
+      fetch("/api/generic-records?page=3").catch(() => {});
+    </script>
+  </body>
+</html>

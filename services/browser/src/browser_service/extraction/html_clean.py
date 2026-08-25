@@ -27,7 +27,7 @@ _DISPLAY_NONE_RE = re.compile(r"display\s*:\s*none", re.IGNORECASE)
 _VISIBILITY_HIDDEN_RE = re.compile(r"visibility\s*:\s*hidden", re.IGNORECASE)
 
 
-def _is_hidden(tag: Tag) -> bool:
+def is_hidden(tag: Tag) -> bool:
     if tag.has_attr("hidden"):
         return True
     aria_hidden = tag.get("aria-hidden")
@@ -60,7 +60,7 @@ def clean_tree(soup: BeautifulSoup) -> list[ExtractionWarning]:
     for tag in list(soup.find_all(True)):
         if tag.parent is None:
             continue
-        if not _is_hidden(tag):
+        if not is_hidden(tag):
             continue
 
         hidden_text = tag.get_text(separator=" ", strip=True)

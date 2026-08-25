@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head><title>Product Search</title></head>
+  <body>
+    <h1>Product Search</h1>
+    <p>Wireless headphones starting at $49.</p>
+    <button type="button">Add to cart</button>
+    <a href="/api/products">Buy now</a>
+    <a href="/about">Read the docs</a>
+    <form action="/search">
+      <input name="q" />
+      <button type="submit">Search</button>
+    </form>
+    <script>
+      // Three repeated calls to the same operation (method+origin+path),
+      // fired on load with no explicit test-driven Tab.evaluate step, so
+      // the composed navigate+discover tool's own bounded settle wait is
+      // what has to observe them -- and enough repetition for the
+      // inferred operation's confidence to clear the high-confidence bar.
+      fetch("/api/products").catch(() => {});
+      fetch("/api/products?page=2").catch(() => {});
+      fetch("/api/products?page=3").catch(() => {});
+    </script>
+  </body>
+</html>

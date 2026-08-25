@@ -5,8 +5,10 @@ navigation, and extraction -- against real headless Chrome and this
 project's own local fixture HTTP server (never the public internet), for
 each scenario called out by the phase's validation requirements: a
 static page, a client-rendered page, a redirected page, a malformed
-page, an oversized page, a blocked target, and a malicious (hidden
-prompt-injection/credential-shaped) page. `test_navigate_and_extract_via_http_bridge`
+page, an oversized page, a blocked target, a malicious (hidden
+prompt-injection/credential-shaped) page, and an interaction-rich page
+(links, buttons, a form, and post-render ARIA state) whose affordance
+metadata must stay descriptive-only. `test_navigate_and_extract_via_http_bridge`
 additionally proves the whole `/v1/tools/invoke` HTTP round trip works
 for this tool, not just the internal composition function.
 
@@ -39,10 +41,11 @@ from types import ModuleType
 import pytest
 from fastapi.testclient import TestClient
 
-import browser_service.tools.navigate_and_extract as navigate_and_extract_module
+import browser_service.tools._lifecycle as lifecycle_module
 from browser_service.app import app
-from browser_service.browser import UrlPolicy
+from browser_service.browser import BrowserLifecycleManager, NavigationService, UrlPolicy
 from browser_service.contracts import InvocationNavigateAndExtract
+from browser_service.extraction import AffordanceRole, extract_document
 from browser_service.tool_outcome import ToolExecutionError, ToolHandlerOutcome
 from browser_service.tool_registry import TOOL_REGISTRY
 from browser_service.tools.navigate_and_extract import run_navigate_and_extract
@@ -52,18 +55,19 @@ TEST_POLICY = UrlPolicy(test_only_allowed_hosts=frozenset({"127.0.0.1"}))
 
 @pytest.fixture(autouse=True)
 def _reset_lifecycle_manager_between_tests() -> Iterator[None]:
-    """`navigate_and_extract`'s browser-lifecycle manager is a lazily-created,
-    process-wide singleton bound to whatever event loop was running when it
-    was first used -- correct for a long-lived production ASGI server, but
-    every test in this file runs its own fresh `asyncio.run()` (see the
-    module docstring for why). Without resetting the singleton, the second
-    test to touch it would try to drive a browser bound to an already-closed
-    event loop. Reset (and cleanly shut down the previous browser, if any)
-    after every test so each one gets its own.
+    """The one process-wide browser-lifecycle manager every browser-driving
+    tool shares (`browser_service.tools._lifecycle`) is a lazily-created
+    singleton bound to whatever event loop was running when it was first
+    used -- correct for a long-lived production ASGI server, but every test
+    in this file runs its own fresh `asyncio.run()` (see the module
+    docstring for why). Without resetting the singleton, the second test to
+    touch it would try to drive a browser bound to an already-closed event
+    loop. Reset (and cleanly shut down the previous browser, if any) after
+    every test so each one gets its own.
     """
     yield
-    manager = navigate_and_extract_module._lifecycle_manager
-    navigate_and_extract_module._lifecycle_manager = None
+    manager = lifecycle_module._lifecycle_manager
+    lifecycle_module._lifecycle_manager = None
     if manager is not None:
         asyncio.run(manager.shutdown())
 
@@ -214,6 +218,100 @@ def test_malicious_page_flags_hidden_content_without_leaking_it(http_port: int) 
         assert "sk_live_51H8xJ2eZvKYlo2CTAB1234567890" not in joined
         assert "miso soup" in joined
         assert outcome.payload["untrusted"] is True
+
+    asyncio.run(run())
+
+
+def test_interaction_rich_page_yields_descriptive_only_affordances(http_port: int) -> None:
+    """P02-F04 step 5: an "interaction-rich" page, navigated for real
+    against this project's own fixture server, must yield affordances that
+    are descriptive only (post-render role/label/safe-destination/disabled,
+    never a selector/script/field value) -- and there must be no tool
+    anywhere in the registry that could take an affordance's opaque ID and
+    turn it into a click/fill/submit. Composes navigation + extraction the
+    same way `run_navigate_and_extract` does, but keeps the full
+    `ExtractedDocument` (rather than its trimmed wire payload) so
+    `affordances` -- which the tool's payload never surfaces to Mistral --
+    is directly inspectable here.
+    """
+
+    async def run() -> None:
+        manager = BrowserLifecycleManager()
+        navigation_service = NavigationService(TEST_POLICY)
+        try:
+            async with manager.isolated_context() as context:
+                page = await context.open_page()
+                navigate_result = await navigation_service.navigate(
+                    page, f"{base_url(http_port)}/interaction-rich.html"
+                )
+                content_result = await navigation_service.get_content(page)
+            document = extract_document(content_result.content or "", navigate_result.final_url)
+        finally:
+            await manager.shutdown()
+
+        by_label = {a.label: a for a in document.affordances}
+
+        # Rendered post-JS, not just the static markup -- proves this
+        # reads the post-render DOM, matching the extraction pipeline's
+        # documented content-extraction behavior.
+        checkout = by_label["Checkout (sold out)"]
+        assert checkout.role is AffordanceRole.BUTTON
+        assert checkout.disabled is True
+        assert checkout.destination is None
+
+        # Visible text ("+") wins over aria-label ("Add to cart") for the
+        # label -- the label describes what a sighted user actually sees.
+        add_to_cart = by_label["+"]
+        assert add_to_cart.role is AffordanceRole.BUTTON
+
+        docs_link = by_label["Read the docs"]
+        assert docs_link.role is AffordanceRole.LINK
+        assert docs_link.destination == f"{base_url(http_port)}/docs"
+
+        form_affordances = [a for a in document.affordances if a.role is AffordanceRole.FORM]
+        assert [a.label for a in form_affordances] == ["Search the catalog"]
+        assert form_affordances[0].destination is None
+        assert form_affordances[0].disabled is False
+
+        # Every affordance is one of exactly four descriptive fields plus
+        # its opaque ID -- Pydantic's `extra="forbid"` already enforces
+        # this at the type level; re-assert it here as an explicit,
+        # human-readable proof.
+        for affordance in document.affordances:
+            assert set(affordance.model_dump().keys()) == {
+                "affordance_id",
+                "role",
+                "label",
+                "destination",
+                "disabled",
+            }
+
+        dumped = str([a.model_dump() for a in document.affordances])
+        assert "do-not-leak-this-value" not in dumped
+        assert "<button" not in dumped
+        assert "querySelector" not in dumped
+
+        # Structural proof that no tool anywhere can turn one of these IDs
+        # into an actual interaction: the registry is closed, and every
+        # browsing tool's arguments accept nothing an affordance ID could
+        # be smuggled into (a URL, and -- for the discovery tool -- a
+        # bounded free-text goal).
+        assert set(TOOL_REGISTRY) == {
+            "system.echo",
+            "browser.navigate_and_extract",
+            "browser.invoke_discovered_api",
+            "browser.navigate_extract_and_discover",
+        }
+        navigate_fields = set(
+            TOOL_REGISTRY["browser.navigate_and_extract"].invocation_model.model_fields["arguments"].annotation.model_fields
+        )
+        assert navigate_fields == {"url"}
+        discover_fields = set(
+            TOOL_REGISTRY["browser.navigate_extract_and_discover"]
+            .invocation_model.model_fields["arguments"]
+            .annotation.model_fields
+        )
+        assert discover_fields == {"url", "goal"}
 
     asyncio.run(run())
 

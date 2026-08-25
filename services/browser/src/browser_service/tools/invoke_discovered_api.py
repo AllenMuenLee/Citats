@@ -79,8 +79,19 @@ async def get_discovered_tool_definitions() -> tuple[dict[str, Any], ...]:
     return await _default_invoker().definitions_all()
 
 
+def get_default_invoker() -> DiscoveredApiInvoker:
+    """The one process-wide `DiscoveredApiInvoker` (same singleton this
+    module's own handler uses), for other tools (e.g.
+    `browser.navigate_extract_and_discover`) that need to build read-only
+    operation definitions for a single, just-discovered site without
+    constructing a second httpx client / policy loader.
+    """
+    return _default_invoker()
+
+
 __all__ = [
     "configure_discovered_api_invoker",
+    "get_default_invoker",
     "get_discovered_tool_definitions",
     "run_invoke_discovered_api",
 ]

@@ -2,7 +2,7 @@
 
 ## Mission
 
-Provide a secure, usable live browser pane for explicitly whitelisted stateful/visual sites, initially policy entries for Google Docs and Instagram. Authentic-site interaction remains inside the browser boundary; do not recreate these sites.
+Provide a secure, usable live browser pane for explicitly whitelisted stateful/visual sites and for workflow steps that require private information, authentication, CAPTCHA/manual resolution, or authentic checkout UI. Authentic-site interaction remains inside the browser boundary; preserve an opaque continuation back to the adaptive workflow and do not recreate these sites.
 
 ## Claude execution restriction
 
@@ -72,11 +72,12 @@ Read the requirements, `Claude.md`, this prompt, relevant code/docs, and site po
 - **Depends on:** P06-F01–F04.
 - **Concurrency:** integrate after dependencies; classifier and streaming evaluation can execute concurrently.
 - **Build steps:**
-  1. Extend the task/orchestrator state with current presentation mode and browser-session reference; call the deterministic classifier before emitting a server-authorized mode-transition event.
+  1. Extend the task/orchestrator state with current presentation mode, browser-session reference, workflow ID, handoff reason, expected manual outcome, and opaque continuation handle; call the deterministic classifier before emitting a server-authorized mode-transition event.
   2. On entering embedded mode, acquire/attach the correct isolated browser session, create live-view/input authorizations, and stream only opaque session metadata plus trusted current origin—not pixels, cookies, DOM, or credentials—to the chat layer.
-  3. Mount the pane beside chat, preserve conversation/task correlation, and pause incompatible generated UI or automated actions while the user holds manual control.
-  4. On exit/disconnect/task completion, revoke input/view tokens, detach or retain the browser session according to policy, restore chat controls, and append a minimal sanitized outcome/origin record for continuity.
-  5. Exercise mode changes and authentic interactions against a local stateful visual app, then separately run classifier, streaming, security, accessibility, and performance suites; real-site manual QA requires the approved site record/test account.
+  3. Mount the pane beside chat, preserve conversation/task/workflow correlation, explain why handoff is required and what remains, and pause incompatible generated UI or automated actions while the user holds manual control.
+  4. Let the user explicitly return control to the assistant. On return, revoke manual input authority, perform only policy-approved bounded observation sufficient to classify the resulting page/workflow state, and resume through the Phase 5 coordinator; never infer that checkout or another action succeeded solely because navigation occurred.
+  5. On exit/disconnect/task completion, revoke input/view tokens, detach or retain the browser session according to policy, restore chat controls, and append a minimal sanitized outcome/origin/workflow-state record for continuity.
+  6. Exercise mode changes, private-data handoff, authentication, CAPTCHA/manual resolution, checkout continuation, return-to-assistant, and authentic interactions against a local stateful visual app, then separately run classifier, streaming, security, accessibility, and performance suites; real-site manual QA requires the approved site record/test account.
 - **Validate:** classifier accuracy, stream latency/fidelity, authentic interaction test, session isolation, mode transitions, and usability protocol against direct site use.
 
 ## Phase acceptance

@@ -29,9 +29,10 @@ it, at the cost of a real Chrome launch (a few seconds) per test.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
 import urllib.parse
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from types import ModuleType
 
@@ -141,6 +142,68 @@ def test_navigate_rejects_disallowed_targets_before_touching_browser(http_port: 
             await manager.shutdown()
 
     asyncio.run(run())
+
+
+def test_navigate_attaches_and_detaches_observer_around_navigation(http_port: int) -> None:
+    """The trusted, server-only observer hook (P02-F01 step 3): attached
+    immediately before navigation, detached in ``finally`` on success --
+    later phases (e.g. network capture for API discovery) rely on this
+    ordering to never miss the initial document's own traffic.
+    """
+    service = make_service(http_port)
+    events: list[str] = []
+
+    @contextlib.asynccontextmanager
+    async def observer() -> AsyncIterator[None]:
+        events.append("enter")
+        try:
+            yield
+        finally:
+            events.append("exit")
+
+    async def run() -> None:
+        manager = BrowserLifecycleManager(LifecycleConfig(max_concurrent_contexts=1))
+        try:
+            async with manager.isolated_context() as ctx:
+                page = await ctx.open_page()
+                result = await service.navigate(
+                    page, f"{base_url(http_port)}/", observer=observer()
+                )
+                assert result.operation is ReadOnlyOperation.NAVIGATE
+        finally:
+            await manager.shutdown()
+
+    asyncio.run(run())
+    assert events == ["enter", "exit"]
+
+
+def test_navigate_detaches_observer_when_blocked_before_touching_browser(http_port: int) -> None:
+    """A policy-blocked URL never even reaches the observer -- the policy
+    check happens first, matching the un-observed rejection path.
+    """
+    service = NavigationService(UrlPolicy())
+    events: list[str] = []
+
+    @contextlib.asynccontextmanager
+    async def observer() -> AsyncIterator[None]:
+        events.append("enter")
+        try:
+            yield
+        finally:
+            events.append("exit")
+
+    async def run() -> None:
+        manager = BrowserLifecycleManager(LifecycleConfig(max_concurrent_contexts=1))
+        try:
+            async with manager.isolated_context() as ctx:
+                page = await ctx.open_page()
+                with pytest.raises(NavigationBlockedError):
+                    await service.navigate(page, "http://10.1.2.3/", observer=observer())
+        finally:
+            await manager.shutdown()
+
+    asyncio.run(run())
+    assert events == []
 
 
 def test_redirect_to_blocked_target_is_rejected(http_port: int) -> None:

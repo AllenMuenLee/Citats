@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from browser_service.discovery import DiscoveryService
+from browser_service.discovery.service import MAX_SETTLE_SECONDS
 from browser_service.endpoint_map.repository import InMemoryEndpointMapRepository
 from browser_service.network.observation import (
     BodyShape,
@@ -18,7 +19,9 @@ from browser_service.network.observation import (
 from browser_service.sites.loader import SitePolicyLoader
 
 
-def write_policy(root: Path, *, approved: bool = True) -> SitePolicyLoader:
+def write_policy(
+    root: Path, *, approved: bool = True, kill_switch_enabled: bool = False
+) -> SitePolicyLoader:
     root.mkdir()
     decision = "approved" if approved else "pending"
     reviewer = (
@@ -41,7 +44,7 @@ owner: test
 {reviewer}
 decision: {decision}
 review_date: 2026-08-24
-kill_switch_enabled: false
+kill_switch_enabled: {str(kill_switch_enabled).lower()}
 """,
         encoding="utf-8",
     )
@@ -116,12 +119,60 @@ async def test_governed_capture_infers_and_saves_pending_snapshot(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_missing_approval_blocks_before_capture_or_navigation(tmp_path: Path) -> None:
+async def test_settle_wait_happens_between_navigate_and_capture_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P03-F05 step 1: capture must still be attached while the bounded
+    client-render settling wait runs, so late XHR/fetch calls fired after
+    navigation completes are still observed."""
     repository = InMemoryEndpointMapRepository()
     called: list[str] = []
     service = DiscoveryService(
         repository,
-        write_policy(tmp_path / "sites", approved=False),
+        write_policy(tmp_path / "sites"),
+        capture=capture_factory([], called),
+        settle_seconds=0.01,
+    )
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        called.append("settle")
+
+    monkeypatch.setattr("browser_service.discovery.service.asyncio.sleep", fake_sleep)
+
+    async def navigate(_page: Any, _url: str) -> None:
+        called.append("navigate")
+
+    await service.discover(
+        object(),
+        site_id="local-fixture",
+        url="http://localhost:8765/",
+        task_id="task-1",
+        session_id="session-1",
+        navigate=navigate,
+    )
+    assert called == ["capture", "navigate", "settle"]
+    assert sleeps == [0.01]
+
+
+def test_settle_seconds_is_bounded_even_when_misconfigured_high(tmp_path: Path) -> None:
+    service = DiscoveryService(
+        InMemoryEndpointMapRepository(),
+        write_policy(tmp_path / "sites"),
+        settle_seconds=100.0,
+    )
+    assert service._settle_seconds == MAX_SETTLE_SECONDS  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_blocks_before_capture_or_navigation(tmp_path: Path) -> None:
+    repository = InMemoryEndpointMapRepository()
+    called: list[str] = []
+    service = DiscoveryService(
+        repository,
+        write_policy(tmp_path / "sites", kill_switch_enabled=True),
         capture=capture_factory([], called),
     )
 

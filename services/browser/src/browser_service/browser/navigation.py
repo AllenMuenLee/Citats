@@ -57,6 +57,7 @@ import contextlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -192,6 +193,7 @@ class NavigationService:
         url: str,
         *,
         cancelled: asyncio.Event | None = None,
+        observer: AbstractAsyncContextManager[None] | None = None,
     ) -> NavigationResult:
         """Navigate ``page`` (a freshly-opened tab) to ``url``.
 
@@ -201,6 +203,19 @@ class NavigationService:
         :class:`NavigationTimeoutError` on total/idle timeout, and
         :class:`NavigationCancelledError` if ``cancelled`` is set before
         completion.
+
+        ``observer``, when given, is an already-constructed async context
+        manager -- e.g. ``browser_service.network.capture.capture_network(page, ...)``
+        -- that this method enters immediately before navigating and exits
+        in ``finally`` regardless of outcome. This is a trusted, server-only
+        hook for later phases (network-traffic capture for API discovery)
+        to observe a navigation: only this project's own server-side code
+        ever constructs one, it is never reachable from model- or
+        renderer-supplied input, and no capture/observation setting is
+        exposed as a tool argument anywhere. This method never inspects,
+        alters, or exposes whatever the observer itself collects, and an
+        observer can only watch -- it has no way to click, fill, submit, or
+        otherwise mutate the page.
         """
         cancel_event = cancelled if cancelled is not None else asyncio.Event()
         try:
@@ -208,142 +223,155 @@ class NavigationService:
         except PolicyViolation as exc:
             raise NavigationBlockedError(exc) from exc
 
-        limits = self._limits
-        blocked_resource_types = {
-            cdp_network.ResourceType(name) for name in limits.blocked_resource_types
-        }
-        hop_count = 0
-        blocked_error: PolicyViolation | None = None
-        too_many_redirects = False
-        response_too_large: tuple[int, int] | None = None
-        last_activity = time.monotonic()
-
-        async def on_paused(event: cdp_fetch.RequestPaused, tab: Tab) -> None:
-            nonlocal hop_count, blocked_error, too_many_redirects, last_activity, response_too_large
+        if observer is not None:
+            await observer.__aenter__()
+        try:
+            limits = self._limits
+            blocked_resource_types = {
+                cdp_network.ResourceType(name) for name in limits.blocked_resource_types
+            }
+            hop_count = 0
+            blocked_error: PolicyViolation | None = None
+            too_many_redirects = False
+            response_too_large: tuple[int, int] | None = None
             last_activity = time.monotonic()
 
-            if event.resource_type in blocked_resource_types:
-                await _safe_send(
-                    tab.send(
-                        cdp_fetch.fail_request(
-                            event.request_id, cdp_network.ErrorReason.BLOCKED_BY_CLIENT
-                        )
-                    )
-                )
-                return
+            async def on_paused(event: cdp_fetch.RequestPaused, tab: Tab) -> None:
+                nonlocal hop_count, blocked_error, too_many_redirects
+                nonlocal last_activity, response_too_large
+                last_activity = time.monotonic()
 
-            if event.resource_type != cdp_network.ResourceType.DOCUMENT:
-                await _safe_send(tab.send(cdp_fetch.continue_request(request_id=event.request_id)))
-                return
-
-            if event.response_headers is not None:
-                content_length = _extract_content_length(event.response_headers)
-                if content_length is not None and content_length > limits.max_response_bytes:
-                    response_too_large = (limits.max_response_bytes, content_length)
+                if event.resource_type in blocked_resource_types:
                     await _safe_send(
                         tab.send(
                             cdp_fetch.fail_request(
-                                event.request_id, cdp_network.ErrorReason.BLOCKED_BY_RESPONSE
+                                event.request_id, cdp_network.ErrorReason.BLOCKED_BY_CLIENT
                             )
                         )
                     )
                     return
-                await _safe_send(tab.send(cdp_fetch.continue_response(request_id=event.request_id)))
-                return
 
-            hop_count += 1
-            if hop_count > limits.max_redirects + 1:
-                too_many_redirects = True
-                await _safe_send(
-                    tab.send(
-                        cdp_fetch.fail_request(event.request_id, cdp_network.ErrorReason.ABORTED)
+                if event.resource_type != cdp_network.ResourceType.DOCUMENT:
+                    await _safe_send(
+                        tab.send(cdp_fetch.continue_request(request_id=event.request_id))
                     )
-                )
-                return
+                    return
 
-            try:
-                await self._policy.check(event.request.url)
-            except PolicyViolation as exc:
-                blocked_error = exc
-                await _safe_send(
-                    tab.send(
-                        cdp_fetch.fail_request(
-                            event.request_id, cdp_network.ErrorReason.BLOCKED_BY_CLIENT
+                if event.response_headers is not None:
+                    content_length = _extract_content_length(event.response_headers)
+                    if content_length is not None and content_length > limits.max_response_bytes:
+                        response_too_large = (limits.max_response_bytes, content_length)
+                        await _safe_send(
+                            tab.send(
+                                cdp_fetch.fail_request(
+                                    event.request_id, cdp_network.ErrorReason.BLOCKED_BY_RESPONSE
+                                )
+                            )
+                        )
+                        return
+                    await _safe_send(
+                        tab.send(cdp_fetch.continue_response(request_id=event.request_id))
+                    )
+                    return
+
+                hop_count += 1
+                if hop_count > limits.max_redirects + 1:
+                    too_many_redirects = True
+                    await _safe_send(
+                        tab.send(
+                            cdp_fetch.fail_request(
+                                event.request_id, cdp_network.ErrorReason.ABORTED
+                            )
                         )
                     )
-                )
-                return
+                    return
 
-            await _safe_send(tab.send(cdp_fetch.continue_request(request_id=event.request_id)))
+                try:
+                    await self._policy.check(event.request.url)
+                except PolicyViolation as exc:
+                    blocked_error = exc
+                    await _safe_send(
+                        tab.send(
+                            cdp_fetch.fail_request(
+                                event.request_id, cdp_network.ErrorReason.BLOCKED_BY_CLIENT
+                            )
+                        )
+                    )
+                    return
 
-        patterns = [
-            cdp_fetch.RequestPattern(
-                resource_type=cdp_network.ResourceType.DOCUMENT,
-                request_stage=cdp_fetch.RequestStage.REQUEST,
-            ),
-            cdp_fetch.RequestPattern(
-                resource_type=cdp_network.ResourceType.DOCUMENT,
-                request_stage=cdp_fetch.RequestStage.RESPONSE,
-            ),
-        ]
-        for resource_type in blocked_resource_types:
-            patterns.append(
+                await _safe_send(tab.send(cdp_fetch.continue_request(request_id=event.request_id)))
+
+            patterns = [
                 cdp_fetch.RequestPattern(
-                    resource_type=resource_type,
+                    resource_type=cdp_network.ResourceType.DOCUMENT,
                     request_stage=cdp_fetch.RequestStage.REQUEST,
+                ),
+                cdp_fetch.RequestPattern(
+                    resource_type=cdp_network.ResourceType.DOCUMENT,
+                    request_stage=cdp_fetch.RequestStage.RESPONSE,
+                ),
+            ]
+            for resource_type in blocked_resource_types:
+                patterns.append(
+                    cdp_fetch.RequestPattern(
+                        resource_type=resource_type,
+                        request_stage=cdp_fetch.RequestStage.REQUEST,
+                    )
                 )
+
+            page.add_handler(cdp_fetch.RequestPaused, on_paused)
+            try:
+                await page.send(cdp_fetch.enable(patterns=patterns))
+
+                nav_task: asyncio.Future[Any] = asyncio.ensure_future(page.get(url))
+                cancel_task: asyncio.Future[Any] = asyncio.ensure_future(cancel_event.wait())
+                idle_task: asyncio.Future[Any] = asyncio.ensure_future(
+                    _watch_idle(lambda: last_activity, limits.idle_timeout_seconds)
+                )
+                done, pending = await asyncio.wait(
+                    {nav_task, cancel_task, idle_task},
+                    timeout=limits.total_timeout_seconds,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+
+                if nav_task not in done:
+                    nav_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await nav_task
+                    if cancel_task in done:
+                        raise NavigationCancelledError(url)
+                    if idle_task in done:
+                        raise NavigationTimeoutError("idle", limits.idle_timeout_seconds)
+                    raise NavigationTimeoutError("total", limits.total_timeout_seconds)
+
+                nav_task.result()
+            finally:
+                page.remove_handler(cdp_fetch.RequestPaused, on_paused)
+                with contextlib.suppress(Exception):
+                    await page.send(cdp_fetch.disable())
+
+            if blocked_error is not None:
+                raise NavigationBlockedError(blocked_error)
+            if too_many_redirects:
+                raise TooManyRedirectsError(limits.max_redirects)
+            if response_too_large is not None:
+                max_bytes, actual_bytes = response_too_large
+                raise ResponseTooLargeError(max_bytes, actual_bytes)
+
+            final_url = page.target.url if page.target is not None and page.target.url else url
+            return NavigationResult(
+                operation=ReadOnlyOperation.NAVIGATE,
+                requested_url=url,
+                final_url=final_url,
+                redirect_count=max(hop_count - 1, 0),
             )
-
-        page.add_handler(cdp_fetch.RequestPaused, on_paused)
-        try:
-            await page.send(cdp_fetch.enable(patterns=patterns))
-
-            nav_task: asyncio.Future[Any] = asyncio.ensure_future(page.get(url))
-            cancel_task: asyncio.Future[Any] = asyncio.ensure_future(cancel_event.wait())
-            idle_task: asyncio.Future[Any] = asyncio.ensure_future(
-                _watch_idle(lambda: last_activity, limits.idle_timeout_seconds)
-            )
-            done, pending = await asyncio.wait(
-                {nav_task, cancel_task, idle_task},
-                timeout=limits.total_timeout_seconds,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for task in pending:
-                task.cancel()
-            if pending:
-                await asyncio.gather(*pending, return_exceptions=True)
-
-            if nav_task not in done:
-                nav_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await nav_task
-                if cancel_task in done:
-                    raise NavigationCancelledError(url)
-                if idle_task in done:
-                    raise NavigationTimeoutError("idle", limits.idle_timeout_seconds)
-                raise NavigationTimeoutError("total", limits.total_timeout_seconds)
-
-            nav_task.result()
         finally:
-            page.remove_handler(cdp_fetch.RequestPaused, on_paused)
-            with contextlib.suppress(Exception):
-                await page.send(cdp_fetch.disable())
-
-        if blocked_error is not None:
-            raise NavigationBlockedError(blocked_error)
-        if too_many_redirects:
-            raise TooManyRedirectsError(limits.max_redirects)
-        if response_too_large is not None:
-            max_bytes, actual_bytes = response_too_large
-            raise ResponseTooLargeError(max_bytes, actual_bytes)
-
-        final_url = page.target.url if page.target is not None and page.target.url else url
-        return NavigationResult(
-            operation=ReadOnlyOperation.NAVIGATE,
-            requested_url=url,
-            final_url=final_url,
-            redirect_count=max(hop_count - 1, 0),
-        )
+            if observer is not None:
+                await observer.__aexit__(None, None, None)
 
     async def get_content(
         self,

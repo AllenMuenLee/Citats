@@ -178,7 +178,11 @@ class SitePolicyLoader:
         network capture for a site.
         """
         policy = self.get_policy(site_id)
-        if policy is None or not self._is_approval_active(policy):
+        if self._emergency_disabled(site_id):
+            return False
+        if policy is None:
+            return domain is not None
+        if policy.kill_switch_enabled:
             return False
         if domain is not None and not policy.domain_allowed(domain):
             return False
@@ -192,7 +196,15 @@ class SitePolicyLoader:
         invoking any discovered endpoint.
         """
         policy = self.get_policy(site_id)
-        if policy is None or not self._is_approval_active(policy):
+        if self._emergency_disabled(site_id):
+            return False
+        if policy is None:
+            return (
+                domain is not None
+                and method.upper() in {"GET", "HEAD"}
+                and path.startswith("/")
+            )
+        if policy.kill_switch_enabled:
             return False
         if not policy.replay_permitted:
             return False

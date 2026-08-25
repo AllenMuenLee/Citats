@@ -5,7 +5,9 @@ import {
   CONTRACT_MAJOR_VERSION,
   INVOKE_DISCOVERED_API_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME,
   NavigateAndExtractSuccessResultSchema,
+  NavigateExtractAndDiscoverSuccessResultSchema,
   type Citation,
   type EvidenceChunk,
   type Source,
@@ -29,7 +31,11 @@ import {
   type EvidenceBundle,
   type MarkerScanResult,
 } from "../citations";
-import type { RegisteredTool } from "./registry";
+import {
+  createDiscoveredOperationTool,
+  type InvokeDiscoveredApiToolExecutor,
+  type RegisteredTool,
+} from "./registry";
 import { classifyRoute, findExplicitSafeUrl, type RoutingDecision, type RoutingRoute } from "./routing";
 import { OrchestratorError, type OrchestratorCitationSource, type OrchestratorEvent, type OrchestratorState } from "./types";
 import { generativeUiFromDiscoveredApi } from "../generative-ui/from-discovered-api";
@@ -45,6 +51,16 @@ export interface OrchestratorOptions {
   model: MistralAdapter;
   conversations: ConversationRepository;
   tools: ReadonlyMap<string, RegisteredTool>;
+  /**
+   * Same executor `createInvokeDiscoveredApiTool`/`createDiscoveredOperationTool`
+   * (see `./registry`) were built from, supplied separately so `run` can
+   * mint new `discovered.*` tools mid-run (P03-F05 step 7) from operations a
+   * `browser.navigate_extract_and_discover` call just made active, without
+   * needing to reach back into an already-built `RegisteredTool`. Omit to
+   * disable mid-run catalog refresh (e.g. when the discovery tool itself
+   * isn't registered).
+   */
+  invokeDiscoveredApiExecutor?: InvokeDiscoveredApiToolExecutor;
   maxSteps?: number;
   deadlineMs?: number;
   maxMessages?: number;
@@ -56,28 +72,35 @@ export interface OrchestratorOptions {
 /**
  * Resolves the request-scoped tool surface for a routing decision (P02-F05
  * steps 2-5). Only gates the browsing-specific surface -- `web_search`
- * (hosted) and `browser.navigate_and_extract` -- and leaves any other
+ * (hosted), `browser.navigate_and_extract`, and
+ * `browser.navigate_extract_and_discover` -- and leaves any other
  * registered tool (e.g. Phase 1's `system.echo`) untouched, since this
  * repair's routing concern is research-vs-browsing, not the whole registry:
- * `web_search_only` never sees `browser.navigate_and_extract`,
- * `website_read_required` keeps whatever else is registered plus the
- * browser tool, and `web_search` (hosted) is only offered when discovery is
- * actually needed -- i.e. not when the user already supplied an explicit
- * safe URL to read. `code_interpreter`/`image_generation` are never
- * enabled by this flow.
+ * `web_search_only` never sees either browsing tool, `website_read_required`
+ * keeps whatever else is registered plus both browsing tools, and
+ * `web_search` (hosted) is only offered when discovery is actually needed --
+ * i.e. not when the user already supplied an explicit safe URL to read.
+ * `code_interpreter`/`image_generation` are never enabled by this flow.
+ *
+ * Always returns a fresh, request-scoped `Map` copy (never `tools` itself)
+ * -- `ChatOrchestrator.run` mutates the returned map in place for its
+ * mid-run discovered-tool catalog refresh (P03-F05 step 7), and that must
+ * never leak into the shared, constructor-supplied registry other runs and
+ * other sessions also read from.
  */
 function resolveRouteTools(
   route: RoutingRoute,
   explicitUrl: string | undefined,
   tools: ReadonlyMap<string, RegisteredTool>,
-): { routeTools: ReadonlyMap<string, RegisteredTool>; hostedTools: readonly "web_search"[]; usedDiscovery: boolean } {
+): { routeTools: Map<string, RegisteredTool>; hostedTools: readonly "web_search"[]; usedDiscovery: boolean } {
+  const routeTools = new Map(tools);
   if (route === "web_search_only") {
-    const routeTools = new Map(tools);
     routeTools.delete(NAVIGATE_AND_EXTRACT_TOOL_NAME);
+    routeTools.delete(NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME);
     return { routeTools, hostedTools: ["web_search"], usedDiscovery: false };
   }
   const usedDiscovery = explicitUrl === undefined;
-  return { routeTools: tools, hostedTools: usedDiscovery ? ["web_search"] : [], usedDiscovery };
+  return { routeTools, hostedTools: usedDiscovery ? ["web_search"] : [], usedDiscovery };
 }
 
 export interface RunConversationInput {
@@ -203,6 +226,35 @@ export class ChatOrchestrator {
     this.maxMessages = options.maxMessages ?? 50;
     this.maxEstimatedTokens = options.maxEstimatedTokens ?? 16_000;
     this.createId = options.createId ?? randomUUID;
+  }
+
+  /**
+   * Mid-run discovered-tool catalog refresh (P03-F05 step 7): after a
+   * `browser.navigate_extract_and_discover` call commits, any operation in
+   * its `discovery.operations` becomes a `discovered.*` tool available for
+   * the *rest of this run* -- the next model step already re-reads
+   * `routeTools.values()` fresh (see the tool-definitions list built each
+   * iteration of the step loop), so mutating `routeTools` here is
+   * sufficient; no restart or second request is needed. `routeTools` is
+   * always this run's own request-scoped copy (see `resolveRouteTools`),
+   * never the shared registry the orchestrator was constructed with, so
+   * this never leaks a newly-active operation into another session or a
+   * later, unrelated run. An error-result or otherwise malformed `result`
+   * (e.g. a policy/timeout failure) simply refreshes nothing.
+   */
+  private registerNewlyDiscoveredOperations(
+    result: unknown,
+    routeTools: Map<string, RegisteredTool>,
+    executor: InvokeDiscoveredApiToolExecutor,
+  ): void {
+    const parsed = NavigateExtractAndDiscoverSuccessResultSchema.safeParse(result);
+    if (!parsed.success) return;
+    for (const operation of parsed.data.payload.discovery.operations) {
+      const tool = createDiscoveredOperationTool(executor, operation);
+      if (!routeTools.has(tool.definition.name)) {
+        routeTools.set(tool.definition.name, tool);
+      }
+    }
   }
 
   async *run(rawInput: RunConversationInput): AsyncGenerator<OrchestratorEvent> {
@@ -359,6 +411,9 @@ export class ChatOrchestrator {
             }
           }
           state = "result-append";
+          if (call.name === NAVIGATE_EXTRACT_AND_DISCOVER_TOOL_NAME && this.options.invokeDiscoveredApiExecutor) {
+            this.registerNewlyDiscoveredOperations(result, routeTools, this.options.invokeDiscoveredApiExecutor);
+          }
           if (call.name === INVOKE_DISCOVERED_API_TOOL_NAME || call.name.startsWith("discovered.")) {
             try {
               const generated = generativeUiFromDiscoveredApi(result, {

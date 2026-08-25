@@ -19,6 +19,8 @@ import {
   NavigateAndExtractSuccessResultSchema,
   InvokeDiscoveredApiInvocationSchema,
   InvokeDiscoveredApiSuccessResultSchema,
+  NavigateExtractAndDiscoverInvocationSchema,
+  NavigateExtractAndDiscoverSuccessResultSchema,
   SensitivityFlagsSchema,
   SystemEchoInvocationSchema,
   SystemEchoProgressEventSchema,
@@ -44,6 +46,8 @@ export const FIXTURE_SCHEMA_REGISTRY: Record<string, z.ZodTypeAny> = {
   "success-result-navigate-and-extract": NavigateAndExtractSuccessResultSchema,
   "invocation-invoke-discovered-api": InvokeDiscoveredApiInvocationSchema,
   "success-result-invoke-discovered-api": InvokeDiscoveredApiSuccessResultSchema,
+  "invocation-navigate-extract-and-discover": NavigateExtractAndDiscoverInvocationSchema,
+  "success-result-navigate-extract-and-discover": NavigateExtractAndDiscoverSuccessResultSchema,
   "generative-ui-part": generativeUiPartSchema,
   "ui-command": uiCommandSchema,
 };

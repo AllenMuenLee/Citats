@@ -42,9 +42,14 @@ async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
     // the whole endpoint.
     tools: createToolRegistry({
       navigateAndExtractExecutor: browserServiceClient,
+      navigateExtractAndDiscoverExecutor: browserServiceClient,
       invokeDiscoveredApiExecutor: browserServiceClient,
       discoveredApiDefinitions,
     }),
+    // Lets a browser.navigate_extract_and_discover call's own newly-active
+    // operations become callable discovered.* tools later in the same run
+    // (P03-F05 step 7) -- see ChatOrchestrator.registerNewlyDiscoveredOperations.
+    invokeDiscoveredApiExecutor: browserServiceClient,
   });
 }
 

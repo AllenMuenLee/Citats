@@ -17,7 +17,7 @@ from browser_service.extraction.normalize import normalize_text
 _EXCLUDED_SCHEMES = frozenset({"data", "blob"})
 
 
-def _resolve(base_url: str, raw: str) -> str | None:
+def resolve_url(base_url: str, raw: str) -> str | None:
     raw = raw.strip()
     if not raw:
         return None
@@ -34,7 +34,7 @@ def extract_anchors(root: Tag, base_url: str) -> list[Anchor]:
         href = tag.get("href")
         if not isinstance(href, str):
             continue
-        resolved = _resolve(base_url, href)
+        resolved = resolve_url(base_url, href)
         if resolved is None:
             continue
         text = normalize_text(tag.get_text(separator=" ", strip=True))
@@ -48,7 +48,7 @@ def extract_images(root: Tag, base_url: str) -> list[ImageRef]:
         src = tag.get("src")
         if not isinstance(src, str):
             continue
-        resolved = _resolve(base_url, src)
+        resolved = resolve_url(base_url, src)
         if resolved is None:
             continue
         alt = tag.get("alt")

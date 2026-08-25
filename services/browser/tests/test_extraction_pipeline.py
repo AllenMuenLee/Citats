@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from browser_service.extraction import (
+    AffordanceRole,
     HeadingBlock,
     ListBlock,
     ParagraphBlock,
@@ -207,3 +208,58 @@ def test_relative_links_and_canonical_resolution() -> None:
     assert len(doc.images) == 1
     assert doc.images[0].url == "https://docs.example.com/guide/images/diagram.png"
     assert doc.images[0].alt == "Architecture diagram"
+
+
+def test_interactive_affordances_are_bounded_and_descriptive_only() -> None:
+    html = _load("interactive_affordances.html")
+    doc = extract_document(html, "https://example.com/widgets")
+
+    # Document-local, opaque, unique IDs -- nothing selector-shaped.
+    expected_ids = [f"affordance-{i}" for i in range(len(doc.affordances))]
+    assert [a.affordance_id for a in doc.affordances] == expected_ids
+
+    by_label = {a.label: a for a in doc.affordances}
+
+    docs_link = by_label["Read the docs"]
+    assert docs_link.role is AffordanceRole.LINK
+    assert docs_link.destination == "https://example.com/docs"
+    assert docs_link.disabled is False
+
+    # Unsafe/non-http(s) destinations are never surfaced, even though the
+    # affordance itself (its label) is still descriptive.
+    assert by_label["Run script"].destination is None
+    assert by_label["Email us"].destination is None
+
+    premium_link = by_label["Premium (locked)"]
+    assert premium_link.disabled is True
+
+    subscribe = by_label["Subscribe"]
+    assert subscribe.role is AffordanceRole.BUTTON
+    assert subscribe.disabled is False
+
+    assert by_label["Unavailable"].disabled is True
+
+    # ARIA role="button" with no visible text falls back to aria-label.
+    menu_button = by_label["Open menu"]
+    assert menu_button.role is AffordanceRole.BUTTON
+
+    # hidden (attribute/inline-style) elements never appear as affordances.
+    assert "Hidden link" not in by_label
+    assert "Hidden button" not in by_label
+
+    # Forms are summarized as one purpose-labeled affordance each -- never
+    # as their individual fields -- and a hidden form is excluded entirely.
+    form_affordances = [a for a in doc.affordances if a.role is AffordanceRole.FORM]
+    form_labels = {a.label for a in form_affordances}
+    assert form_labels == {"Search the site", "Newsletter signup"}
+    for form_affordance in form_affordances:
+        assert form_affordance.destination is None
+        assert form_affordance.disabled is False
+
+    # Never a selector, a script, or a field value anywhere near an
+    # affordance -- only the closed set of fields the model defines
+    # (role/label/destination/disabled).
+    affordances_dump = str([a.model_dump() for a in doc.affordances])
+    assert "leaked-search-term" not in affordances_dump
+    assert "hunter2" not in affordances_dump
+    assert "javascript:alert" not in affordances_dump

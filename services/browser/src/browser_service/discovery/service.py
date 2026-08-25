@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import ipaddress
+import socket
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
@@ -19,6 +22,34 @@ from browser_service.sites.loader import SitePolicyLoader
 
 CaptureFactory = Callable[..., AbstractAsyncContextManager[None]]
 Navigate = Callable[[Tab, str], Awaitable[Any]]
+Resolver = Callable[[str], Awaitable[tuple[str, ...]]]
+
+DEFAULT_SETTLE_SECONDS = 1.5
+MAX_SETTLE_SECONDS = 5.0
+
+
+async def _resolve(hostname: str) -> tuple[str, ...]:
+    loop = asyncio.get_running_loop()
+    records = await loop.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+    return tuple(sorted({str(record[4][0]) for record in records}))
+
+
+def _public_addresses(addresses: tuple[str, ...], *, allow_loopback: bool) -> bool:
+    if not addresses:
+        return False
+    for raw in addresses:
+        address = ipaddress.ip_address(raw)
+        blocked = (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
+            or address.is_reserved
+            or address.is_unspecified
+        )
+        if blocked and not (allow_loopback and address.is_loopback):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -36,10 +67,14 @@ class DiscoveryService:
         policies: SitePolicyLoader | None = None,
         *,
         capture: CaptureFactory = capture_network,
+        resolver: Resolver = _resolve,
+        settle_seconds: float = DEFAULT_SETTLE_SECONDS,
     ) -> None:
         self._repository = repository
         self._policies = policies or SitePolicyLoader()
         self._capture = capture
+        self._resolver = resolver
+        self._settle_seconds = max(0.0, min(settle_seconds, MAX_SETTLE_SECONDS))
 
     async def discover(
         self,
@@ -56,6 +91,9 @@ class DiscoveryService:
             raise ValueError("discovery URL must be absolute HTTP(S)")
         if not self._policies.is_capture_allowed(site_id, parsed.hostname):
             raise PermissionError("site policy blocked network discovery")
+        addresses = await self._resolver(parsed.hostname)
+        if not _public_addresses(addresses, allow_loopback=site_id == "local-fixture"):
+            raise PermissionError("network address policy blocked discovery")
         observations: list[SanitizedNetworkObservation] = []
 
         async def collect(observation: SanitizedNetworkObservation) -> None:
@@ -70,6 +108,13 @@ class DiscoveryService:
             page_origin=origin,
         ):
             await navigate(page, url)
+            # Bounded wait for client-rendered XHR/fetch calls fired after the
+            # initial document settles (e.g. a React app's mount-time fetch),
+            # so capture -- still attached -- observes them too. Deliberately
+            # a fixed bounded sleep, not an idle-detector: simplest correct
+            # implementation of "bounded client-render settling."
+            if self._settle_seconds > 0:
+                await asyncio.sleep(self._settle_seconds)
 
         operations = infer_operations(observations)
         active = await self._repository.get_active(site_id)

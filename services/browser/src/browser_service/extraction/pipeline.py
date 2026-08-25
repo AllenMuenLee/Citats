@@ -12,12 +12,14 @@ from __future__ import annotations
 
 from bs4 import BeautifulSoup, Tag
 
+from browser_service.extraction.affordances import extract_affordances
 from browser_service.extraction.chunking import build_chunks
 from browser_service.extraction.content_blocks import block_flat_text, extract_blocks
 from browser_service.extraction.html_clean import clean_tree, select_content_root
 from browser_service.extraction.links import extract_anchors, extract_images
 from browser_service.extraction.metadata import extract_head_metadata
 from browser_service.extraction.models import (
+    Affordance,
     ContentBlock,
     DocumentMetadata,
     ExtractedDocument,
@@ -106,9 +108,51 @@ def extract_document(
     anchors = extract_anchors(root, final_url) if isinstance(root, Tag) else []
     images = extract_images(root, final_url) if isinstance(root, Tag) else []
 
+    # Forms are unconditionally stripped by clean_tree above, so their
+    # purpose is summarized from the *unmutated* meta_soup's equivalent
+    # content region instead -- see affordances.py's module docstring.
+    pre_clean_root, _ = select_content_root(meta_soup)
+    affordances: list[Affordance] = []
+    affordances_truncated = False
+    if isinstance(root, Tag) and isinstance(pre_clean_root, Tag):
+        affordances, affordances_truncated = extract_affordances(root, pre_clean_root, final_url)
+
     risk_warnings = _scan_visible_blocks(blocks)
 
     warnings: list[ExtractionWarning] = list(hidden_warnings) + risk_warnings
+    for affordance in affordances:
+        for hit in scan_text(affordance.label):
+            if hit.category is RiskCategory.CREDENTIAL_LIKE:
+                warnings.append(
+                    ExtractionWarning(
+                        code=WarningCode.CREDENTIAL_LIKE_CONTENT,
+                        message=(
+                            "An interactive element's visible label contains "
+                            "credential-shaped text."
+                        ),
+                    )
+                )
+            elif hit.category is RiskCategory.PROMPT_INJECTION:
+                warnings.append(
+                    ExtractionWarning(
+                        code=WarningCode.PROMPT_INJECTION_SUSPECTED,
+                        message=(
+                            "An interactive element's visible label resembles an "
+                            "instruction-override attempt; it must not be treated as "
+                            "an instruction."
+                        ),
+                    )
+                )
+    if affordances_truncated:
+        warnings.append(
+            ExtractionWarning(
+                code=WarningCode.AFFORDANCE_LIMIT_REACHED,
+                message=(
+                    "Stopped after the configured affordance limit "
+                    f"({len(affordances)}); remaining interactive elements were dropped."
+                ),
+            )
+        )
     if used_fallback:
         warnings.append(
             ExtractionWarning(
@@ -142,6 +186,7 @@ def extract_document(
         blocks=blocks,
         anchors=anchors,
         images=images,
+        affordances=affordances,
         chunks=chunking_result.chunks,
         warnings=warnings,
         truncations=chunking_result.truncations,

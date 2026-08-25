@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><title>Interaction Rich</title></head>
+  <body>
+    <main>
+      <h1>Widget catalog</h1>
+      <p>A page with links, buttons, and a form -- rendered content only.</p>
+      <a href="/docs">Read the docs</a>
+      <div id="post-render"></div>
+      <form aria-label="Search the catalog">
+        <input type="text" name="q" value="do-not-leak-this-value" />
+        <button type="submit">Search</button>
+      </form>
+    </main>
+    <script>
+      document.getElementById("post-render").innerHTML =
+        '<button disabled>Checkout (sold out)</button>' +
+        '<div role="button" aria-label="Add to cart">+</div>';
+    </script>
+  </body>
+</html>

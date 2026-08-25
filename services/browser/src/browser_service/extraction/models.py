@@ -30,6 +30,7 @@ class WarningCode(StrEnum):
     CHUNK_TRUNCATED = "chunk_truncated"
     CHUNK_LIMIT_REACHED = "chunk_limit_reached"
     NO_SEMANTIC_CONTAINER = "no_semantic_container"
+    AFFORDANCE_LIMIT_REACHED = "affordance_limit_reached"
 
 
 class ExtractionWarning(BaseModel):
@@ -150,6 +151,37 @@ class ImageRef(BaseModel):
     url: str
 
 
+class AffordanceRole(StrEnum):
+    """Semantic role of a described interactive affordance -- nothing more
+    specific (no selector, no DOM path, no element tag) is ever recorded.
+    """
+
+    LINK = "link"
+    BUTTON = "button"
+    FORM = "form"
+
+
+class Affordance(BaseModel):
+    """A bounded, descriptive-only record of one visible interactive
+    element the page exposes: what it is, not how to operate it.
+
+    Only a semantic role, a visible label, a safe (``http``/``https``)
+    destination when one exists, and a disabled flag are ever captured --
+    never a selector, DOM path, script, form field value, or credential.
+    Nothing in this model, or anywhere that consumes it, can be replayed
+    to click, fill, or submit anything; that capability does not exist in
+    this phase.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    affordance_id: str
+    role: AffordanceRole
+    label: str
+    destination: str | None = None
+    disabled: bool = False
+
+
 class Chunk(BaseModel):
     """A stable, bounded slice of the document's canonical flattened text."""
 
@@ -181,6 +213,7 @@ class ExtractedDocument(BaseModel):
     blocks: list[ContentBlock]
     anchors: list[Anchor]
     images: list[ImageRef]
+    affordances: list[Affordance]
     chunks: list[Chunk]
     warnings: list[ExtractionWarning]
     truncations: list[TruncationDetail]

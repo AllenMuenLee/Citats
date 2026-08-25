@@ -24,6 +24,8 @@ export * from "./tool-definition";
 export * from "./tools/system-echo";
 export * from "./tools/navigate-and-extract";
 export * from "./tools/invoke-discovered-api";
+export * from "./tools/action-affordance";
+export * from "./tools/navigate-extract-and-discover";
 export * from "./invocation";
 export * from "./results";
 export * from "./progress";

@@ -135,6 +135,46 @@ async def test_replays_approved_operation_and_returns_bounded_product_records(
     assert result.source_url == "http://localhost:8765/api/products?q=headphones"
 
 
+@pytest.mark.asyncio
+async def test_empty_inferred_body_does_not_reject_a_real_response(tmp_path: Path) -> None:
+    """A known limitation (headless Chrome's `Network.getResponseBody`
+    frequently can't retrieve a real XHR/fetch response body -- see
+    `network/capture.py`'s `on_loading_finished` docstring) means a real
+    discovered operation's inferred `response.body.kind` often comes back
+    "empty" even when the endpoint's actual JSON response has a body. That
+    must never turn into a permanent `RESPONSE_DRIFT` on every replay: an
+    "empty"/unknown inferred shape asserts nothing about the live response.
+    """
+    mapped = NormalizedOperation(
+        method="GET",
+        origin="http://localhost:8765",
+        path_template="/api/products",
+        parameters=ParameterSchema(
+            query_parameters=(),
+            request_body=BodyShapeSchema(None),
+        ),
+        response=ResponseSchema(
+            status_codes=(200,),
+            content_types=("application/json",),
+            body=BodyShapeSchema(None),
+            stable_headers=(),
+        ),
+        confidence=0.95,
+        provenance=("observation-1",),
+        last_seen="2026-08-24T00:00:00+00:00",
+    )
+    repository = await repository_with(mapped)
+    async with client(b'{"products":[{"id":"p1","name":"Headphones"}]}') as http:
+        invoker = DiscoveredApiInvoker(
+            repository, policy(tmp_path / "sites"), http, resolver=lambda _host: _addresses()
+        )
+        result = await invoker.invoke("local-fixture", operation_id(mapped), {})
+    assert result.records == ({"id": "p1", "name": "Headphones"},)
+    # resultKind is still classified correctly off the live response,
+    # independent of the (broken) inferred shape.
+    assert result.result_kind == "product_results"
+
+
 async def _addresses() -> tuple[str, ...]:
     return ("127.0.0.1",)
 

@@ -6,10 +6,11 @@ expected, safe-to-surface failure) -- `api/bridge.py` is generic over this
 shape and never hardcodes a tool-specific payload/result structure.
 
 This registry is closed and read-only: it exposes exactly the tools
-listed here, all read-only for Phase 2 (`system.echo` -- the P00
-reference/test tool -- and `browser.navigate_and_extract` -- P02-F04).
-Nothing here (or anywhere reachable from it) exposes click, form,
-script-evaluation, or other mutation capability.
+listed here, all read-only through Phase 3 (`system.echo` -- the P00
+reference/test tool; `browser.navigate_and_extract` -- P02-F04;
+`browser.invoke_discovered_api` -- P03-F04; `browser.navigate_extract_and_discover`
+-- P03-F05). Nothing here (or anywhere reachable from it) exposes click,
+form, script-evaluation, or other mutation capability.
 """
 
 from __future__ import annotations
@@ -22,14 +23,19 @@ from typing import Any
 from browser_service.contracts import (
     InvocationInvokeDiscoveredApi,
     InvocationNavigateAndExtract,
+    InvocationNavigateExtractAndDiscover,
     InvocationSystemEcho,
     SuccessResultInvokeDiscoveredApi,
     SuccessResultNavigateAndExtract,
+    SuccessResultNavigateExtractAndDiscover,
     SuccessResultSystemEcho,
 )
 from browser_service.tool_outcome import ToolHandlerOutcome
 from browser_service.tools.invoke_discovered_api import run_invoke_discovered_api
 from browser_service.tools.navigate_and_extract import run_navigate_and_extract
+from browser_service.tools.navigate_extract_and_discover import (
+    run_navigate_extract_and_discover,
+)
 
 MAX_ARTIFICIAL_DELAY_MS = 2_000
 
@@ -78,5 +84,10 @@ TOOL_REGISTRY: dict[str, ToolRegistration] = {
         InvocationInvokeDiscoveredApi,
         run_invoke_discovered_api,
         SuccessResultInvokeDiscoveredApi,
+    ),
+    "browser.navigate_extract_and_discover": ToolRegistration(
+        InvocationNavigateExtractAndDiscover,
+        run_navigate_extract_and_discover,
+        SuccessResultNavigateExtractAndDiscover,
     ),
 }

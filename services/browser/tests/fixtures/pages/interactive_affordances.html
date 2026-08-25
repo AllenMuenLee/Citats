@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head><title>Interactive affordances fixture</title></head>
+<body>
+<main>
+  <h1>Widgets</h1>
+  <p>A page with interactive affordances.</p>
+  <a href="/docs">Read the docs</a>
+  <a href="javascript:alert(1)">Run script</a>
+  <a href="mailto:owner@example.com">Email us</a>
+  <a href="/premium" aria-disabled="true">Premium (locked)</a>
+  <button>Subscribe</button>
+  <button disabled>Unavailable</button>
+  <div role="button" aria-label="Open menu"></div>
+  <a href="/hidden" hidden>Hidden link</a>
+  <button style="display: none">Hidden button</button>
+  <form aria-label="Search the site">
+    <input type="text" name="q" value="leaked-search-term" />
+    <button type="submit">Search</button>
+  </form>
+  <form>
+    <legend>Newsletter signup</legend>
+    <input type="email" name="email" />
+    <input type="submit" value="Sign up" />
+  </form>
+  <form hidden>
+    <input type="text" name="secret" value="hunter2" />
+    <button>Hidden form submit</button>
+  </form>
+</main>
+</body>
+</html>

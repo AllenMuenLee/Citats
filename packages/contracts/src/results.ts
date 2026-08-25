@@ -9,6 +9,7 @@ import { CONTRACT_MAJOR_VERSION } from "./version";
 import { SystemEchoResultSchema } from "./tools/system-echo";
 import { NavigateAndExtractResultSchema } from "./tools/navigate-and-extract";
 import { InvokeDiscoveredApiResultSchema } from "./tools/invoke-discovered-api";
+import { NavigateExtractAndDiscoverResultSchema } from "./tools/navigate-extract-and-discover";
 
 /**
  * Generic factory for a tool success result: correlation metadata echoed
@@ -48,6 +49,14 @@ export const InvokeDiscoveredApiSuccessResultSchema = makeToolSuccessResultSchem
 );
 
 export type InvokeDiscoveredApiSuccessResult = z.infer<typeof InvokeDiscoveredApiSuccessResultSchema>;
+
+export const NavigateExtractAndDiscoverSuccessResultSchema = makeToolSuccessResultSchema(
+  NavigateExtractAndDiscoverResultSchema,
+);
+
+export type NavigateExtractAndDiscoverSuccessResult = z.infer<
+  typeof NavigateExtractAndDiscoverSuccessResultSchema
+>;
 
 /**
  * Tool error result. `errorCode` is the closed set from `errors.ts`;
