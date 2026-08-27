@@ -4,11 +4,14 @@ vi.mock("server-only", () => ({}));
 
 import {
   CONTRACT_MAJOR_VERSION,
+  EXPLORE_WEBSITE_TOOL_NAME,
+  GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
+  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
   type NavigateAndExtractInvocation,
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
-import type { MistralAdapter, MistralStreamEvent, MistralStreamRequest } from "../src/server/ai/mistral";
+import type { ModelAdapter, ModelStreamEvent, ModelStreamRequest } from "../src/server/ai";
 import { InMemoryConversationRepository } from "../src/server/conversation";
 import {
   ChatOrchestrator,
@@ -19,6 +22,80 @@ import {
   type RoutingRoute,
 } from "../src/server/orchestrator";
 
+describe("tool JSON schemas", () => {
+  it("advertises every local function as strict with its own closed argument schema", () => {
+    const tools = createToolRegistry({
+      echoExecutor: { invoke: vi.fn() },
+      navigateAndExtractExecutor: { invoke: vi.fn() },
+      phaseThreeExecutor: { invoke: vi.fn() },
+    });
+
+    expect([...tools.values()].every((tool) => tool.definition.strict === true)).toBe(true);
+    expect(tools.get(EXPLORE_WEBSITE_TOOL_NAME)?.definition.parameters).toMatchObject({
+      additionalProperties: false,
+      required: ["url", "goal"],
+      properties: {
+        url: { pattern: "^https?://" },
+        goal: { anyOf: [{ type: "string", maxLength: 500 }, { type: "null" }] },
+      },
+    });
+    expect(tools.get(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME)?.definition.parameters).toMatchObject({
+      additionalProperties: false,
+      required: ["observationId", "handle"],
+    });
+    expect(tools.get(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME)?.definition.parameters).toMatchObject({
+      additionalProperties: false,
+      required: expect.arrayContaining(["observationId", "layoutKind", "provenance", "localInteractionIntents"]),
+      properties: {
+        layoutKind: { enum: expect.arrayContaining(["table", "card_grid", "cited_text"]) },
+        provenance: { additionalProperties: false, required: ["sourceUrl", "retrievedAt"] },
+      },
+    });
+  });
+
+  /**
+   * Groq validates every tool schema before the model sees the request and
+   * rejects the whole call on a violation, surfacing as an opaque 400 the
+   * shared status mapping reports as a safety refusal. Both rules below have
+   * been broken here in practice, so they are asserted over the registry the
+   * chat endpoint actually builds -- Phase 1's `system.echo` is excluded
+   * because it is never registered there and its `context` bag is
+   * deliberately open, which no strict schema can express.
+   */
+  it("keeps every advertised tool schema inside the provider-supported JSON Schema subset", () => {
+    const tools = createToolRegistry({
+      navigateAndExtractExecutor: { invoke: vi.fn() },
+      phaseThreeExecutor: { invoke: vi.fn() },
+    });
+    // The structured-output string formats both providers accept; `uri` is not among them.
+    const supportedFormats = new Set(["date-time", "time", "date", "duration", "email", "hostname", "ipv4", "ipv6", "uuid"]);
+    const violations: string[] = [];
+
+    const walk = (node: unknown, path: string): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach((item, index) => walk(item, `${path}[${index}]`));
+        return;
+      }
+      const schema = node as Record<string, unknown>;
+      if (typeof schema.format === "string" && !supportedFormats.has(schema.format)) {
+        violations.push(`${path}: unsupported string format '${schema.format}'`);
+      }
+      if (schema.properties && typeof schema.properties === "object") {
+        const required = new Set((Array.isArray(schema.required) ? schema.required : []) as string[]);
+        for (const property of Object.keys(schema.properties as Record<string, unknown>)) {
+          if (!required.has(property)) violations.push(`${path}: '${property}' is declared but missing from required`);
+        }
+        if (schema.additionalProperties !== false) violations.push(`${path}: additionalProperties must be false`);
+      }
+      for (const [key, value] of Object.entries(schema)) walk(value, `${path}.${key}`);
+    };
+
+    for (const [name, tool] of tools) walk(tool.definition.parameters, name);
+    expect(violations).toEqual([]);
+  });
+});
+
 /**
  * Every `run()` call now opens with one dedicated, tool-free model call for
  * the P02-F05 routing decision (see `orchestrator/routing.ts`) before the
@@ -28,11 +105,11 @@ import {
  * which routing never gates) is unaffected -- every pre-existing
  * `requests[N]` index below is shifted by one to account for it.
  */
-function routingResponse(route: RoutingRoute = "website_read_required", reason = "test routing"): MistralStreamEvent[] {
+function routingResponse(route: RoutingRoute = "website_read_required", reason = "test routing"): ModelStreamEvent[] {
   return [{ type: "text-delta", text: JSON.stringify({ route, reason }) }];
 }
 
-function modelFrom(steps: MistralStreamEvent[][], requests: MistralStreamRequest[] = [], route: RoutingRoute = "website_read_required"): MistralAdapter {
+function modelFrom(steps: ModelStreamEvent[][], requests: ModelStreamRequest[] = [], route: RoutingRoute = "website_read_required"): ModelAdapter {
   let index = 0;
   const allSteps = [routingResponse(route), ...steps];
   return {
@@ -43,8 +120,8 @@ function modelFrom(steps: MistralStreamEvent[][], requests: MistralStreamRequest
   };
 }
 
-function harness(steps: MistralStreamEvent[][], options: { maxSteps?: number; route?: RoutingRoute; executor?: { invoke: (invocation: SystemEchoInvocation, signal?: AbortSignal) => Promise<unknown> } } = {}) {
-  const requests: MistralStreamRequest[] = [];
+function harness(steps: ModelStreamEvent[][], options: { maxSteps?: number; route?: RoutingRoute; executor?: { invoke: (invocation: SystemEchoInvocation, signal?: AbortSignal) => Promise<unknown> } } = {}) {
+  const requests: ModelStreamRequest[] = [];
   const conversations = new InMemoryConversationRepository({ createId: (() => { let id = 0; return () => `id-${++id}`; })() });
   const executor = options.executor ?? {
     invoke: vi.fn(async (invocation: SystemEchoInvocation) => ({
@@ -109,6 +186,35 @@ describe("ChatOrchestrator", () => {
     expect(requests[2].turns.at(-1)?.content).toContain("INVALID_ARGUMENTS");
   });
 
+  it("reports a typed tool failure response and safe reason to the UI", async () => {
+    const executor = {
+      invoke: vi.fn(async (invocation: SystemEchoInvocation) => ({
+        contractVersion: CONTRACT_MAJOR_VERSION,
+        correlation: invocation.correlation,
+        toolCallId: invocation.toolCallId,
+        status: "error" as const,
+        errorCode: "UPSTREAM_UNAVAILABLE" as const,
+        message: "The upstream service is unavailable.",
+        retryable: true,
+      })),
+    };
+    const { orchestrator } = harness([
+      [{ type: "tool-call-delta", index: 0, id: "call-failed", name: "system.echo", argumentsDelta: "{\"message\":\"hello\"}" }],
+      [{ type: "text-delta", text: "The tool failed safely." }],
+    ], { executor });
+
+    const events = await collect(orchestrator);
+
+    expect(events).toContainEqual({
+      type: "tool-status",
+      id: "call-failed",
+      label: "system.echo",
+      state: "failed",
+      response: "UPSTREAM_UNAVAILABLE",
+      reason: "The upstream service is unavailable.",
+    });
+  });
+
   it("stops unknown tools before dispatch", async () => {
     const { orchestrator, executor, conversations } = harness([[{ type: "tool-call-delta", index: 0, id: "bad", name: "browse.open", argumentsDelta: "{}" }]]);
     await expect(collect(orchestrator)).rejects.toMatchObject({ code: "UNKNOWN_TOOL" });
@@ -155,9 +261,9 @@ describe("ChatOrchestrator", () => {
       })),
     };
     const tools = createToolRegistry({ navigateAndExtractExecutor: navigateExecutor });
-    const requests: MistralStreamRequest[] = [];
+    const requests: ModelStreamRequest[] = [];
     let callCount = 0;
-    const model: MistralAdapter = {
+    const model: ModelAdapter = {
       async *stream(request) {
         requests.push(request);
         callCount += 1;
@@ -253,9 +359,9 @@ describe("ChatOrchestrator", () => {
       })),
     };
     const tools = createToolRegistry({ navigateAndExtractExecutor: navigateExecutor });
-    const requests: MistralStreamRequest[] = [];
+    const requests: ModelStreamRequest[] = [];
     let callCount = 0;
-    const model: MistralAdapter = {
+    const model: ModelAdapter = {
       async *stream(request) {
         requests.push(request);
         callCount += 1;
@@ -353,7 +459,7 @@ describe("ChatOrchestrator", () => {
   it("propagates cancellation to model and commits no partial turn", async () => {
     const controller = new AbortController();
     const conversations = new InMemoryConversationRepository();
-    const model: MistralAdapter = { async *stream(request) {
+    const model: ModelAdapter = { async *stream(request) {
       controller.abort();
       if (request.signal?.aborted) throw request.signal.reason;
       await new Promise<void>((_resolve, reject) => request.signal?.addEventListener("abort", () => reject(request.signal?.reason), { once: true }));
@@ -389,8 +495,8 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
 
   it("fails closed on a malformed routing decision without exposing any tool", async () => {
     const conversations = new InMemoryConversationRepository();
-    const requests: MistralStreamRequest[] = [];
-    const model: MistralAdapter = {
+    const requests: ModelStreamRequest[] = [];
+    const model: ModelAdapter = {
       async *stream(request) {
         requests.push(request);
         yield { type: "text-delta", text: "not json" };
@@ -404,7 +510,7 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
 
   it("emits a route-decision metric and never advertises the browser tool for web_search_only", async () => {
     const conversations = new InMemoryConversationRepository();
-    const requests: MistralStreamRequest[] = [];
+    const requests: ModelStreamRequest[] = [];
     const metrics: RouteDecisionMetric[] = [];
     const model = modelFrom(
       [[{ type: "text-delta", text: "Answer." }, { type: "finish", reason: "stop" }]],
@@ -431,7 +537,7 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
 
   it("skips web_search when the user supplies an explicit safe URL to read", async () => {
     const conversations = new InMemoryConversationRepository();
-    const requests: MistralStreamRequest[] = [];
+    const requests: ModelStreamRequest[] = [];
     const model = modelFrom(
       [[{ type: "text-delta", text: "Answer." }, { type: "finish", reason: "stop" }]],
       requests,
@@ -447,7 +553,7 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
 
   it("enables web_search discovery for website_read_required with no explicit URL", async () => {
     const conversations = new InMemoryConversationRepository();
-    const requests: MistralStreamRequest[] = [];
+    const requests: ModelStreamRequest[] = [];
     const metrics: RouteDecisionMetric[] = [];
     const model = modelFrom(
       [[{ type: "text-delta", text: "Answer." }, { type: "finish", reason: "stop" }]],

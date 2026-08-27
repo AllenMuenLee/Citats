@@ -24,7 +24,9 @@ type CodeBlock = { type: "code"; start: number; end: number; lang: string };
 type ListBlock = { type: "list"; ordered: boolean; items: { start: number; end: number }[] };
 type QuoteBlock = { type: "quote"; start: number; end: number };
 type HrBlock = { type: "hr" };
-type Block = HeadingBlock | ParagraphBlock | CodeBlock | ListBlock | QuoteBlock | HrBlock;
+type TableAlign = "left" | "right" | "center" | null;
+type TableBlock = { type: "table"; align: TableAlign[]; header: { start: number; end: number }[]; rows: { start: number; end: number }[][] };
+type Block = HeadingBlock | ParagraphBlock | CodeBlock | ListBlock | QuoteBlock | HrBlock | TableBlock;
 
 const FENCE_OPEN_RE = /^ {0,3}(```|~~~)(.*)$/;
 const FENCE_CLOSE_RE = /^ {0,3}(?:```|~~~)\s*$/;
@@ -32,6 +34,54 @@ const HEADING_RE = /^ {0,3}(#{1,6})(\s+(.*))?$/;
 const HR_RE = /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const LIST_RE = /^ {0,3}([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const QUOTE_RE = /^ {0,3}>\s?(.*)$/;
+const TABLE_SEPARATOR_CELL_RE = /^:?-+:?$/;
+
+/** True if `raw` contains a `|` not escaped as `\|` -- the minimal signal that a line could be a GFM table row. */
+function hasUnescapedPipe(raw: string): boolean {
+  for (let i = 0; i < raw.length; i++) if (raw[i] === "|" && raw[i - 1] !== "\\") return true;
+  return false;
+}
+
+/** Parses a GFM table delimiter row (e.g. `| --- | :--: | ---: |`) into one alignment per column, or `null` if `raw` is not a valid delimiter row. */
+function parseTableAlignment(raw: string): TableAlign[] | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const stripped = trimmed.replace(/^\|/, "").replace(/\|$/, "");
+  if (stripped.trim().length === 0) return null;
+  const cells = stripped.split("|").map((cell) => cell.trim());
+  const align: TableAlign[] = [];
+  for (const cell of cells) {
+    if (!TABLE_SEPARATOR_CELL_RE.test(cell)) return null;
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    align.push(left && right ? "center" : right ? "right" : left ? "left" : null);
+  }
+  return align;
+}
+
+/** Splits one table row line into its cells' absolute `[start, end)` character ranges in the original text (outer pipes and per-cell whitespace stripped), so citation marker positions keep working unchanged. */
+function splitTableRowCells(line: LineInfo): { start: number; end: number }[] {
+  const raw = line.raw;
+  const leadingWs = raw.match(/^\s*/)?.[0].length ?? 0;
+  const trailingWs = raw.match(/\s*$/)?.[0].length ?? 0;
+  let bodyStart = leadingWs;
+  let bodyEnd = Math.max(bodyStart, raw.length - trailingWs);
+  if (raw[bodyStart] === "|") bodyStart += 1;
+  if (bodyEnd > bodyStart && raw[bodyEnd - 1] === "|" && raw[bodyEnd - 2] !== "\\") bodyEnd -= 1;
+  const cells: { start: number; end: number }[] = [];
+  let cellStart = bodyStart;
+  for (let i = bodyStart; i <= bodyEnd; i++) {
+    if (i === bodyEnd || (raw[i] === "|" && raw[i - 1] !== "\\")) {
+      let s = cellStart;
+      let e = i;
+      while (s < e && /\s/.test(raw[s])) s++;
+      while (e > s && /\s/.test(raw[e - 1])) e--;
+      cells.push({ start: line.start + s, end: line.start + e });
+      cellStart = i + 1;
+    }
+  }
+  return cells;
+}
 
 /** Parses `text` (a raw assistant message, markdown syntax included) into a flat sequence of block-level nodes, each carrying the absolute character range of its own inline content within `text` -- so citation marker positions (recorded against that same raw text) stay valid without any offset translation. */
 function parseBlocks(text: string): Block[] {
@@ -89,6 +139,22 @@ function parseBlocks(text: string): Block[] {
       blocks.push({ type: "quote", start: line.end - content.length, end: line.end });
       i++;
       continue;
+    }
+
+    if (hasUnescapedPipe(line.raw) && i + 1 < lines.length) {
+      const align = parseTableAlignment(lines[i + 1].raw);
+      if (align) {
+        const header = splitTableRowCells(line);
+        let j = i + 2;
+        const rows: { start: number; end: number }[][] = [];
+        while (j < lines.length && lines[j].raw.trim() !== "" && hasUnescapedPipe(lines[j].raw)) {
+          rows.push(splitTableRowCells(lines[j]));
+          j++;
+        }
+        blocks.push({ type: "table", align, header, rows });
+        i = j;
+        continue;
+      }
     }
 
     let j = i;
@@ -163,6 +229,10 @@ function renderBlockContent(text: string, start: number, end: number, markers: r
   return nodes;
 }
 
+function tableCellStyle(align: TableAlign | undefined): { textAlign: "left" | "right" | "center" } | undefined {
+  return align ? { textAlign: align } : undefined;
+}
+
 /** Renders an assistant message's raw text as markdown, with citation markers interleaved at their recorded positions. */
 export function renderMarkdown(text: string, markers: readonly CitationMarker[] = [], sourceIndex: Map<string, CitationSource> = new Map()): ReactNode {
   const blocks = parseBlocks(text);
@@ -182,6 +252,11 @@ export function renderMarkdown(text: string, markers: readonly CitationMarker[] 
         const Tag: "ol" | "ul" = block.ordered ? "ol" : "ul";
         return <Tag key={key} className={styles.list}>{block.items.map((item, itemIndex) => <li key={`${key}-${itemIndex}`}>{renderBlockContent(text, item.start, item.end, markers, citationIndex, sourceIndex, `${key}-${itemIndex}`)}</li>)}</Tag>;
       }
+      case "table":
+        return <div key={key} className={styles.tableWrap}><table className={styles.table}>
+          <thead><tr>{block.header.map((cell, ci) => <th key={`${key}-h${ci}`} style={tableCellStyle(block.align[ci])}>{renderBlockContent(text, cell.start, cell.end, markers, citationIndex, sourceIndex, `${key}-h${ci}`)}</th>)}</tr></thead>
+          <tbody>{block.rows.map((row, ri) => <tr key={`${key}-r${ri}`}>{row.map((cell, ci) => <td key={`${key}-r${ri}-c${ci}`} style={tableCellStyle(block.align[ci])}>{renderBlockContent(text, cell.start, cell.end, markers, citationIndex, sourceIndex, `${key}-r${ri}-c${ci}`)}</td>)}</tr>)}</tbody>
+        </table></div>;
       case "paragraph":
       default:
         return <p key={key}>{renderBlockContent(text, block.start, block.end, markers, citationIndex, sourceIndex, key)}</p>;

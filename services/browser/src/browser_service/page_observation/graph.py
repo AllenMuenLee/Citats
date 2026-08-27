@@ -170,10 +170,43 @@ def _control_state(ax: AxState | None, *, disabled_attr: bool) -> dict[str, obje
     }
 
 
+# CDP's Accessibility.ignoredReasons codes that mean the node is actually
+# invisible/unreachable to users. `ignored=True` alone is not a hidden
+# signal: Chromium also marks purely structural/semantic-less nodes ignored
+# (reason "uninteresting") -- notably the page's own <html> element, which
+# is folded into RootWebArea rather than exposed as its own accessible
+# node. Empirically, every page's <html> comes back `ignored=True,
+# ignoredReasons=["uninteresting"]`, so treating any `ignored=True` node as
+# hidden (as this used to) pruned every page's entire subtree at the root,
+# always producing an empty graph regardless of site. Only the reasons
+# below indicate real invisibility; anything else (uninteresting,
+# presentational roles, empty alt/label text, etc.) is a "traverse for
+# children but don't emit this node itself" wrapper, per this module's own
+# docstring, not hidden content.
+_HIDDEN_IGNORED_REASONS = frozenset(
+    {
+        "activeModalDialog",
+        "ariaHiddenElement",
+        "ariaHiddenSubtree",
+        "hiddenByChildTree",
+        "inertElement",
+        "inertSubtree",
+        "notRendered",
+        "notVisible",
+    }
+)
+
+
 def _is_hidden(node: RawNode, ax: AxState | None) -> bool:
-    if ax is not None:
-        return ax.ignored
-    return attribute_hidden(node.attributes)
+    if attribute_hidden(node.attributes):
+        return True
+    if ax is None:
+        return False
+    if not ax.ignored:
+        return False
+    if not ax.ignored_reasons:
+        return True
+    return bool(ax.ignored_reasons & _HIDDEN_IGNORED_REASONS)
 
 
 def _text_role_and_text(node: RawNode, tag: str, label: str | None) -> tuple[str, str] | None:

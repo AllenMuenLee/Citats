@@ -9,15 +9,18 @@ import {
   GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractSuccessResultSchema,
+  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
+  ToolErrorResultSchema,
   type Citation,
   type EvidenceChunk,
   type Source,
   type ToolErrorResult,
+  type ExploreWebsiteSuccessResult,
   type GenerativeUiPlan,
   type PageUnderstanding,
 } from "@ai-browser/contracts";
 import { z } from "zod";
-import type { MistralAdapter, MistralConversationTurn } from "../ai/mistral";
+import type { ModelAdapter, ConversationTurn, HostedToolName } from "../ai";
 import {
   assistantTextPart,
   selectConversationContext,
@@ -34,10 +37,19 @@ import {
   type EvidenceBundle,
   type MarkerScanResult,
 } from "../citations";
+import { elideOldToolResults, projectToolResultForModel } from "./model-view";
 import type { RegisteredTool } from "./registry";
 import { classifyRoute, findExplicitSafeUrl, type RoutingDecision, type RoutingRoute } from "./routing";
 import { OrchestratorError, type OrchestratorCitationSource, type OrchestratorEvent, type OrchestratorState } from "./types";
 import type { GeneratedUiReference } from "../generative-ui";
+
+/**
+ * The hosted (provider-executed) search capability the browsing routes offer.
+ * Each provider runs it with its own built-in connector -- Gemini's
+ * `google_search` grounding, Groq's `browser_search` -- so this stays one
+ * portable name and nothing here changes when `CHAT_MODEL_PROVIDER` does.
+ */
+const HOSTED_SEARCH_TOOL: HostedToolName = "web_search";
 
 /** Correlation-safe routing telemetry (P02-F05 step 5) -- never carries the request text or page content. */
 export interface RouteDecisionMetric {
@@ -47,15 +59,29 @@ export interface RouteDecisionMetric {
 }
 
 export interface OrchestratorOptions {
-  model: MistralAdapter;
+  model: ModelAdapter;
   conversations: ConversationRepository;
   tools: ReadonlyMap<string, RegisteredTool>;
   maxSteps?: number;
   deadlineMs?: number;
   maxMessages?: number;
   maxEstimatedTokens?: number;
+  /**
+   * Opt-in ceiling on the turns one in-flight run re-sends per step. Left
+   * unset, a run keeps every result it gathered for the whole turn and
+   * nothing is elided.
+   */
+  maxRunTokens?: number;
   createId?: () => string;
   emitRouteDecision?: (metric: RouteDecisionMetric) => void;
+  /**
+   * Compresses one high-context observation into a small digest on a separate,
+   * tool-less model (`EXTRACTION_MODEL`) before the conversation model ever
+   * sees it. Unset, the deterministic projection stands alone. Must resolve
+   * `null` rather than throw for a failed compression -- a turn never depends
+   * on a digest.
+   */
+  compressObservation?: (input: { correlationId: string; task: string; result: ExploreWebsiteSuccessResult; signal: AbortSignal }) => Promise<unknown>;
   generateUi?: (input: { ownerId: string; task: string; plan: GenerativeUiPlan; pageUnderstanding: PageUnderstanding; signal: AbortSignal }) => Promise<GeneratedUiReference | null>;
 }
 
@@ -69,27 +95,55 @@ export interface OrchestratorOptions {
  * keeps whatever else is registered plus the browsing tool, and
  * `web_search` (hosted) is only offered when discovery is actually needed --
  * i.e. not when the user already supplied an explicit safe URL to read.
- * `code_interpreter`/`image_generation` are never enabled by this flow.
+ * Web search is the only hosted capability that exists, so it is the only
+ * one this flow can enable.
  *
  * Always returns a fresh, request-scoped `Map` copy (never `tools` itself)
  * so per-run tool-surface changes never leak into the shared,
  * constructor-supplied registry other runs and other sessions also read
  * from.
+ *
+ * `hasObservation` additionally withholds the two observation-scoped tools
+ * until an observation actually exists to scope them to. Both require an
+ * `observationId` minted by `browser.explore_website`, so offering them
+ * beforehand can only produce an invalid call -- while their JSON schemas
+ * (the generative-UI plan's in particular) are re-sent as prompt tokens on
+ * every step of the loop.
  */
 function resolveRouteTools(
   route: RoutingRoute,
   explicitUrl: string | undefined,
   tools: ReadonlyMap<string, RegisteredTool>,
-): { routeTools: Map<string, RegisteredTool>; hostedTools: readonly "web_search"[]; usedDiscovery: boolean } {
+  hasObservation: boolean,
+): { routeTools: Map<string, RegisteredTool>; hostedTools: readonly HostedToolName[]; usedDiscovery: boolean } {
   const routeTools = new Map(tools);
+  if (!hasObservation) {
+    routeTools.delete(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME);
+    routeTools.delete(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME);
+  }
   if (route === "web_search_only") {
     routeTools.delete(NAVIGATE_AND_EXTRACT_TOOL_NAME);
     routeTools.delete(EXPLORE_WEBSITE_TOOL_NAME);
     routeTools.delete(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME);
-    return { routeTools, hostedTools: ["web_search"], usedDiscovery: false };
+    return { routeTools, hostedTools: [HOSTED_SEARCH_TOOL], usedDiscovery: false };
   }
   const usedDiscovery = explicitUrl === undefined;
-  return { routeTools, hostedTools: usedDiscovery ? ["web_search"] : [], usedDiscovery };
+  return { routeTools, hostedTools: usedDiscovery ? [HOSTED_SEARCH_TOOL] : [], usedDiscovery };
+}
+
+/**
+ * Whether the selected history already carries a usable observation, so a
+ * follow-up turn ("now make a page for that") can still reach the
+ * observation-scoped tools without re-exploring. Reads the projected result
+ * the orchestrator persisted (see `model-view.ts`), which keeps
+ * `observationId` precisely so this stays answerable from history.
+ */
+function historyHasObservation(messages: readonly ConversationMessage[]): boolean {
+  return messages.some((message) => message.parts.some((part) => {
+    if (part.type !== "tool-result" || part.toolName !== EXPLORE_WEBSITE_TOOL_NAME) return false;
+    const payload = (part.result as { payload?: { pageUnderstanding?: { observationId?: unknown } } } | null)?.payload;
+    return typeof payload?.pageUnderstanding?.observationId === "string";
+  }));
 }
 
 export interface RunConversationInput {
@@ -112,7 +166,7 @@ const InputSchema = z.object({
   text: z.string().trim().min(1).max(32_000),
 }).strict();
 
-function toModelTurn(message: ConversationMessage): MistralConversationTurn {
+function toModelTurn(message: ConversationMessage): ConversationTurn {
   const text = message.parts.filter((part) => part.type === "text").map((part) => part.text).join("");
   const result = message.parts.find((part) => part.type === "tool-result");
   if (message.role === "tool" && result?.type === "tool-result") {
@@ -209,18 +263,35 @@ function errorResult(requestId: string, userId: string, callId: string, code: To
   };
 }
 
+function failedToolStatus(id: string, label: string, result: ToolErrorResult, url?: string): OrchestratorEvent {
+  return { type: "tool-status", id, label, state: "failed", ...(url ? { url } : {}), response: result.errorCode, reason: result.message };
+}
+
+function exploredUrl(toolName: string, args: unknown): string | undefined {
+  if (toolName !== EXPLORE_WEBSITE_TOOL_NAME || typeof args !== "object" || args === null || !("url" in args) || typeof args.url !== "string") return undefined;
+  const url = new URL(args.url);
+  if (url.username || url.password) {
+    url.username = "";
+    url.password = "";
+  }
+  return url.toString();
+}
+
 export class ChatOrchestrator {
   private readonly maxSteps: number;
-  private readonly deadlineMs: number;
+  /** No default: an overall time budget is opt-in only. Without it, a run ends only when the model finishes, `maxSteps` is hit, or the caller's own signal aborts it (e.g. the user pressing Stop) -- there is no server-imposed clock cutting off a run the user hasn't chosen to stop. */
+  private readonly deadlineMs: number | undefined;
   private readonly maxMessages: number;
   private readonly maxEstimatedTokens: number;
+  private readonly maxRunTokens: number | undefined;
   private readonly createId: () => string;
 
   constructor(private readonly options: OrchestratorOptions) {
     this.maxSteps = options.maxSteps ?? 6;
-    this.deadlineMs = options.deadlineMs ?? 60_000;
+    this.deadlineMs = options.deadlineMs;
     this.maxMessages = options.maxMessages ?? 50;
     this.maxEstimatedTokens = options.maxEstimatedTokens ?? 16_000;
+    this.maxRunTokens = options.maxRunTokens;
     this.createId = options.createId ?? randomUUID;
   }
 
@@ -228,15 +299,22 @@ export class ChatOrchestrator {
     const parsed = InputSchema.parse({ sessionId: rawInput.sessionId, ownerId: rawInput.ownerId, text: rawInput.text });
     const requestId = this.createId();
     const release = this.options.conversations.acquireRequest(parsed.sessionId, parsed.ownerId, requestId);
-    const deadlineSignal = AbortSignal.timeout(this.deadlineMs);
-    const signal = rawInput.signal ? AbortSignal.any([rawInput.signal, deadlineSignal]) : deadlineSignal;
+    const deadlineSignal = this.deadlineMs !== undefined ? AbortSignal.timeout(this.deadlineMs) : undefined;
+    const callerAndDeadline = [rawInput.signal, deadlineSignal].filter((candidate): candidate is AbortSignal => candidate !== undefined);
+    const signal = callerAndDeadline.length > 0 ? AbortSignal.any(callerAndDeadline) : new AbortController().signal;
+    const abortError = () => deadlineSignal?.aborted
+      ? new OrchestratorError("DEADLINE", "The request deadline was reached.")
+      : new OrchestratorError("CANCELLED", "The request was stopped.");
     const prior = this.options.conversations.read(parsed.sessionId, parsed.ownerId);
     const selected = selectConversationContext(prior, { maxMessages: this.maxMessages, maxEstimatedTokens: this.maxEstimatedTokens });
-    const modelTurns: MistralConversationTurn[] = [
+    const modelTurns: ConversationTurn[] = [
       ...selected.messages.map(toModelTurn),
       { role: "user", content: parsed.text },
     ];
-    const committedTools: Array<{ name: string; id: string; result: unknown }> = [];
+    // `result` is the full tool result (evidence, citation quote hashes, and
+    // UI generation all read it); `modelResult` is the projection that is
+    // actually serialized to the model and persisted -- see `model-view.ts`.
+    const committedTools: Array<{ name: string; id: string; result: unknown; modelResult: unknown }> = [];
     const callFingerprints = new Set<string>();
     let finalText = "";
     let state: OrchestratorState = "model-request";
@@ -284,19 +362,31 @@ export class ChatOrchestrator {
     try {
       let decision: RoutingDecision;
       try {
-        decision = await classifyRoute(this.options.model, { correlationId: requestId, text: parsed.text, signal });
+        // The classifier only ever sees the latest message plus this short trailing window --
+        // enough to resolve a referential follow-up ("generate a page for this") without handing
+        // it the full conversation (see the routing instruction's "Earlier turns" fragment).
+        const recentContext = selected.messages
+          .filter((message) => message.role === "user" || message.role === "assistant")
+          .slice(-2)
+          .map((message) => ({ role: message.role as "user" | "assistant", content: toModelTurn(message).content.slice(0, 400) }))
+          .filter((turn) => turn.content.length > 0);
+        decision = await classifyRoute(this.options.model, { correlationId: requestId, text: parsed.text, contextTurns: recentContext, signal });
       } catch {
-        if (signal.aborted) throw new OrchestratorError(deadlineSignal.aborted ? "DEADLINE" : "CANCELLED", deadlineSignal.aborted ? "The request deadline was reached." : "The request was stopped.");
+        if (signal.aborted) throw abortError();
         this.options.emitRouteDecision?.({ correlationId: requestId, route: "failed", usedDiscovery: false });
         throw new OrchestratorError("ROUTING_FAILED", "The assistant could not classify this request safely. Please try again.");
       }
       const explicitUrl = decision.route === "website_read_required" ? findExplicitSafeUrl(parsed.text) : undefined;
-      const { routeTools, hostedTools, usedDiscovery } = resolveRouteTools(decision.route, explicitUrl, this.options.tools);
+      let hasObservation = historyHasObservation(selected.messages);
+      const resolved = resolveRouteTools(decision.route, explicitUrl, this.options.tools, hasObservation);
+      const { hostedTools, usedDiscovery } = resolved;
+      let routeTools = resolved.routeTools;
       this.options.emitRouteDecision?.({ correlationId: requestId, route: decision.route, usedDiscovery });
 
       for (let step = 0; step < this.maxSteps; step += 1) {
-        if (signal.aborted) throw new OrchestratorError(deadlineSignal.aborted ? "DEADLINE" : "CANCELLED", deadlineSignal.aborted ? "The request deadline was reached." : "The request was stopped.");
+        if (signal.aborted) throw abortError();
         state = "model-request";
+        if (this.maxRunTokens !== undefined) elideOldToolResults(modelTurns, this.maxRunTokens);
         const calls = new Map<number, PendingCall>();
         let stepText = "";
         for await (const event of this.options.model.stream({
@@ -321,7 +411,7 @@ export class ChatOrchestrator {
               id: this.createId(),
               artifactType: event.artifactType,
               title: event.title,
-              url: event.fileId ? `/api/mistral/files/${encodeURIComponent(event.fileId)}` : event.url,
+              url: event.url,
               mediaType: event.mediaType,
             };
           } else if (event.type === "tool-call-delta") {
@@ -355,36 +445,69 @@ export class ChatOrchestrator {
           const isRepeat = callFingerprints.has(fingerprint);
           callFingerprints.add(fingerprint);
           let result: unknown;
+          let validatedArgs: unknown;
+          let targetUrl: string | undefined;
           if (isRepeat) {
             // The model re-issued a call it already made (with identical arguments) earlier in
             // this turn. Re-running it would just repeat work and risks looping forever, so this
             // is answered with a synthetic, non-retryable error instead of re-executing the tool --
             // the step cap (`maxSteps`) remains the backstop against genuine runaway loops.
-            result = errorResult(requestId, parsed.ownerId, call.id, "INTERNAL", "This exact tool call was already made earlier in this turn. Reuse that result instead of repeating it.", false);
-            yield { type: "tool-status", id: call.id, label: call.name, state: "failed" };
+            const repeatedCallError = errorResult(requestId, parsed.ownerId, call.id, "INTERNAL", "This exact tool call was already made earlier in this turn. Reuse that result instead of repeating it.", false);
+            result = repeatedCallError;
+            yield failedToolStatus(call.id, call.name, repeatedCallError);
           } else {
             try {
               const json = JSON.parse(call.arguments);
               const args = tool.parseArguments(json);
+              validatedArgs = args;
+              targetUrl = exploredUrl(call.name, args);
               state = "tool-execution";
-              yield { type: "tool-status", id: call.id, label: call.name, state: "running" };
+              yield { type: "tool-status", id: call.id, label: call.name, state: "running", ...(targetUrl ? { url: targetUrl } : {}) };
               result = await tool.execute(args, { requestId, userId: parsed.ownerId, sessionId: parsed.sessionId, invocationId: call.id, signal });
-              yield { type: "tool-status", id: call.id, label: call.name, state: "completed" };
+              const toolError = ToolErrorResultSchema.safeParse(result);
+              yield toolError.success
+                ? failedToolStatus(call.id, call.name, toolError.data, targetUrl)
+                : { type: "tool-status", id: call.id, label: call.name, state: "completed", ...(targetUrl ? { url: targetUrl } : {}) };
             } catch (error) {
-              if (signal.aborted) throw new OrchestratorError(deadlineSignal.aborted ? "DEADLINE" : "CANCELLED", "The tool call was stopped.");
+              if (signal.aborted) throw new OrchestratorError(deadlineSignal?.aborted ? "DEADLINE" : "CANCELLED", "The tool call was stopped.");
               const invalid = error instanceof SyntaxError || error instanceof z.ZodError;
-              result = errorResult(requestId, parsed.ownerId, call.id, invalid ? "INVALID_ARGUMENTS" : "INTERNAL", invalid ? "The tool arguments were invalid." : "The tool could not complete safely.", !invalid);
-              yield { type: "tool-status", id: call.id, label: call.name, state: "failed" };
+              const executionError = errorResult(requestId, parsed.ownerId, call.id, invalid ? "INVALID_ARGUMENTS" : "INTERNAL", invalid ? "The tool arguments were invalid." : "The tool could not complete safely.", !invalid);
+              result = executionError;
+              yield failedToolStatus(call.id, call.name, executionError, targetUrl);
             }
           }
           state = "result-append";
           result = namespaceEvidenceChunkIds(call.id, call.name, result);
-          committedTools.push({ name: call.name, id: call.id, result });
-          if (call.name === "ui.propose_generative_ui_plan" && this.options.generateUi) {
+          const exploreResult = call.name === EXPLORE_WEBSITE_TOOL_NAME ? ExploreWebsiteSuccessResultSchema.safeParse(result) : undefined;
+          // The one high-context payload of the turn is read once, here, by a
+          // model that has no tools and never answers the user -- so the
+          // conversation model is handed the digest instead of the graph, on
+          // this step and on every step and turn that re-sends it afterwards.
+          const digest = exploreResult?.success && this.options.compressObservation
+            ? await this.options.compressObservation({ correlationId: requestId, task: parsed.text, result: exploreResult.data, signal })
+                .catch((error: unknown) => {
+                  if (signal.aborted) throw error;
+                  return null;
+                })
+            : null;
+          const modelResult = projectToolResultForModel(call.name, result, digest === null ? {} : { digest });
+          committedTools.push({ name: call.name, id: call.id, result, modelResult });
+          if (exploreResult?.success && !hasObservation) {
+            hasObservation = true;
+            routeTools = resolveRouteTools(decision.route, explicitUrl, this.options.tools, true).routeTools;
+          }
+          if (call.name === PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME && this.options.generateUi && !isRepeat && !ToolErrorResultSchema.safeParse(result).success) {
+            // Only ever reachable when `tool.execute` above actually
+            // succeeded, so `validatedArgs` is the plan `tool.parseArguments`
+            // already validated against the closed `GenerativeUiPlanSchema`
+            // (limits included) -- never a raw, unchecked re-parse of the
+            // model's own arguments string, which could carry an
+            // out-of-contract plan (e.g. too many detailRegionHandles) that
+            // only surfaces much later as an opaque UI-generation failure.
             const exploration = [...committedTools].reverse().find((item) => item.name === EXPLORE_WEBSITE_TOOL_NAME);
             const parsedExploration = exploration ? ExploreWebsiteSuccessResultSchema.safeParse(exploration.result) : null;
             try {
-              const plan = JSON.parse(call.arguments) as GenerativeUiPlan;
+              const plan = validatedArgs as GenerativeUiPlan;
               if (parsedExploration?.success && parsedExploration.data.status === "success") {
                 const reference = await this.options.generateUi({ ownerId: parsed.ownerId, task: parsed.text, plan, pageUnderstanding: parsedExploration.data.payload.pageUnderstanding, signal });
                 if (reference) yield { type: "generated-ui", id: this.createId(), ...reference };
@@ -397,14 +520,17 @@ export class ChatOrchestrator {
             evidenceSources.set(evidence.source.id, evidence.source);
             for (const chunk of evidence.chunks) evidenceChunks.set(chunk.id, chunk);
           }
-          modelTurns.push({ role: "tool", content: JSON.stringify(result), toolCallId: call.id, name: call.name });
+          modelTurns.push({ role: "tool", content: JSON.stringify(modelResult), toolCallId: call.id, name: call.name });
         }
         if (step === this.maxSteps - 1) throw new OrchestratorError("STEP_LIMIT", "The tool loop reached its step limit.");
       }
       if (state !== "final-response") throw new OrchestratorError("STEP_LIMIT", "The tool loop reached its step limit.");
       this.options.conversations.append(parsed.sessionId, parsed.ownerId, { role: "user", parts: [userTextPart(parsed.text)], correlationId: requestId }, "client");
       for (const tool of committedTools) {
-        this.options.conversations.append(parsed.sessionId, parsed.ownerId, { role: "tool", parts: [toolResultPart(tool.name, tool.id, tool.result)], correlationId: requestId }, "server");
+        // History stores the projection, not the full result: nothing after
+        // this turn reads the full payload, and a persisted full result would
+        // be re-sent as prompt tokens on every later turn that still selects it.
+        this.options.conversations.append(parsed.sessionId, parsed.ownerId, { role: "tool", parts: [toolResultPart(tool.name, tool.id, tool.modelResult)], correlationId: requestId }, "server");
       }
       this.options.conversations.append(parsed.sessionId, parsed.ownerId, { role: "assistant", parts: [assistantTextPart(finalText || "Completed.")], correlationId: requestId, completeTurn: true }, "server");
       if (citedSources.size > 0) {

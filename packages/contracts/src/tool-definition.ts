@@ -7,7 +7,7 @@ export const ARGS_SCHEMA_REF_MAX_LENGTH = 200;
 
 /**
  * Tool names are a closed dotted-namespace format (`namespace.tool_name`),
- * lowercase, so they can be used directly as Mistral tool-calling function
+ * lowercase, so they can be used directly as provider tool-calling function
  * names and as REST/log identifiers without further encoding.
  */
 export const ToolNameSchema = z
@@ -20,7 +20,7 @@ export const ToolNameSchema = z
   );
 
 /**
- * Describes a tool available for Mistral to call: its name, a
+ * Describes a tool available for the model to call: its name, a
  * human/model-readable description, which version of its own argument
  * schema it implements, a reference to that schema, and whether it is
  * sensitive by default (see `sensitivity.ts`). This is metadata *about* a

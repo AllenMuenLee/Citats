@@ -1,6 +1,6 @@
 # AI-Native Browser
 
-AI-Native Browser is an installable Electron desktop workspace with a Next.js/React chat renderer, a local TypeScript orchestration layer, and a Python FastAPI browser service. The current implementation provides a streaming Mistral chat loop and a validated `system.echo` stub tool; live website browsing is not implemented yet.
+AI-Native Browser is an installable Electron desktop workspace with a Next.js/React chat renderer, a local TypeScript orchestration layer, and a Python FastAPI browser service. The chat loop streams from either Google Gemini or Groq -- each of its three model roles picks its provider independently.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ AI-Native Browser is an installable Electron desktop workspace with a Next.js/Re
 - Python 3.12 or newer
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Docker Desktop with Docker Compose
-- A Mistral API key
+- A Gemini API key, a Groq API key, or both (whichever providers you configure below)
 
 Run all commands from the repository root unless a step says otherwise.
 
@@ -31,7 +31,7 @@ npm run compose:up
 
 ## Run locally on Windows
 
-Development currently uses three terminals when testing the Python service separately. Choose a temporary browser-service token for local service health checks. Do not commit this token or a real Mistral key.
+Development currently uses three terminals when testing the Python service separately. Choose a temporary browser-service token for local service health checks. Do not commit this token or a real provider API key.
 
 Terminal 1 — browser service:
 
@@ -48,10 +48,23 @@ uv run uvicorn browser_service.app:app --reload --host 127.0.0.1 --port 8000
 Terminal 2 — renderer and local orchestrator:
 
 ```powershell
-$env:MISTRAL_API_KEY = "your-mistral-api-key"
-$env:MISTRAL_MODEL = "mistral-medium-latest"
+$env:GEMINI_API_KEY = "your-gemini-api-key"
+$env:CHAT_MODEL_PROVIDER = "Gemini"
+$env:CHAT_MODEL = "gemini-3.5-flash"
 npm run dev --workspace apps/renderer
 ```
+
+The renderer reads its full configuration from `apps/renderer/.env` (see
+`apps/renderer/.env.example`). Three model roles are configured independently, and each
+one picks `Gemini` or `Groq`:
+
+| Role | Variables | Purpose |
+| --- | --- | --- |
+| Chat | `CHAT_MODEL_PROVIDER`, `CHAT_MODEL` | Answers the user, runs the hosted online search, calls the local tools. Required. |
+| Extraction | `EXTRACTION_MODEL_PROVIDER`, `EXTRACTION_MODEL` | Turns one rendered page observation into the digest a generative-UI plan is built from. Optional. |
+| UI | `UI_MODEL_PROVIDER`, `UI_MODEL` | Writes the final React component. Optional; generative UI is disabled without it. |
+
+Set `GEMINI_API_KEY` and/or `GROQ_API_KEY` for whichever providers those roles name.
 
 Terminal 3 — Electron desktop:
 
@@ -62,7 +75,7 @@ npm run dev --workspace apps/desktop
 
 The Electron window loads the renderer from `http://localhost:3000`. Enter a chat message to test a direct streaming response. To exercise the stub tool loop, ask the assistant to use `system.echo` to echo a short message.
 
-The Electron development process also starts its own authenticated browser-service child for desktop lifecycle testing. Mistral's hosted code interpreter, image generation, and web search run through the trusted Next.js server and do not use the Python browser service.
+The Electron development process also starts its own authenticated browser-service child for desktop lifecycle testing. The provider's hosted web search runs through the trusted Next.js server and does not use the Python browser service.
 
 ## Check the browser service
 
@@ -88,10 +101,10 @@ npm test
 
 ## Build and run the packaged desktop app
 
-Set a Mistral key in the shell, build the unpacked Windows application, and launch it:
+Set a provider key in the shell, build the unpacked Windows application, and launch it:
 
 ```powershell
-$env:MISTRAL_API_KEY = "your-mistral-api-key"
+$env:GEMINI_API_KEY = "your-gemini-api-key"
 npm run package
 & ".\apps\desktop\release\win-unpacked\AI-Native Browser.exe"
 ```
@@ -108,7 +121,7 @@ npm run compose:down
 
 ## Common setup problems
 
-- `The local AI service is not configured`: confirm Terminal 2 has `MISTRAL_API_KEY` set before starting Next.js.
+- `The local AI service is not configured`: confirm Terminal 2 has `CHAT_MODEL_PROVIDER`, `CHAT_MODEL`, and that provider's API key set before starting Next.js.
 - Browser-service requests return `401`: confirm the request uses the same token configured in Terminal 1.
 - Electron opens and immediately exits: confirm the renderer is already listening on port 3000 and `uv` is available on `PATH`.
 - Ports 3000 or 8000 are occupied: stop the conflicting process before starting the development stack.

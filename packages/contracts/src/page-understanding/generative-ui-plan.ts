@@ -5,7 +5,7 @@ import { UiSourceFieldRoleSchema } from "./source-candidate";
 
 /**
  * `GenerativeUiPlan` (P03-F05 step 6): DISPLAY INTENT, never executable UI
- * code. Mistral proposes one of these (via the `ui.propose_generative_ui_plan`
+ * code. The chat model proposes one of these (via the `ui.propose_generative_ui_plan`
  * tool, see `../tools/propose-generative-ui-plan.ts`) instead of emitting
  * React/HTML/CSS/JavaScript, a raw API, a selector, or a URL for execution.
  * Every handle referenced here must belong to the same `observationId` this

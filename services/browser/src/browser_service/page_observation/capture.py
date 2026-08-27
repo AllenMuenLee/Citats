@@ -57,6 +57,7 @@ class AxState:
     name: str | None
     description: str | None
     ignored: bool
+    ignored_reasons: frozenset[str]
     properties: dict[str, object]
 
 
@@ -199,11 +200,16 @@ def _parse_ax_node(node: cdp_ax.AXNode) -> AxState | None:
     ax_role = _ax_value_scalar(node.role)
     name = _ax_value_scalar(node.name)
     description = _ax_value_scalar(node.description)
+    ignored_reasons = frozenset(
+        str(reason.name.value) if hasattr(reason.name, "value") else str(reason.name)
+        for reason in (node.ignored_reasons or [])
+    )
     return AxState(
         role=str(ax_role) if ax_role is not None else None,
         name=str(name) if name else None,
         description=str(description) if description else None,
         ignored=bool(node.ignored),
+        ignored_reasons=ignored_reasons,
         properties=properties,
     )
 

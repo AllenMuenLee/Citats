@@ -15,8 +15,8 @@ import { ToolDefinitionSchema } from "../tool-definition";
  * capability exists on this path), and its result payload carries only
  * *bounded* chunks -- never the full unbounded block/anchor/image tree
  * the browser service extracts internally -- so this is the shape
- * actually serialized to Mistral, per the phase's "serialize only
- * bounded extracted chunks to Mistral" requirement.
+ * actually serialized to the model, per the phase's "serialize only
+ * bounded extracted chunks to the model" requirement.
  */
 export const NAVIGATE_AND_EXTRACT_TOOL_NAME = "browser.navigate_and_extract" as const;
 

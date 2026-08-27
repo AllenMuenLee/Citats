@@ -70,6 +70,19 @@ describe("ChatWorkspace", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("shows a failed tool response and reason", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
+      { type: "tool-status", id: "tool-1", label: "browser.explore_website", state: "running", url: "https://example.com/search?q=test" },
+      { type: "tool-status", id: "tool-1", label: "browser.explore_website", state: "failed", url: "https://example.com/search?q=test", response: "UPSTREAM_UNAVAILABLE", reason: "The browser could not load the page." },
+      { type: "done" },
+    )));
+    const user = userEvent.setup(); render(<ChatWorkspace />);
+    await user.type(screen.getByRole("textbox"), "Explore{enter}");
+    expect(await screen.findByText("UPSTREAM_UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.getByText("The browser could not load the page.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://example.com/search?q=test" })).toHaveAttribute("href", "https://example.com/search?q=test");
+  });
+
   it("renders an inline citation marker and its resolved source details on demand", async () => {
     const fetchMock = vi.fn().mockResolvedValue(stream(
       { type: "text-delta", delta: "The sky is blue." },
@@ -134,5 +147,26 @@ describe("ChatWorkspace", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const first = JSON.parse(fetchMock.mock.calls[0][1].body); const second = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(first.sessionId).not.toBe(second.sessionId);
+  });
+
+  it("shows a button for a generated-ui result and opens/closes it in a split context pane", async () => {
+    let id = 0;
+    vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
+    const fetchMock = vi.fn().mockResolvedValue(stream(
+      { type: "text-delta", delta: "Here is a view." },
+      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 2, coverageLabel: "Full coverage", fallbackText: "Fallback text" },
+      { type: "done" },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup(); render(<ChatWorkspace />);
+    await user.type(screen.getByRole("textbox"), "Show me{enter}");
+    const openButton = await screen.findByRole("button", { name: "Show generated view" });
+    expect(screen.queryByRole("region", { name: "Generated view" })).not.toBeInTheDocument();
+    await user.click(openButton);
+    expect(await screen.findByRole("region", { name: "Generated view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Showing generated view" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "Generated view" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show generated view" })).toBeInTheDocument();
   });
 });

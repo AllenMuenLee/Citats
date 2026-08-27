@@ -13,7 +13,7 @@ const source = `import { type GeneratedViewProps, Card, Heading } from "@ai-brow
 export default function GeneratedView(_props: GeneratedViewProps) { return <Card aria-label="Results"><Heading>Results</Heading></Card>; }`;
 
 function response(overrides: Partial<UiGenerationResponse> = {}): UiGenerationResponse {
-  return { schemaVersion: 1, tsxSource: source, manifest, modelIdentifier: "mistral-ui-pinned", promptDigest: request.promptDigest, inputDigest: digestUiGenerationRequest(request), runtimeVersion: request.runtimeApiVersion, toolchainVersion: "test", fallbackReason: null, ...overrides };
+  return { schemaVersion: 1, tsxSource: source, manifest, modelIdentifier: "ui-model-pinned", promptDigest: request.promptDigest, inputDigest: digestUiGenerationRequest(request), runtimeVersion: request.runtimeApiVersion, toolchainVersion: "test", fallbackReason: null, ...overrides };
 }
 
 describe("adaptive generated UI flow", () => {

@@ -53,7 +53,7 @@ export function useChatStream() {
         if (event.type === "text-delta") setParts((current) => current.map((part) => part.id === assistantId && part.type === "assistant" ? { ...part, text: part.text + event.delta } : part));
         if (event.type === "tool-status") {
           const id = event.id ?? localId("tool");
-          setParts((current) => { const index = current.findIndex((part) => part.id === id); const next: ChatPart = { id, type: "tool-status", label: event.label, state: event.state }; return index < 0 ? [...current, next] : current.map((part, i) => i === index ? next : part); });
+          setParts((current) => { const index = current.findIndex((part) => part.id === id); const next: ChatPart = { id, type: "tool-status", label: event.label, state: event.state, url: event.url, response: event.response, reason: event.reason }; return index < 0 ? [...current, next] : current.map((part, i) => i === index ? next : part); });
         }
         if (event.type === "artifact") setParts((current) => [...current, event]);
         if (event.type === "generated-ui") setParts((current) => [...current.filter((part) => part.type !== "generated-ui" || part.instanceId !== event.instanceId), event]);

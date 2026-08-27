@@ -46,7 +46,10 @@ export async function createAdaptiveGeneratedUi(
   const fallbackText = trustedFallback(input.request);
   try {
     const response = await dependencies.generate(input.request, input.signal);
-    if (!response.tsxSource || response.fallbackReason) return { reference: null, fallbackText, fallbackReason: response.fallbackReason ?? "generation_failed" };
+    if (!response.tsxSource || response.fallbackReason) {
+      console.error("[generative-ui] UI generation returned no usable source", { fallbackReason: response.fallbackReason, hasSource: Boolean(response.tsxSource) });
+      return { reference: null, fallbackText, fallbackReason: response.fallbackReason ?? "generation_failed" };
+    }
     const compiled = compileGeneratedUi({ source: response.tsxSource, manifest: response.manifest, limits: input.request.limits, allowedTokens: input.request.theme.allowedTokens });
     const modelDigest = createHash("sha256").update(response.modelIdentifier).digest("hex");
     const toolchainDigest = createHash("sha256").update(compiled.toolchainVersion).digest("hex");
@@ -72,6 +75,12 @@ export async function createAdaptiveGeneratedUi(
     const instance = dependencies.instances.register({ ownerId: input.ownerId, artifact, request: input.request, observationDigest: input.observationDigest, expiresAt: Date.parse(expiresAt), capabilities: capabilitySchemasForRequest(input.request), preservedStateKeys: response.manifest.localInteractions.map((item) => item.stateKey), displayProps: props });
     return { reference: { instanceId: instance.instanceId, artifactId: artifact.artifactId, inputDigest: artifact.inputDigest, observationDigest: input.observationDigest, revision: instance.revision, expiresAt, displayProps: props, sourceCount: input.request.sourceBindings.length, coverageLabel: input.request.coverage.unknownControlCount > 0 || input.request.coverage.inaccessibleRegionCount > 0 ? "Partial coverage" : "Validated coverage", fallbackText }, fallbackText, fallbackReason: null };
   } catch (error) {
+    // Never surfaced to the model or the client beyond a generic fallback
+    // (the whole point of `reference: null` is a safe, silent degrade) --
+    // but that means this is the only place the real cause is observable
+    // at all, so it must be logged here rather than only carried in the
+    // return value.
+    console.error("[generative-ui] UI generation failed", error);
     return { reference: null, fallbackText, fallbackReason: error instanceof GeneratedUiCompilationError ? "compilation_failed" : "generation_failed" };
   }
 }

@@ -14,7 +14,6 @@
   "dependencies": {
     "@ai-browser/contracts": "*",
     "@ai-browser/ui": "*",
-    "@mistralai/mistralai": "^2.6.4",
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",

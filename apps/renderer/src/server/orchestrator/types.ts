@@ -8,7 +8,7 @@ export interface OrchestratorCitationSource {
 
 export type OrchestratorEvent =
   | { type: "text-delta"; delta: string }
-  | { type: "tool-status"; id: string; label: string; state: "running" | "completed" | "failed" }
+  | { type: "tool-status"; id: string; label: string; state: "running" | "completed" | "failed"; url?: string; response?: string; reason?: string }
   | { type: "artifact"; id: string; artifactType: "image" | "file" | "source"; title: string; url?: string; mediaType?: string }
   | { type: "generated-ui"; id: string; instanceId: string; artifactId: string; inputDigest: string; observationDigest: string; revision: number; expiresAt: string; displayProps: Readonly<Record<string, unknown>>; sourceCount: number; coverageLabel: string; fallbackText: string }
   | { type: "error"; message: string; retryable: boolean }

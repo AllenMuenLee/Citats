@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "predev": "docker compose up -d --wait",
-    "dev": "concurrently -k -n renderer,browser -c blue,green \"npm run dev --workspace apps/renderer\" \"cd services/browser && uv run uvicorn browser_service.app:app --reload --port 8000\"",
+    "dev": "concurrently -k -n renderer,browser -c blue,green \"npm run dev --workspace apps/renderer\" \"node services/browser/scripts/dev_server.js\"",
     "lint": "npm run lint --workspaces --if-present && cd services/browser && uv run ruff check .",
     "typecheck": "npm run typecheck --workspaces --if-present && cd services/browser && uv run mypy .",
     "test": "npm run test --workspaces --if-present && cd services/browser && uv run pytest -q",

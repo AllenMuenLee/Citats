@@ -30,14 +30,81 @@ import {
   type ProposeGenerativeUiPlanInvocation,
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
-import type { MistralToolDefinition } from "../ai/mistral";
+import type { ModelToolDefinition } from "../ai";
+
+/**
+ * `format: "uri"` is deliberately absent. Groq validates tool schemas against
+ * the structured-output format allowlist (date-time, time, date, duration,
+ * email, hostname, ipv4, ipv6, uuid) and rejects anything else outright, so
+ * declaring it made every tool-carrying request fail before the model saw it.
+ * `pattern` is supported by both providers and already carries the same
+ * constraint, so nothing is lost by expressing it that way alone.
+ */
+const HTTP_URL_JSON_SCHEMA = {
+  type: "string", pattern: "^https?://", maxLength: MAX_URL_LENGTH,
+} as const;
+
+/**
+ * Groq's strict tool schemas require every declared property to be listed in
+ * `required`, so a genuinely optional argument is declared nullable rather
+ * than left out. A `null` the model then sends for one is the absence of a
+ * value, not a value, and is dropped here so the contract schema -- which
+ * models absence as `undefined` -- never sees it.
+ */
+function withoutNull(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (record[key] !== null) return value;
+  return Object.fromEntries(Object.entries(record).filter(([name]) => name !== key));
+}
+
+const OPAQUE_HANDLE_JSON_SCHEMA = {
+  type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$",
+} as const;
+
+const UI_SOURCE_FIELD_ROLES = [
+  "title", "description", "image", "audio", "video", "price", "rating", "date",
+  "amenity", "availability", "provider", "action",
+] as const;
+
+const GENERATIVE_UI_PLAN_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "observationId", "layoutKind", "sourceCollectionHandles", "selectedFields", "groupBy",
+    "orderBy", "filters", "detailRegionHandles", "mediaPlacement", "provenance", "freshness",
+    "warnings", "localInteractionIntents", "externalWorkflowIntents",
+  ],
+  properties: {
+    observationId: OPAQUE_HANDLE_JSON_SCHEMA,
+    layoutKind: { enum: ["list", "grid", "card_grid", "table", "comparison", "gallery", "timeline", "map", "detail", "generic_collection", "cited_text"] },
+    sourceCollectionHandles: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
+    selectedFields: { type: "array", maxItems: 24, items: { enum: UI_SOURCE_FIELD_ROLES } },
+    groupBy: { anyOf: [{ enum: UI_SOURCE_FIELD_ROLES }, { type: "null" }] },
+    orderBy: { anyOf: [
+      { type: "object", additionalProperties: false, required: ["field", "direction"], properties: { field: { enum: UI_SOURCE_FIELD_ROLES }, direction: { enum: ["asc", "desc"] } } },
+      { type: "null" },
+    ] },
+    filters: { type: "array", maxItems: 10, items: {
+      type: "object", additionalProperties: false, required: ["field", "operator", "value"],
+      properties: { field: { enum: UI_SOURCE_FIELD_ROLES }, operator: { enum: ["equals", "contains", "range", "exists"] }, value: { anyOf: [{ type: "string", maxLength: 200 }, { type: "null" }] } },
+    } },
+    detailRegionHandles: { type: "array", maxItems: 5, items: OPAQUE_HANDLE_JSON_SCHEMA },
+    mediaPlacement: { enum: ["leading", "trailing", "background", "none"] },
+    provenance: { type: "object", additionalProperties: false, required: ["sourceUrl", "retrievedAt"], properties: { sourceUrl: HTTP_URL_JSON_SCHEMA, retrievedAt: { type: "string", format: "date-time" } } },
+    freshness: { enum: ["live", "cached", "unknown"] },
+    warnings: { type: "array", maxItems: 10, items: { type: "string", maxLength: 300 } },
+    localInteractionIntents: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
+    externalWorkflowIntents: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
+  },
+} as const;
 
 export interface EchoToolExecutor {
   invoke(invocation: SystemEchoInvocation, signal?: AbortSignal): Promise<unknown>;
 }
 
 export interface RegisteredTool {
-  readonly definition: MistralToolDefinition;
+  readonly definition: ModelToolDefinition;
   readonly sensitive: false;
   parseArguments(value: unknown): unknown;
   execute(args: unknown, context: ToolExecutionContext): Promise<unknown>;
@@ -56,11 +123,16 @@ export function createPhaseOneToolRegistry(executor: EchoToolExecutor): Readonly
     definition: {
       name: SYSTEM_ECHO_TOOL_NAME,
       description: "Echo a message through the local stub bridge.",
+      strict: true,
       parameters: {
         type: "object",
         additionalProperties: false,
         required: ["message"],
-        properties: { message: { type: "string", minLength: 1, maxLength: 2000 } },
+        properties: {
+          message: { type: "string", minLength: 1, maxLength: 2000 },
+          context: { type: "object", maxProperties: 20, additionalProperties: true },
+          credentialHandle: { type: "string", minLength: 1, maxLength: 200, pattern: "^[A-Za-z0-9._:-]+$" },
+        },
       },
     },
     sensitive: false,
@@ -99,9 +171,10 @@ function createPhaseThreeTool(
   resultSchema: { or(other: typeof ToolErrorResultSchema): { parse(value: unknown): unknown } },
   executor: PhaseThreeToolExecutor,
   description: string,
+  parameters: Record<string, unknown>,
 ): RegisteredTool {
   return {
-    definition: { name, description, parameters: { type: "object", additionalProperties: true } },
+    definition: { name, description, strict: true, parameters },
     sensitive: false,
     parseArguments: (value) => argsSchema.parse(value),
     async execute(args, context) {
@@ -126,12 +199,13 @@ export function createNavigateAndExtractTool(executor: NavigateAndExtractToolExe
       description:
         "Navigates to a public http(s) URL and returns bounded, structured, citable page content. " +
         "Read-only: never fills forms, clicks, submits, or uses authenticated sessions.",
+      strict: true,
       parameters: {
         type: "object",
         additionalProperties: false,
         required: ["url"],
         properties: {
-          url: { type: "string", format: "uri", maxLength: MAX_URL_LENGTH },
+          url: HTTP_URL_JSON_SCHEMA,
         },
       },
     },
@@ -176,9 +250,16 @@ export function createToolRegistry(options: {
     tools.set(NAVIGATE_AND_EXTRACT_TOOL_NAME, createNavigateAndExtractTool(options.navigateAndExtractExecutor));
   }
   if (options.phaseThreeExecutor) {
-    tools.set(EXPLORE_WEBSITE_TOOL_NAME, createPhaseThreeTool(EXPLORE_WEBSITE_TOOL_NAME, ExploreWebsiteArgsSchema, ExploreWebsiteInvocationSchema, ExploreWebsiteSuccessResultSchema, options.phaseThreeExecutor, "Observe a public rendered website as bounded, untrusted evidence and capabilities."));
-    tools.set(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, createPhaseThreeTool(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, GetPageUnderstandingSliceArgsSchema, GetPageUnderstandingSliceInvocationSchema, GetPageUnderstandingSliceSuccessResultSchema, options.phaseThreeExecutor, "Retrieve an owned bounded page-understanding slice."));
-    tools.set(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, createPhaseThreeTool(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, ProposeGenerativeUiPlanArgsSchema, ProposeGenerativeUiPlanInvocationSchema, ProposeGenerativeUiPlanSuccessResultSchema, options.phaseThreeExecutor, "Validate declarative display intent without rendering or execution."));
+    tools.set(EXPLORE_WEBSITE_TOOL_NAME, createPhaseThreeTool(EXPLORE_WEBSITE_TOOL_NAME, {
+      parse: (value) => ExploreWebsiteArgsSchema.parse(withoutNull(value, "goal")),
+    }, ExploreWebsiteInvocationSchema, ExploreWebsiteSuccessResultSchema, options.phaseThreeExecutor, "Observe a public rendered website as bounded, untrusted evidence and capabilities.", {
+      type: "object", additionalProperties: false, required: ["url", "goal"],
+      properties: { url: HTTP_URL_JSON_SCHEMA, goal: { anyOf: [{ type: "string", maxLength: 500 }, { type: "null" }] } },
+    }));
+    tools.set(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, createPhaseThreeTool(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, GetPageUnderstandingSliceArgsSchema, GetPageUnderstandingSliceInvocationSchema, GetPageUnderstandingSliceSuccessResultSchema, options.phaseThreeExecutor, "Retrieve an owned bounded page-understanding slice.", {
+      type: "object", additionalProperties: false, required: ["observationId", "handle"], properties: { observationId: OPAQUE_HANDLE_JSON_SCHEMA, handle: OPAQUE_HANDLE_JSON_SCHEMA },
+    }));
+    tools.set(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, createPhaseThreeTool(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, ProposeGenerativeUiPlanArgsSchema, ProposeGenerativeUiPlanInvocationSchema, ProposeGenerativeUiPlanSuccessResultSchema, options.phaseThreeExecutor, "Validate declarative display intent without rendering or execution.", GENERATIVE_UI_PLAN_JSON_SCHEMA));
   }
   return tools;
 }

@@ -56,4 +56,32 @@ describe("renderMarkdown", () => {
     expect(link).toHaveAttribute("href", "https://example.com/docs");
     expect(link).toHaveAttribute("target", "_blank");
   });
+
+  it("renders a GFM pipe table with a header row and body rows", () => {
+    const { container } = render(<div>{renderMarkdown("| Name | Price |\n| --- | ---: |\n| Alki House | $500 |\n| Craftsman | $400 |")}</div>);
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    const headers = table?.querySelectorAll("thead th");
+    expect(headers).toHaveLength(2);
+    expect(headers?.[0]).toHaveTextContent("Name");
+    expect(headers?.[1]).toHaveTextContent("Price");
+    expect(headers?.[1]).toHaveStyle({ textAlign: "right" });
+    const rows = table?.querySelectorAll("tbody tr");
+    expect(rows).toHaveLength(2);
+    expect(rows?.[0]).toHaveTextContent("Alki House");
+    expect(rows?.[0]).toHaveTextContent("$500");
+    expect(rows?.[1]).toHaveTextContent("Craftsman");
+  });
+
+  it("renders inline markdown and a citation marker inside a table cell", () => {
+    render(<div>{renderMarkdown("| A |\n| --- |\n| **bold**[[m]] |", [{ id: "m", citationId: "c1", sourceId: "s1", position: "| A |\n| --- |\n| **bold**".length }])}</div>);
+    expect(screen.getByText("bold").tagName).toBe("STRONG");
+    expect(screen.getByRole("button", { name: /Citation 1/ })).toBeInTheDocument();
+  });
+
+  it("does not treat a plain paragraph containing a pipe as a table", () => {
+    const { container } = render(<div>{renderMarkdown("cost: $10 | negotiable")}</div>);
+    expect(container.querySelector("table")).toBeNull();
+    expect(screen.getByText(/cost: \$10 \| negotiable/).tagName).toBe("P");
+  });
 });

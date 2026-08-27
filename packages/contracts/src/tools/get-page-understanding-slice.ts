@@ -4,7 +4,7 @@ import { OpaqueHandleSchema, PageNodeSchema, PageRelationshipSchema, PageWarning
 
 /**
  * `browser.get_page_understanding_slice` -- Phase 3 (P03-F05 step 4)
- * continuation-handle tool. Lets Mistral request additional bounded
+ * continuation-handle tool. Lets the model request additional bounded
  * slices of a `PageUnderstanding` graph it already received (a region,
  * collection, or record handle) instead of the whole graph being placed in
  * every model turn. `observationId` + `handle` are validated for
