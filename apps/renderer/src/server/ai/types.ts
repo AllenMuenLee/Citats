@@ -89,6 +89,7 @@ export interface ModelHostedToolStatus {
   id: string;
   name: HostedToolName;
   state: "running" | "completed";
+  output?: string;
 }
 
 export interface ModelArtifact {
@@ -162,6 +163,7 @@ export interface ModelMetrics {
 }
 
 export interface ModelAdapter {
+  readonly provider?: ModelProviderName;
   stream(request: ModelStreamRequest): AsyncIterable<ModelStreamEvent>;
 }
 

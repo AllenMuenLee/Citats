@@ -39,6 +39,17 @@ function bodyOf(fetchImpl: ReturnType<typeof vi.fn>): Record<string, unknown> {
 }
 
 describe("Groq adapter", () => {
+  it("ignores provider metadata frames that omit choices", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(
+      { id: "request-metadata", object: "chat.completion.chunk" },
+      { choices: [{ delta: { content: "ok" }, finish_reason: null }] },
+      { choices: [{ delta: {}, finish_reason: "stop" }] },
+    ));
+
+    await expect(collect(createGroqAdapter(config, { fetchImpl }).stream(request)))
+      .resolves.toContainEqual({ type: "text-delta", text: "ok" });
+  });
+
   it("streams normalized text, usage, finish, and request metadata", async () => {
     const metrics = vi.fn();
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(
@@ -106,7 +117,7 @@ describe("Groq adapter", () => {
     const events = await collect(createGroqAdapter(config, { fetchImpl }).stream(request));
     expect(events.filter((event) => event.type === "hosted-tool-status")).toEqual([
       { type: "hosted-tool-status", id: "browser_search-0", name: "web_search", state: "running" },
-      { type: "hosted-tool-status", id: "browser_search-1", name: "web_search", state: "completed" },
+      { type: "hosted-tool-status", id: "browser_search-1", name: "web_search", state: "completed", output: "results" },
     ]);
   });
 
@@ -191,7 +202,7 @@ describe("Groq adapter", () => {
 
   it("retries a bounded rate limit before streaming", async () => {
     const fetchImpl = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "retry-after": "0.2" } }))
       .mockResolvedValueOnce(sse({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] }));
     const sleep = vi.fn().mockResolvedValue(undefined);
     const metrics = vi.fn();
@@ -199,6 +210,7 @@ describe("Groq adapter", () => {
 
     expect(events).toContainEqual({ type: "text-delta", text: "ok" });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(200, expect.any(AbortSignal));
     expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ attemptCount: 2 }));
   });
 

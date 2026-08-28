@@ -6,8 +6,13 @@ import type { ModelRoleConfig } from "../config";
 import {
   assertRequestWithinLimits,
   createStreamingAdapter,
+  defaultSleep,
   iterateSseData,
   parseSseJson,
+  readProviderErrorDetail,
+  retryDelayMs,
+  retryDelayFromMessage,
+  mapHttpStatus,
   type HttpCall,
   type StreamingProvider,
 } from "../streaming";
@@ -44,6 +49,11 @@ const ExecutedToolSchema = z.object({
 });
 
 const ChunkSchema = z.object({
+  error: z.object({
+    message: z.string().optional(),
+    type: z.string().optional(),
+    code: z.string().optional(),
+  }).optional(),
   id: z.string().optional(),
   choices: z.array(z.object({
     delta: z.object({
@@ -59,7 +69,7 @@ const ChunkSchema = z.object({
       })).optional(),
     }),
     finish_reason: z.union([z.string(), z.null()]).optional(),
-  })),
+  })).default([]),
   usage: UsageSchema.optional(),
   x_groq: z.object({ usage: UsageSchema.optional() }).optional(),
 });
@@ -77,7 +87,6 @@ const GENERATION_PARAMETERS = Object.freeze({
   temperature: 1,
   max_completion_tokens: 2048,
   top_p: 1,
-  reasoning_effort: "medium" as const,
   stop: null,
 });
 
@@ -109,8 +118,9 @@ function toolsPayload(
   return payload.length > 0 ? payload : undefined;
 }
 
-function responseFormatPayload(request: Pick<ModelStreamRequest, "responseFormat">): Record<string, unknown> | undefined {
+function responseFormatPayload(request: Pick<ModelStreamRequest, "responseFormat">, model?: string): Record<string, unknown> | undefined {
   if (!request.responseFormat) return undefined;
+  if (model?.startsWith("groq/compound")) return { type: "json_object" };
   return {
     type: "json_schema",
     json_schema: {
@@ -127,7 +137,7 @@ const groq: StreamingProvider = {
   buildRequest(config, request): HttpCall {
     assertRequestWithinLimits(request);
     const tools = toolsPayload(request.tools, request.hostedTools);
-    const responseFormat = responseFormatPayload(request);
+    const responseFormat = responseFormatPayload(request, config.model);
     return {
       url: new URL("chat/completions", config.baseUrl),
       headers: {
@@ -139,6 +149,7 @@ const groq: StreamingProvider = {
         stream: true,
         stream_options: { include_usage: true },
         ...GENERATION_PARAMETERS,
+        ...(config.model.startsWith("openai/gpt-oss") ? { reasoning_effort: "medium" as const } : {}),
         messages: toMessages(request.systemInstruction, request.turns),
         ...(tools ? { tools } : {}),
         ...(responseFormat ? { response_format: responseFormat } : {}),
@@ -153,6 +164,15 @@ const groq: StreamingProvider = {
       if (!parsed.success || parsed.data.choices.length > 1) {
         throw providerError("AI_MALFORMED_RESPONSE", parsed.success ? undefined : parsed.error);
       }
+      if (parsed.data.error) {
+        console.error("[ai] Groq stream reported an error", {
+          type: parsed.data.error.type,
+          code: parsed.data.error.code,
+          message: parsed.data.error.message?.slice(0, 500),
+        });
+        const cause = new Error(parsed.data.error.message ?? "Groq stream error");
+        throw providerError(parsed.data.error.code === "rate_limit_exceeded" ? "AI_RATE_LIMITED" : "AI_PROVIDER_UNAVAILABLE", cause);
+      }
       const chunk = parsed.data;
       for (const choice of chunk.choices) {
         if (choice.delta.content) yield { type: "text-delta", text: choice.delta.content };
@@ -166,6 +186,7 @@ const groq: StreamingProvider = {
             id: `browser_search-${index}`,
             name: "web_search",
             state: executed.output === undefined ? "running" : "completed",
+            ...(typeof executed.output === "string" ? { output: executed.output.slice(0, 20_000) } : {}),
           };
         }
         for (const call of choice.delta.tool_calls ?? []) {
@@ -210,32 +231,46 @@ export function createGroqCompletion(
   fetchImpl: typeof fetch = fetch,
 ): TextCompletion {
   return async (request, signal) => {
-    const response = await fetchImpl(new URL("chat/completions", config.baseUrl), {
-      method: "POST",
-      signal,
-      headers: {
-        authorization: `Bearer ${config.apiKey}`,
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        model: request.model,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        messages: [
-          { role: "system", content: request.systemInstruction },
-          { role: "user", content: request.userContent },
-        ],
-        tools: [],
-        tool_choice: "none",
-        response_format: responseFormatPayload(request),
-      }),
-    });
-    if (!response.ok) throw providerError(response.status === 429 ? "AI_RATE_LIMITED" : "AI_PROVIDER_UNAVAILABLE");
-    const parsed = CompletionSchema.safeParse(await response.json());
-    if (!parsed.success) throw providerError("AI_MALFORMED_RESPONSE", parsed.error);
-    const content = parsed.data.choices[0]!.message.content;
-    if (!content) throw providerError("AI_MALFORMED_RESPONSE");
-    return { model: parsed.data.model, content };
+    const startedAt = Date.now();
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await fetchImpl(new URL("chat/completions", config.baseUrl), {
+        method: "POST",
+        signal,
+        headers: {
+          authorization: `Bearer ${config.apiKey}`,
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({
+          model: request.model,
+          temperature: request.temperature,
+          max_tokens: request.maxTokens,
+          messages: [
+            { role: "system", content: request.systemInstruction },
+            { role: "user", content: request.userContent },
+          ],
+          tools: [],
+          tool_choice: "none",
+          response_format: responseFormatPayload(request, config.model),
+        }),
+      });
+      if (!response.ok) {
+        const detail = readProviderErrorDetail(response.status, (await response.text()).slice(0, 2_000));
+        console.error("[ai] Groq completion rejected request", { provider: config.provider, model: config.model, ...detail });
+        const mapped = mapHttpStatus(response.status, detail);
+        const delay = Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message), 100 * (2 ** attempt));
+        const retryable = mapped.code === "AI_RATE_LIMITED" || mapped.code === "AI_PROVIDER_UNAVAILABLE";
+        if (retryable && attempt < config.maxRetries && (Date.now() - startedAt) + delay <= config.retryMaxElapsedMs) {
+          await defaultSleep(delay, signal);
+          continue;
+        }
+        throw mapped;
+      }
+      const parsed = CompletionSchema.safeParse(await response.json());
+      if (!parsed.success) throw providerError("AI_MALFORMED_RESPONSE", parsed.error);
+      const content = parsed.data.choices[0]!.message.content;
+      if (!content) throw providerError("AI_MALFORMED_RESPONSE");
+      return { model: parsed.data.model, content };
+    }
   };
 }

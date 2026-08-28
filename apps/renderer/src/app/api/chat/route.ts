@@ -80,7 +80,7 @@ async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
       const request = buildUiGenerationRequest({ task, plan, page: pageUnderstanding, requestId: randomUUID(), userId: ownerId });
       const adapter = createUiGenerationAdapter({
         model: uiRole.model, compilerVersion: GENERATED_UI_TOOLCHAIN_VERSION,
-        maxTokens: 16_000, deadlineMs: 45_000,
+        maxTokens: uiRole.provider === "groq" ? 3_000 : 16_000, deadlineMs: 90_000,
         runtimeExports: GENERATED_UI_RUNTIME_EXPORTS,
         transport: createTextCompletion(uiRole),
         validate: async (response) => response.tsxSource ? validateGeneratedUiSource({ source: response.tsxSource, manifest: response.manifest, limits: request.limits, allowedTokens: request.theme.allowedTokens }).issues : [],

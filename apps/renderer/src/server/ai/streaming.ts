@@ -41,6 +41,33 @@ export function defaultSleep(milliseconds: number, signal: AbortSignal): Promise
   });
 }
 
+export function retryDelayMs(response: Response): number {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1_000);
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  }
+  for (const name of ["x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"]) {
+    const value = response.headers.get(name);
+    const match = value?.match(/^([0-9]+(?:\.[0-9]+)?)(ms|s|m)?$/i);
+    if (!match) continue;
+    const amount = Number(match[1]);
+    const unit = match[2]?.toLowerCase();
+    return Math.ceil(amount * (unit === "ms" ? 1 : unit === "m" ? 60_000 : 1_000));
+  }
+  return 0;
+}
+
+export function retryDelayFromMessage(message: string | undefined): number {
+  const match = message?.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)(ms|s|m)/i);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  return Math.ceil(amount * (unit === "ms" ? 1 : unit === "m" ? 60_000 : 1_000));
+}
+
 /** Bound on the error body read for diagnosis -- enough for one message, never a whole payload. */
 const MAX_ERROR_BODY_CHARS = 2_000;
 const MAX_ERROR_MESSAGE_CHARS = 500;
@@ -105,7 +132,7 @@ export function mapHttpStatus(status: number, detail?: ProviderErrorDetail): Mod
   // succeeds on the next attempt -- so it is reported as a malformed response
   // and retried rather than blamed on the request.
   if (detail?.code === "tool_use_failed") return providerError("AI_MALFORMED_RESPONSE");
-  if (status === 400 || status === 404 || status === 422) return providerError("AI_REQUEST_REJECTED");
+  if (status === 400 || status === 404 || status === 413 || status === 422) return providerError("AI_REQUEST_REJECTED");
   return providerError("AI_PROVIDER_UNAVAILABLE");
 }
 
@@ -185,6 +212,7 @@ export function createStreamingAdapter(
   const mapStatus = provider.mapStatus ?? mapHttpStatus;
 
   return {
+    provider: config.provider,
     async *stream(request) {
       const startedAt = now();
       let firstTokenAt: number | undefined;
@@ -201,9 +229,9 @@ export function createStreamingAdapter(
         // Only reachable from the pre-stream status mapping (`tool_use_failed`);
         // a malformed frame mid-stream is rethrown without another attempt.
         || code === "AI_MALFORMED_RESPONSE";
-      const backoff = async (): Promise<boolean> => {
+      const backoff = async (minimumDelayMs = 0): Promise<boolean> => {
         if (attemptCount > config.maxRetries) return false;
-        const delay = Math.floor((100 * (2 ** (attemptCount - 1))) + random() * 100);
+        const delay = Math.max(minimumDelayMs, Math.floor((100 * (2 ** (attemptCount - 1))) + random() * 100));
         if ((now() - startedAt) + delay > config.retryMaxElapsedMs) return false;
         await sleep(delay, signal);
         return true;
@@ -240,7 +268,7 @@ export function createStreamingAdapter(
               ...detail,
             });
             const mapped = mapStatus(response.status, detail);
-            if (isRetryable(mapped.code) && await backoff()) continue;
+            if (isRetryable(mapped.code) && await backoff(Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message)))) continue;
             throw mapped;
           }
           for (const header of provider.requestIdHeaders ?? []) {
@@ -262,7 +290,11 @@ export function createStreamingAdapter(
           } catch (error) {
             if (request.signal?.aborted) throw request.signal.reason;
             if (timeoutSignal.aborted) throw providerError("AI_TIMEOUT", error);
-            if (error instanceof ModelProviderError) throw error;
+            if (error instanceof ModelProviderError) {
+              const causeMessage = error.cause instanceof Error ? error.cause.message : undefined;
+              if (firstTokenAt === undefined && error.code !== "AI_MALFORMED_RESPONSE" && isRetryable(error.code) && await backoff(retryDelayFromMessage(causeMessage))) continue;
+              throw error;
+            }
             throw providerError("AI_PROVIDER_UNAVAILABLE", error);
           }
           return;
