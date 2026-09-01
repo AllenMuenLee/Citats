@@ -18,48 +18,148 @@ from pydantic import (AwareDatetime, BaseModel, ConfigDict, Field, RootModel,
                       StrictBool, StrictFloat, StrictInt, StrictStr)
 
 
+class ComparisonRequirement(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300, min_length=1)
+
+
 class DetailRegionHandle(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
-class ExternalWorkflowIntent(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+class Note(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
+class Coverage(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    inaccessibleRegionCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    notes: list[Note] = Field(..., max_length=20)
+    observedControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    prohibitedControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    safelyExploredControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    unknownControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    unobservedLazyStateCount: StrictInt = Field(..., ge=0, le=9007199254740991)
 
 
 class Value(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=200)
+    root: StrictStr = Field(..., max_length=120, min_length=1)
 
 
-class Filter(BaseModel):
+class Values(RootModel[list[Value]]):
+    root: list[Value] = Field(..., max_length=24)
+
+
+class ArgumentSchemaItem(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    field: Literal['title', 'description', 'image', 'audio', 'video', 'price', 'rating', 'date', 'amenity', 'availability', 'provider', 'action']
-    operator: Literal['equals', 'contains', 'range', 'exists']
-    value: Value | None
+    name: StrictStr = Field(..., max_length=60, min_length=1, pattern='^[a-z][a-zA-Z0-9_]*$')
+    required: StrictBool
+    type: Literal['string', 'number', 'boolean', 'enum']
+    values: Values | None
 
 
-class LocalInteractionIntent(RootModel[StrictStr]):
+class ConfirmationField(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=100, min_length=1)
+
+
+class DestinationOrigin(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=255)
+
+
+class PaymentProfileHandle(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
-class OrderBy(BaseModel):
+class ExternalCapability(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    direction: Literal['asc', 'desc']
-    field: Literal['title', 'description', 'image', 'audio', 'video', 'price', 'rating', 'date', 'amenity', 'availability', 'provider', 'action']
+    argumentSchema: list[ArgumentSchemaItem] = Field(..., max_length=12)
+    capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    confirmationFields: list[ConfirmationField] = Field(..., max_length=12)
+    destinationOrigin: DestinationOrigin | None
+    effectClass: Literal['navigation', 'data_entry', 'submission', 'download', 'media', 'external_application', 'unknown']
+    intent: StrictStr = Field(..., max_length=200, min_length=1)
+    paymentProfileHandle: PaymentProfileHandle | None
+    promptTemplate: StrictStr = Field(..., max_length=600, min_length=1)
+    promptTemplateId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    requiresConfirmation: StrictBool
+
+
+class InternalInteraction(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    boundedValues: StrictInt = Field(..., gt=0, le=10000)
+    capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    kind: Literal['selection', 'filter', 'sort', 'expansion', 'tab', 'gallery', 'modal']
+    label: StrictStr = Field(..., max_length=200, min_length=1)
+
+
+class MediaId(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+
+
+class Author(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
+class Description(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=1000)
+
+
+class Language(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=35)
+
+
+class PageType(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=100)
+
+
+class PublishedTime(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=64)
+
+
+class SiteName(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
+class Title(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=500)
+
+
+class UpdatedTime(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=64)
+
+
+class Page(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    author: Author | None
+    description: Description | None
+    language: Language | None
+    pageType: PageType | None
+    publishedTime: PublishedTime | None
+    siteName: SiteName | None
+    title: Title | None
+    updatedTime: UpdatedTime | None
 
 
 class Provenance(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    observationStatus: Literal['complete', 'timeout', 'unstable', 'partial']
+    origin: StrictStr = Field(..., max_length=255, min_length=1)
     retrievedAt: AwareDatetime
     sourceUrl: StrictStr = Field(..., max_length=2048)
 
 
-class SourceCollectionHandle(RootModel[StrictStr]):
+class RecordId(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
@@ -67,28 +167,63 @@ class Warning(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=300)
 
 
+class Metadata(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    coverage: Coverage
+    externalCapabilities: list[ExternalCapability] = Field(..., max_length=32)
+    freshness: Literal['live', 'cached', 'unknown']
+    internalInteractions: list[InternalInteraction] = Field(..., max_length=32)
+    mediaIds: list[MediaId] = Field(..., max_length=256)
+    observationDigest: StrictStr = Field(..., max_length=128, min_length=1)
+    observationId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    page: Page
+    provenance: Provenance
+    recordIds: list[RecordId] = Field(..., max_length=256)
+    schemaVersion: Literal[1]
+    untrusted: Literal[True]
+    warnings: list[Warning] = Field(..., max_length=32)
+
+
+class PrioritizedCollectionHandle(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+
+
 class Brief(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    canonicalUserGoal: StrictStr = Field(..., max_length=2000, min_length=1)
+    comparisonRequirements: list[ComparisonRequirement] = Field(..., max_length=12)
     detailRegionHandles: list[DetailRegionHandle] = Field(..., max_length=5)
-    externalWorkflowIntents: list[ExternalWorkflowIntent] = Field(..., max_length=10)
-    filters: list[Filter] = Field(..., max_length=10)
     freshness: Literal['live', 'cached', 'unknown']
-    groupBy: Literal['title', 'description', 'image', 'audio', 'video', 'price', 'rating', 'date', 'amenity', 'availability', 'provider', 'action'] | None
-    layoutKind: Literal['list', 'grid', 'card_grid', 'table', 'comparison', 'gallery', 'timeline', 'map', 'detail', 'generic_collection', 'cited_text']
-    localInteractionIntents: list[LocalInteractionIntent] = Field(..., max_length=10)
-    mediaPlacement: Literal['leading', 'trailing', 'background', 'none']
+    implementationPrompt: StrictStr = Field(..., max_length=24000, min_length=1)
+    importantFields: list[Literal['title', 'description', 'image', 'audio', 'video', 'price', 'rating', 'date', 'amenity', 'availability', 'provider', 'action']] = Field(..., max_length=24)
+    metadata: Metadata
+    metadataDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
     observationId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-    orderBy: OrderBy | None
-    provenance: Provenance
-    selectedFields: list[Literal['title', 'description', 'image', 'audio', 'video', 'price', 'rating', 'date', 'amenity', 'availability', 'provider', 'action']] = Field(..., max_length=24)
-    sourceCollectionHandles: list[SourceCollectionHandle] = Field(..., max_length=10)
-    warnings: list[Warning] = Field(..., max_length=10)
+    prioritizedCollectionHandles: list[PrioritizedCollectionHandle] = Field(..., max_length=10)
+    schemaVersion: Literal[1]
+    warnings: list[Warning] = Field(..., max_length=16)
 
 
-class DestinationOrigin(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=255)
+class Values1Item(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=120, min_length=1)
+
+
+class Values1(RootModel[list[Values1Item]]):
+    root: list[Values1Item] = Field(..., max_length=24)
+
+
+class ArgumentSchemaItem1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: StrictStr = Field(..., max_length=60, min_length=1, pattern='^[a-z][a-zA-Z0-9_]*$')
+    required: StrictBool
+    type: Literal['string', 'number', 'boolean', 'enum']
+    values: Values1 | None
 
 
 class Evidence(BaseModel):
@@ -125,6 +260,14 @@ class OwningHandle(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
+class PromptTemplate(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=600, min_length=1)
+
+
+class PromptTemplateId(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+
+
 class RequiredInput(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=100, min_length=1)
 
@@ -150,6 +293,7 @@ class Capability(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    argumentSchema: list[ArgumentSchemaItem1] = Field(..., max_length=12)
     capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     capabilityKind: Literal['local_view_change', 'navigation', 'data_entry', 'form_submission', 'account_authentication', 'download_upload', 'clipboard_share', 'communication', 'reservation_purchase_payment', 'deletion_cancellation', 'media_control', 'external_application', 'unknown']
     confidence: StrictFloat = Field(..., ge=0.0, le=1.0)
@@ -157,7 +301,10 @@ class Capability(BaseModel):
     destinationOrigin: DestinationOrigin | None
     effectClass: Literal['local_view', 'navigation', 'data_entry', 'submission', 'download', 'media', 'external_application', 'unknown']
     evidence: list[Evidence | Evidence1 | Evidence2 | Evidence3] = Field(..., max_length=5)
+    interactionExecution: Literal['internal_react', 'external_ai_action']
     owningHandle: OwningHandle | None
+    promptTemplate: PromptTemplate | None
+    promptTemplateId: PromptTemplateId | None
     requiredCapability: Literal['action_execution', 'embedded_browser', 'none']
     requiredInputs: list[RequiredInput] = Field(..., max_length=20)
     semanticIntent: StrictStr = Field(..., max_length=200, min_length=1)
@@ -172,6 +319,8 @@ class CapabilityBinding(BaseModel):
     argumentSchemaId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     capability: Capability
     capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    interactionExecution: Literal['internal_react', 'external_ai_action']
+    promptTemplateId: PromptTemplateId | None
 
 
 class Correlation(BaseModel):
@@ -184,11 +333,7 @@ class Correlation(BaseModel):
     userId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9][A-Za-z0-9_-]*$')
 
 
-class Note(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=300)
-
-
-class Coverage(BaseModel):
+class Coverage1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -231,11 +376,11 @@ class BoundingBox(BaseModel):
     y: StrictFloat
 
 
-class Description(RootModel[StrictStr]):
+class Description1(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=2000)
 
 
-class Title(RootModel[StrictStr]):
+class Title1(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=300, min_length=1)
 
 
@@ -248,11 +393,11 @@ class Nodes(BaseModel):
         extra='forbid',
     )
     boundingBox: BoundingBox | None
-    description: Description | None
+    description: Description1 | None
     handle: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     kind: Literal['metadata']
     purpose: Literal['open_graph', 'twitter_card', 'json_ld', 'other']
-    title: Title | None
+    title: Title1 | None
     url: Url | None
     visibility: Literal['visible', 'occluded', 'offscreen', 'hidden', 'collapsed']
 
@@ -397,7 +542,7 @@ class Nodes9(BaseModel):
         extra='forbid',
     )
     boundingBox: BoundingBox | None
-    description: Description | None
+    description: Description1 | None
     handle: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     kind: Literal['canvas_region']
     label: Label | None
@@ -424,7 +569,7 @@ class Nodes10(BaseModel):
     hasControls: StrictBool
     kind: Literal['audio']
     playbackState: Literal['playing', 'paused', 'unknown']
-    title: Title | None
+    title: Title1 | None
     visibility: Literal['visible', 'occluded', 'offscreen', 'hidden', 'collapsed']
 
 
@@ -445,7 +590,7 @@ class Nodes11(BaseModel):
     kind: Literal['video']
     playbackState: Literal['playing', 'paused', 'unknown']
     posterSource: PosterSource | None
-    title: Title | None
+    title: Title1 | None
     visibility: Literal['visible', 'occluded', 'offscreen', 'hidden', 'collapsed']
 
 
@@ -724,13 +869,105 @@ class NodeHandle(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
-class Warning1(BaseModel):
+class Warning2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     code: Literal['hidden_injection_detected', 'credential_like_content', 'node_limit_reached', 'relationship_limit_reached', 'text_truncated', 'media_truncated', 'collection_truncated', 'cross_origin_boundary', 'closed_shadow_boundary', 'settle_timeout', 'settle_unstable', 'media_unavailable', 'sensitive_field_omitted', 'unsafe_url_blocked', 'depth_limit_reached', 'handle_not_found', 'handle_expired']
     message: StrictStr = Field(..., max_length=500, min_length=1)
     nodeHandle: NodeHandle | None
+
+
+class Coverage2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    inaccessibleRegionCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    notes: list[Note] = Field(..., max_length=20)
+    observedControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    prohibitedControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    safelyExploredControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    unknownControlCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+    unobservedLazyStateCount: StrictInt = Field(..., ge=0, le=9007199254740991)
+
+
+class Values2Item(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=120, min_length=1)
+
+
+class Values2(RootModel[list[Values2Item]]):
+    root: list[Values2Item] = Field(..., max_length=24)
+
+
+class ArgumentSchemaItem2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: StrictStr = Field(..., max_length=60, min_length=1, pattern='^[a-z][a-zA-Z0-9_]*$')
+    required: StrictBool
+    type: Literal['string', 'number', 'boolean', 'enum']
+    values: Values2 | None
+
+
+class ExternalCapability1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    argumentSchema: list[ArgumentSchemaItem2] = Field(..., max_length=12)
+    capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    confirmationFields: list[ConfirmationField] = Field(..., max_length=12)
+    destinationOrigin: DestinationOrigin | None
+    effectClass: Literal['navigation', 'data_entry', 'submission', 'download', 'media', 'external_application', 'unknown']
+    intent: StrictStr = Field(..., max_length=200, min_length=1)
+    paymentProfileHandle: PaymentProfileHandle | None
+    promptTemplate: StrictStr = Field(..., max_length=600, min_length=1)
+    promptTemplateId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    requiresConfirmation: StrictBool
+
+
+class Description3(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=1000)
+
+
+class Title4(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=500)
+
+
+class Page1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    author: Author | None
+    description: Description3 | None
+    language: Language | None
+    pageType: PageType | None
+    publishedTime: PublishedTime | None
+    siteName: SiteName | None
+    title: Title4 | None
+    updatedTime: UpdatedTime | None
+
+
+class Warning3(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
+class WebsiteUiMetadata(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    coverage: Coverage2
+    externalCapabilities: list[ExternalCapability1] = Field(..., max_length=32)
+    freshness: Literal['live', 'cached', 'unknown']
+    internalInteractions: list[InternalInteraction] = Field(..., max_length=32)
+    mediaIds: list[MediaId] = Field(..., max_length=256)
+    observationDigest: StrictStr = Field(..., max_length=128, min_length=1)
+    observationId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    page: Page1
+    provenance: Provenance
+    recordIds: list[RecordId] = Field(..., max_length=256)
+    schemaVersion: Literal[1]
+    untrusted: Literal[True]
+    warnings: list[Warning3] = Field(..., max_length=32)
 
 
 class UiGenerationRequest(BaseModel):
@@ -741,9 +978,10 @@ class UiGenerationRequest(BaseModel):
     canonicalUserTask: StrictStr = Field(..., max_length=2000, min_length=1)
     capabilityBindings: list[CapabilityBinding] = Field(..., max_length=256)
     correlation: Correlation
-    coverage: Coverage
+    coverage: Coverage1
     freshness: Literal['live', 'cached', 'unknown']
     graph: Graph
+    implementationPrompt: StrictStr = Field(..., max_length=24000, min_length=1)
     limits: Limits
     mediaBindings: list[MediaBinding] = Field(..., max_length=256)
     promptDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
@@ -753,4 +991,6 @@ class UiGenerationRequest(BaseModel):
     schemaVersion: Literal[1]
     sourceBindings: list[SourceBinding] = Field(..., max_length=256)
     theme: Theme
-    warnings: list[Warning1] = Field(..., max_length=32)
+    warnings: list[Warning2] = Field(..., max_length=32)
+    websiteUiMetadata: WebsiteUiMetadata
+    websiteUiMetadataDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')

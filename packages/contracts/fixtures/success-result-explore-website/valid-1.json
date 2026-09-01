@@ -17,8 +17,29 @@
         "description": "Hotels near the conference center.",
         "publishedTime": null,
         "httpStatus": 200,
-        "contentType": "text/html; charset=utf-8"
+        "contentType": "text/html; charset=utf-8",
+        "origin": "https://example.com",
+        "author": null,
+        "updatedTime": null,
+        "siteName": null,
+        "pageType": null,
+        "imageUrl": null
       },
+      "accessibility": [
+        {
+          "nodeId": "ax-1",
+          "parentId": null,
+          "role": "heading",
+          "name": "Hotel search results",
+          "description": null,
+          "value": null,
+          "states": {
+            "level": "1"
+          },
+          "domTag": "h1",
+          "correlated": true
+        }
+      ],
       "chunks": [
         {
           "chunkId": "chunk-0",
@@ -55,7 +76,12 @@
         {
           "kind": "landmark",
           "handle": "node-main",
-          "boundingBox": { "x": 0, "y": 0, "width": 1280, "height": 2000 },
+          "boundingBox": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 2000
+          },
           "visibility": "visible",
           "role": "main",
           "label": null
@@ -63,7 +89,12 @@
         {
           "kind": "repeated_record",
           "handle": "node-result-1",
-          "boundingBox": { "x": 0, "y": 100, "width": 1280, "height": 200 },
+          "boundingBox": {
+            "x": 0,
+            "y": 100,
+            "width": 1280,
+            "height": 200
+          },
           "visibility": "visible",
           "role": "search_result",
           "collectionHandle": "collection-results",
@@ -71,17 +102,31 @@
         }
       ],
       "relationships": [
-        { "kind": "parent_child", "from": "node-main", "to": "node-result-1", "order": null }
+        {
+          "kind": "parent_child",
+          "from": "node-main",
+          "to": "node-result-1",
+          "order": null
+        }
       ],
       "regions": [
-        { "handle": "region-main", "role": "main", "label": null, "childHandles": ["node-main"] }
+        {
+          "handle": "region-main",
+          "role": "main",
+          "label": null,
+          "childHandles": [
+            "node-main"
+          ]
+        }
       ],
       "collections": [
         {
           "handle": "collection-results",
           "role": "search_results",
           "itemCount": 12,
-          "recordHandles": ["node-result-1"],
+          "recordHandles": [
+            "node-result-1"
+          ],
           "truncated": false,
           "paginationHandle": null
         }
@@ -92,7 +137,11 @@
           "collectionHandle": "collection-results",
           "recordHandle": "node-result-1",
           "fields": [
-            { "role": "title", "nodeHandle": "node-result-1", "confidence": 0.9 }
+            {
+              "role": "title",
+              "nodeHandle": "node-result-1",
+              "confidence": 0.9
+            }
           ],
           "actionCapabilityIds": []
         }

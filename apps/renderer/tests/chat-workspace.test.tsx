@@ -149,7 +149,7 @@ describe("ChatWorkspace", () => {
     expect(first.sessionId).not.toBe(second.sessionId);
   });
 
-  it("shows a button for a generated-ui result and opens/closes it in a split context pane", async () => {
+  it("opens the generated view in the side pane on its own, and closes and reopens it", async () => {
     let id = 0;
     vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
     const fetchMock = vi.fn().mockResolvedValue(stream(
@@ -160,13 +160,37 @@ describe("ChatWorkspace", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup(); render(<ChatWorkspace />);
     await user.type(screen.getByRole("textbox"), "Show me{enter}");
-    const openButton = await screen.findByRole("button", { name: "Show generated view" });
-    expect(screen.queryByRole("region", { name: "Generated view" })).not.toBeInTheDocument();
-    await user.click(openButton);
-    expect(await screen.findByRole("region", { name: "Generated view" })).toBeInTheDocument();
+    // No click: a ready artifact opens its own pane (P04-F04 step 7).
+    const pane = await screen.findByRole("region", { name: "Generated view" });
+    expect(pane).toBeInTheDocument();
+    expect(pane).toHaveStyle({ flexBasis: "45%" });
     expect(screen.getByRole("button", { name: "Showing generated view" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("region", { name: "Generated view" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show generated view" })).toBeInTheDocument();
+    // Closing is a decision, not a glitch: it must not spring back open.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.queryByRole("region", { name: "Generated view" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show generated view" }));
+    expect(await screen.findByRole("region", { name: "Generated view" })).toBeInTheDocument();
+  });
+
+  it("resizes the generated view pane from the keyboard within its bounds", async () => {
+    let id = 0;
+    vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
+      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 1, coverageLabel: "Partial coverage", fallbackText: "Fallback text" },
+      { type: "done" },
+    )));
+    const user = userEvent.setup(); render(<ChatWorkspace />);
+    await user.type(screen.getByRole("textbox"), "Show me{enter}");
+    const resizer = await screen.findByRole("separator", { name: "Resize generated view" });
+    resizer.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("region", { name: "Generated view" })).toHaveStyle({ flexBasis: "50%" });
+    // Clamped at the maximum rather than running away.
+    for (let step = 0; step < 8; step += 1) await user.keyboard("{ArrowLeft}");
+    expect(resizer).toHaveAttribute("aria-valuenow", "70");
+    for (let step = 0; step < 20; step += 1) await user.keyboard("{ArrowRight}");
+    expect(resizer).toHaveAttribute("aria-valuenow", "25");
   });
 });

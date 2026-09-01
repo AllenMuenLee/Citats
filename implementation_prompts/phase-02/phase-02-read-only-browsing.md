@@ -2,7 +2,7 @@
 
 ## Mission
 
-Allow the agent to navigate public pages, extract bounded content, and answer with verifiable citations. It must not click state-changing controls, submit forms, use authenticated sessions, or discover/replay private APIs.
+Allow the agent to navigate public pages and capture the rendered website content needed by the later extraction-model and UI-model stages. The capture must follow the same basic Nodriver/CDP accessibility-tree approach demonstrated by `tests/ast_scraping_test.py`, expanded into a bounded production pipeline with document metadata, visible DOM semantics, and verifiable citations. It must not click state-changing controls, submit forms, use authenticated sessions, or discover/replay private APIs.
 
 ## Claude execution restriction
 
@@ -33,12 +33,13 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
 - **Depends on:** browser service shell.
 - **Concurrency:** parallel with P02-F01 and P02-F03; use saved/local HTML fixtures until integration.
 - **Build steps:**
-  1. Define Pydantic extraction models under `services/browser/src/browser_service/extraction/` for document metadata, ordered content blocks, source anchors, warnings, and truncation details.
-  2. Obtain the post-render DOM through the browser adapter, remove scripts/styles/forms/noscript/templates and elements hidden by attributes or computed style, then select main content using semantic containers with a deterministic body fallback.
-  3. Normalize whitespace and Unicode while preserving headings, lists, tables, and link relationships; capture title, final/canonical URL, language, description, publication time when trustworthy, anchor text/target, and bounded visible interactive affordances such as links, buttons, and form purposes. Assign document-local opaque affordance IDs and record only semantic role, visible label, safe destination when present, and disabled state; never return selectors, scripts, hidden values, or credentials.
-  4. Scan extracted values for credential-shaped/high-risk fields and untrusted-instruction indicators, label all page content as untrusted, and omit binary/data URLs plus form values.
-  5. Split content at structural boundaries into stable, bounded chunks with document-local IDs and character offsets; enforce document/chunk/count limits and emit explicit truncation warnings.
-- **Validate:** fixed diverse page set, extraction accuracy assertions, encoding/large-page handling, malicious hidden-text fixtures, and payload/token bounds.
+  1. Define Pydantic extraction models under `services/browser/src/browser_service/extraction/` for document metadata, ordered content blocks, accessibility nodes, source anchors, warnings, and truncation details. The canonical result must be JSON-serializable and suitable as the website-content input to Phase 3.
+  2. After the rendered page settles, obtain the raw accessibility tree through Nodriver CDP `Accessibility.getFullAXTree`, as in `tests/ast_scraping_test.py`, and obtain the post-render DOM through the browser adapter. Correlate the two sources where possible; do not persist Python `str(...)` dumps as the production contract.
+  3. Remove scripts/styles/forms/noscript/templates and elements hidden by attributes or computed style, then select main content using semantic containers with a deterministic body fallback. Preserve bounded accessibility roles, names, descriptions, values, and states that materially explain visible content or controls.
+  4. Normalize whitespace and Unicode while preserving headings, lists, tables, and link relationships; capture title, final/canonical URL, origin, language, description, author/publication/update time when trustworthy, safe social/structured metadata, anchor text/target, and bounded visible interactive affordances such as links, buttons, and form purposes. Assign document-local opaque affordance IDs and record only semantic role, visible label, safe destination when present, and disabled state; never return selectors, scripts, hidden values, entered form values, or credentials.
+  5. Scan extracted values for credential-shaped/high-risk fields and untrusted-instruction indicators, label all page content as untrusted, and omit binary/data URLs plus form values.
+  6. Split content at structural boundaries into stable, bounded chunks with document-local IDs and character offsets; enforce document/chunk/accessibility-node/count limits and emit explicit truncation warnings.
+- **Validate:** fixed diverse page set, a regression fixture matching the `tests/ast_scraping_test.py` full-AX-tree capture path, DOM/AX correlation, extraction accuracy assertions, metadata serialization, encoding/large-page handling, malicious hidden-text fixtures, and payload/token bounds.
 
 ### P02-F03 Citation contract and rendering
 
@@ -59,7 +60,7 @@ Read only the requirements, `Claude.md`, this prompt, relevant code, and relevan
 - **Depends on:** P02-F01, P02-F02, P02-F03.
 - **Concurrency:** integrate after dependencies.
 - **Build steps:**
-  1. Add a FastAPI `navigate_and_extract` handler that composes URL policy, browser context, navigation, and extraction and returns the canonical result envelope with timing/warnings; keep lower-level browser primitives private.
+  1. Add a FastAPI `navigate_and_extract` handler that composes URL policy, browser context, navigation, DOM/accessibility extraction, and returns the canonical JSON result envelope with metadata, timing, and warnings; keep lower-level browser primitives private.
   2. Register the matching tool in the orchestrator with URL-only input, read-only sensitivity, result-size limits, and the shared evidence schema; serialize only bounded extracted chunks to Mistral.
   3. Update system/tool instructions to require claims about a fetched page to reference returned source/chunk IDs and to state when evidence is missing, blocked, timed out, or truncated.
   4. Validate model-emitted citations before sending final stream parts; retain valid cited text, mark unsupported output, and never manufacture a title, URL, or page claim on tool failure.

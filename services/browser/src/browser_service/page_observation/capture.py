@@ -19,6 +19,8 @@ from nodriver.cdp import accessibility as cdp_ax
 from nodriver.cdp import dom as cdp_dom
 from nodriver.core.tab import Tab  # type: ignore[import-untyped]
 
+from browser_service.extraction.accessibility import RawAxNode, raw_ax_node
+
 DEFAULT_MAX_RAW_NODES = 20_000
 DEFAULT_MAX_DEPTH = 60
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 10.0
@@ -65,6 +67,13 @@ class AxState:
 class CaptureResult:
     root: RawNode
     ax_by_backend_id: dict[int, AxState]
+    #: The same accessibility tree in the shape Phase 2's extraction
+    #: contract consumes (``browser_service.extraction.accessibility``), so
+    #: one `Accessibility.getFullAXTree` call serves both the graph
+    #: enrichment below and the document's bounded accessibility nodes.
+    raw_ax_nodes: list[RawAxNode]
+    dom_tag_by_backend_id: dict[int, str]
+    ax_available: bool
     node_count: int
     truncated_by_node_limit: bool
     truncated_by_depth: bool
@@ -214,6 +223,17 @@ def _parse_ax_node(node: cdp_ax.AXNode) -> AxState | None:
     )
 
 
+def _collect_dom_tags(node: RawNode, tags: dict[int, str]) -> None:
+    """Builds the ``backendDOMNodeId -> tag name`` map the accessibility
+    reduction correlates against, from the already-bounded DOM snapshot."""
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.node_type == 1 and current.tag:
+            tags[current.backend_node_id] = current.tag
+        stack.extend(current.children)
+
+
 async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> CaptureResult:
     """Fetches one pierced DOM snapshot plus the accessibility tree,
     reduces the DOM snapshot into bounded `RawNode`s (depth/node/time
@@ -225,10 +245,12 @@ async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> Captur
     deadline = time.monotonic() + cfg.timeout_seconds
 
     document = await page.send(cdp_dom.get_document(depth=-1, pierce=True))
+    ax_available = True
     try:
         ax_nodes = await page.send(cdp_ax.get_full_ax_tree())
     except Exception:  # noqa: BLE001 -- accessibility tree is best-effort enrichment
         ax_nodes = []
+        ax_available = False
 
     ax_by_backend_id: dict[int, AxState] = {}
     for ax_node in ax_nodes:
@@ -236,6 +258,7 @@ async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> Captur
         if parsed is not None and ax_node.backend_dom_node_id is not None:
             ax_by_backend_id[int(ax_node.backend_dom_node_id)] = parsed
 
+    dom_tag_by_backend_id: dict[int, str] = {}
     counter = [0]
     truncation: dict[str, bool | int] = {}
     root = _reduce_node(
@@ -248,9 +271,14 @@ async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> Captur
         visited=set(),
     )
 
+    _collect_dom_tags(root, dom_tag_by_backend_id)
+
     return CaptureResult(
         root=root,
         ax_by_backend_id=ax_by_backend_id,
+        raw_ax_nodes=[raw_ax_node(node) for node in ax_nodes or []],
+        dom_tag_by_backend_id=dom_tag_by_backend_id,
+        ax_available=ax_available,
         node_count=counter[0],
         truncated_by_node_limit=bool(truncation.get("nodes", False)),
         truncated_by_depth=bool(truncation.get("depth", False)),

@@ -300,7 +300,6 @@ def test_interaction_rich_page_yields_descriptive_only_affordances(http_port: in
             "browser.navigate_and_extract",
             "browser.explore_website",
             "browser.get_page_understanding_slice",
-            "ui.propose_generative_ui_plan",
         }
         navigate_fields = set(
             TOOL_REGISTRY["browser.navigate_and_extract"].invocation_model.model_fields["arguments"].annotation.model_fields

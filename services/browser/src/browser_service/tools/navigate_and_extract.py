@@ -29,11 +29,14 @@ from browser_service.browser import (
     ResponseTooLargeError,
     TooManyRedirectsError,
     UrlPolicy,
+    capture_accessibility,
 )
 from browser_service.contracts import InvocationNavigateAndExtract
 from browser_service.extraction import ExtractedDocument, extract_document
+from browser_service.page_observation.settle import wait_for_settle
 from browser_service.tool_outcome import ToolExecutionError, ToolHandlerOutcome
 from browser_service.tools._document_wire import (
+    accessibility_to_wire,
     build_evidence,
     chunk_to_wire,
     metadata_to_wire,
@@ -53,6 +56,7 @@ def _build_payload(
 ) -> dict[str, Any]:
     return {
         "metadata": metadata_to_wire(doc.metadata, http_status, content_type),
+        "accessibility": [accessibility_to_wire(node) for node in doc.accessibility],
         "chunks": [chunk_to_wire(chunk) for chunk in doc.chunks],
         "warnings": [warning_to_wire(warning) for warning in doc.warnings],
         "truncations": [truncation_to_wire(truncation) for truncation in doc.truncations],
@@ -124,6 +128,11 @@ async def run_navigate_and_extract(
         navigation_ms = (time.monotonic() - nav_start) * 1000
 
         try:
+            # The capture must describe the *settled* render, so the
+            # accessibility tree and the serialized DOM are both taken after
+            # the page reaches its bounded quiet state -- not mid-hydration,
+            # where a client-rendered page still reports an empty document.
+            await wait_for_settle(page)
             content_result = await navigation_service.get_content(page, cancelled=cancelled)
         except NavigationCancelledError as exc:
             raise ToolExecutionError(
@@ -138,8 +147,16 @@ async def run_navigate_and_extract(
                 "UPSTREAM_UNAVAILABLE", "The page's content could not be read.", retryable=True
             ) from exc
 
+        accessibility = await capture_accessibility(page)
+
     extraction_start = time.monotonic()
-    document = extract_document(content_result.content or "", navigate_result.final_url)
+    document = extract_document(
+        content_result.content or "",
+        navigate_result.final_url,
+        accessibility_nodes=accessibility.ax_nodes,
+        accessibility_available=accessibility.available,
+        dom_tag_by_backend_id=accessibility.dom_tag_by_backend_id,
+    )
     extraction_ms = (time.monotonic() - extraction_start) * 1000
     total_ms = (time.monotonic() - total_start) * 1000
 

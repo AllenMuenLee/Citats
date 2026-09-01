@@ -10,7 +10,7 @@ import {
   type UiGenerationRequest,
   type UiGenerationResponse,
 } from "@ai-browser/contracts";
-import type { TextCompletion, TextCompletionRequest, TextCompletionResult } from "../ai/types";
+import type { TextCompletion, TextCompletionRequest } from "../ai/types";
 import { buildCanonicalUiModelInput } from "./canonical-input";
 import type { UiGenerationMetric, UiGenerationValidationCategory } from "./metrics";
 import { UI_GENERATION_SYSTEM_PROMPT } from "./system-prompt";
@@ -22,7 +22,6 @@ import { UI_GENERATION_SYSTEM_PROMPT } from "./system-prompt";
  * or Groq answers, and nothing here changes.
  */
 export type UiTransportRequest = TextCompletionRequest;
-export type UiTransportResult = TextCompletionResult;
 export type UiTransport = TextCompletion;
 export interface SafeValidationIssue { readonly code: string; readonly line?: number; readonly column?: number }
 

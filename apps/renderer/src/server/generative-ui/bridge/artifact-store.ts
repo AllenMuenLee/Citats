@@ -18,5 +18,3 @@ export function getGeneratedUiArtifact(artifactId: string): StoredArtifact | nul
   if (Date.parse(stored.artifact.expiresAt) <= Date.now()) { artifacts.delete(artifactId); return null; }
   return stored;
 }
-
-export function destroyGeneratedUiArtifact(artifactId: string): void { artifacts.delete(artifactId); }

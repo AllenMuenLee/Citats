@@ -65,16 +65,27 @@ export function buildExploreResult(): ExploreWebsiteSuccessResult {
         relationships.push({ kind: "record_field", from: recordHandle, to: nodeHandle, order: field });
       }
       relationships.push({ kind: "record_action", from: recordHandle, to: controlHandle, order: null });
+      // Every other record's control is external, so a fixture exercises
+      // both the React-only path and the AI-action path.
+      const external = record % 2 === 1;
       capabilities.push({
         capabilityId,
-        semanticIntent: `Save listing ${record} of the ${collectionHandle} collection to a shortlist`,
+        semanticIntent: external
+          ? `Book listing ${record} of the ${collectionHandle} collection`
+          : `Save listing ${record} of the ${collectionHandle} collection to a shortlist`,
         controlHandle,
         owningHandle: recordHandle,
-        capabilityKind: "local_view_change",
+        capabilityKind: external ? "reservation_purchase_payment" : "local_view_change",
         state: DEFAULT_CONTROL_STATE,
         requiredInputs: [],
-        destinationOrigin: null,
-        effectClass: "local_view",
+        destinationOrigin: external ? "https://example.com" : null,
+        effectClass: external ? "submission" : "local_view",
+        interactionExecution: external ? "external_ai_action" : "internal_react",
+        promptTemplateId: external ? `tpl-${collectionIndex}-${record}` : null,
+        promptTemplate: external
+          ? "Start the booking for the selected listing {{selection}} and wait for the user to confirm."
+          : null,
+        argumentSchema: external ? [{ name: "selection", type: "string", required: true, values: null }] : [],
         confidence: 0.82,
         evidence: [{ kind: "dom_node", nodeHandle: controlHandle }, { kind: "accessibility_state" }],
         requiredCapability: "action_execution",
@@ -109,12 +120,22 @@ export function buildExploreResult(): ExploreWebsiteSuccessResult {
         metadata: {
           title: "Stays in Seattle",
           url: "https://example.com/s/seattle",
+          origin: "https://example.com",
           language: "en",
           description: "Search results",
+          author: null,
           publishedTime: null,
+          updatedTime: null,
+          siteName: "Example Stays",
+          pageType: "website",
+          imageUrl: null,
           httpStatus: 200,
           contentType: "text/html",
         },
+        accessibility: [
+          { nodeId: "ax-1", parentId: null, role: "heading", name: "Stays in Seattle", description: null, value: null, states: { level: "1" }, domTag: "h1", correlated: true },
+          { nodeId: "ax-2", parentId: "ax-1", role: "button", name: "Book", description: null, value: null, states: { disabled: false }, domTag: "button", correlated: true },
+        ],
         chunks: Array.from({ length: 12 }, (_, index) => ({
           chunkId: `chunk-${index}`,
           text: `Listing block ${index}. `.repeat(150),

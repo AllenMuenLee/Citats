@@ -9,6 +9,10 @@ for a later integration step to wire up.
 
 from __future__ import annotations
 
+from browser_service.browser.accessibility_capture import (
+    AccessibilityCapture,
+    capture_accessibility,
+)
 from browser_service.browser.lifecycle import (
     BROWSER_EXECUTABLE_PATH_ENV_VAR,
     BrowserLifecycleManager,
@@ -37,6 +41,7 @@ from browser_service.browser.registry import BrowserResourceRegistry, ManagedCon
 
 __all__ = [
     "BROWSER_EXECUTABLE_PATH_ENV_VAR",
+    "AccessibilityCapture",
     "BlockedUrlError",
     "BrowserLifecycleManager",
     "BrowserResourceRegistry",
@@ -56,4 +61,5 @@ __all__ = [
     "TooManyRedirectsError",
     "UrlPolicy",
     "UrlPolicyConfig",
+    "capture_accessibility",
 ]

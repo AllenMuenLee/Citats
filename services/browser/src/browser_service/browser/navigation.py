@@ -62,6 +62,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from nodriver.cdp import dom as cdp_dom
 from nodriver.cdp import fetch as cdp_fetch
 from nodriver.cdp import network as cdp_network
 from nodriver.core.tab import Tab  # type: ignore[import-untyped]
@@ -408,6 +409,18 @@ class NavigationService:
             raise NavigationTimeoutError("get_content", limits.total_timeout_seconds)
 
         content = content_task.result()
+        if content.strip().lower() in {"<!doctype html>", "<!doctype html><html></html>"}:
+            document = await page.send(cdp_dom.get_document(depth=1, pierce=False))
+            document_element = next(
+                (child for child in document.children or [] if child.node_name.lower() == "html"),
+                document,
+            )
+            content = await page.send(
+                cdp_dom.get_outer_html(
+                    node_id=document_element.node_id,
+                    include_shadow_dom=True,
+                )
+            )
         size = len(content.encode("utf-8"))
         if size > limits.max_response_bytes:
             raise ResponseTooLargeError(limits.max_response_bytes, size)

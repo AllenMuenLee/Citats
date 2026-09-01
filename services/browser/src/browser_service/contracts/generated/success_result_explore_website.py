@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import (AwareDatetime, BaseModel, ConfigDict, Field, RootModel,
-                      StrictBool, StrictFloat, StrictInt, StrictStr)
+                      StrictBool, StrictFloat, StrictInt, StrictStr, constr)
 
 
 class Correlation(BaseModel):
@@ -38,6 +38,45 @@ class EvidenceItem(BaseModel):
     title: StrictStr = Field(..., max_length=300, min_length=1)
 
 
+class Description(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=1000)
+
+
+class DomTag(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=60)
+
+
+class Name(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=500)
+
+
+class ParentId(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=64)
+
+
+class States(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=60)
+
+
+class Value(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
+class AccessibilityItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    correlated: StrictBool
+    description: Description | None
+    domTag: DomTag | None
+    name: Name | None
+    nodeId: StrictStr = Field(..., max_length=64, min_length=1)
+    parentId: ParentId | None
+    role: StrictStr = Field(..., max_length=60, min_length=1)
+    states: dict[constr(max_length=40, strict=True), StrictBool | States]
+    value: Value | None
+
+
 class Chunk(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -48,28 +87,46 @@ class Chunk(BaseModel):
     text: StrictStr = Field(..., max_length=8000)
 
 
+class Author(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
 class ContentType(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=200)
-
-
-class Description(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=1000)
 
 
 class HttpStatus(RootModel[StrictInt]):
     root: StrictInt = Field(..., ge=100, le=599)
 
 
+class ImageUrl(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=2048)
+
+
+class PageType(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=100)
+
+
+class SiteName(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=300)
+
+
 class Metadata(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    author: Author | None
     contentType: ContentType | None
     description: Description | None
     httpStatus: HttpStatus | None
+    imageUrl: ImageUrl | None
     language: StrictStr = Field(..., max_length=35, min_length=1)
+    origin: StrictStr = Field(..., max_length=255, min_length=1)
+    pageType: PageType | None
     publishedTime: AwareDatetime | None
+    siteName: SiteName | None
     title: StrictStr = Field(..., max_length=500, min_length=1)
+    updatedTime: AwareDatetime | None
     url: StrictStr = Field(..., max_length=2048)
 
 
@@ -90,7 +147,7 @@ class Warning(BaseModel):
     )
     blockId: StrictStr | None = Field(None, max_length=64)
     chunkId: StrictStr | None = Field(None, max_length=64)
-    code: Literal['hidden_content_stripped', 'credential_like_content', 'prompt_injection_suspected', 'document_truncated', 'chunk_truncated', 'chunk_limit_reached', 'no_semantic_container']
+    code: Literal['hidden_content_stripped', 'credential_like_content', 'prompt_injection_suspected', 'document_truncated', 'chunk_truncated', 'chunk_limit_reached', 'no_semantic_container', 'affordance_limit_reached', 'accessibility_tree_unavailable', 'accessibility_node_limit_reached']
     message: StrictStr = Field(..., max_length=500, min_length=1)
     offset: StrictInt | None = Field(None, ge=0, le=9007199254740991)
 
@@ -99,10 +156,29 @@ class Document(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    accessibility: list[AccessibilityItem] = Field(..., max_length=1500)
     chunks: list[Chunk] = Field(..., max_length=50)
     metadata: Metadata
     truncations: list[Truncation] = Field(..., max_length=50)
     warnings: list[Warning] = Field(..., max_length=100)
+
+
+class Value1(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=120, min_length=1)
+
+
+class Values(RootModel[list[Value1]]):
+    root: list[Value1] = Field(..., max_length=24)
+
+
+class ArgumentSchemaItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: StrictStr = Field(..., max_length=60, min_length=1, pattern='^[a-z][a-zA-Z0-9_]*$')
+    required: StrictBool
+    type: Literal['string', 'number', 'boolean', 'enum']
+    values: Values | None
 
 
 class DestinationOrigin(RootModel[StrictStr]):
@@ -143,6 +219,14 @@ class OwningHandle(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
+class PromptTemplate(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=600, min_length=1)
+
+
+class PromptTemplateId(RootModel[StrictStr]):
+    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+
+
 class RequiredInput(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=100, min_length=1)
 
@@ -168,6 +252,7 @@ class Capability(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    argumentSchema: list[ArgumentSchemaItem] = Field(..., max_length=12)
     capabilityId: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     capabilityKind: Literal['local_view_change', 'navigation', 'data_entry', 'form_submission', 'account_authentication', 'download_upload', 'clipboard_share', 'communication', 'reservation_purchase_payment', 'deletion_cancellation', 'media_control', 'external_application', 'unknown']
     confidence: StrictFloat = Field(..., ge=0.0, le=1.0)
@@ -175,7 +260,10 @@ class Capability(BaseModel):
     destinationOrigin: DestinationOrigin | None
     effectClass: Literal['local_view', 'navigation', 'data_entry', 'submission', 'download', 'media', 'external_application', 'unknown']
     evidence: list[Evidence | Evidence1 | Evidence2 | Evidence3] = Field(..., max_length=5)
+    interactionExecution: Literal['internal_react', 'external_ai_action']
     owningHandle: OwningHandle | None
+    promptTemplate: PromptTemplate | None
+    promptTemplateId: PromptTemplateId | None
     requiredCapability: Literal['action_execution', 'embedded_browser', 'none']
     requiredInputs: list[RequiredInput] = Field(..., max_length=20)
     semanticIntent: StrictStr = Field(..., max_length=200, min_length=1)
@@ -219,7 +307,7 @@ class Coverage(BaseModel):
     unobservedLazyStateCount: StrictInt = Field(..., ge=0, le=9007199254740991)
 
 
-class Author(RootModel[StrictStr]):
+class Author1(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=200)
 
 
@@ -255,7 +343,7 @@ class Metadata1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    author: Author | None
+    author: Author1 | None
     charset: Charset | None
     contentType: ContentType | None
     description: Description | None
@@ -282,7 +370,7 @@ class BoundingBox(BaseModel):
     y: StrictFloat
 
 
-class Description2(RootModel[StrictStr]):
+class Description3(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=2000)
 
 
@@ -299,7 +387,7 @@ class Nodes(BaseModel):
         extra='forbid',
     )
     boundingBox: BoundingBox | None
-    description: Description2 | None
+    description: Description3 | None
     handle: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     kind: Literal['metadata']
     purpose: Literal['open_graph', 'twitter_card', 'json_ld', 'other']
@@ -448,7 +536,7 @@ class Nodes9(BaseModel):
         extra='forbid',
     )
     boundingBox: BoundingBox | None
-    description: Description2 | None
+    description: Description3 | None
     handle: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
     kind: Literal['canvas_region']
     label: Label | None

@@ -7,7 +7,6 @@ import {
   EXPLORE_WEBSITE_TOOL_NAME,
   GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
   type NavigateAndExtractInvocation,
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
@@ -42,14 +41,6 @@ describe("tool JSON schemas", () => {
     expect(tools.get(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME)?.definition.parameters).toMatchObject({
       additionalProperties: false,
       required: ["observationId", "handle"],
-    });
-    expect(tools.get(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME)?.definition.parameters).toMatchObject({
-      additionalProperties: false,
-      required: expect.arrayContaining(["observationId", "layoutKind", "provenance", "localInteractionIntents"]),
-      properties: {
-        layoutKind: { enum: expect.arrayContaining(["table", "card_grid", "cited_text"]) },
-        provenance: { additionalProperties: false, required: ["sourceUrl", "retrievedAt"] },
-      },
     });
   });
 
@@ -245,12 +236,19 @@ describe("ChatOrchestrator", () => {
           metadata: {
             title: "Example Article",
             url: invocation.arguments.url,
+            origin: new URL(invocation.arguments.url).origin,
             language: "en",
             description: null,
+            author: null,
             publishedTime: null,
+            updatedTime: null,
+            siteName: null,
+            pageType: null,
+            imageUrl: null,
             httpStatus: 200,
             contentType: null,
           },
+          accessibility: [],
           chunks: [{ chunkId: "chunk-0", text: "The sky is blue.", startOffset: 0, endOffset: 17 }],
           warnings: [],
           truncations: [],
@@ -334,12 +332,19 @@ describe("ChatOrchestrator", () => {
           metadata: {
             title: invocation.arguments.url.includes("page-a") ? "Page A" : "Page B",
             url: invocation.arguments.url,
+            origin: new URL(invocation.arguments.url).origin,
             language: "en",
             description: null,
+            author: null,
             publishedTime: null,
+            updatedTime: null,
+            siteName: null,
+            pageType: null,
+            imageUrl: null,
             httpStatus: 200,
             contentType: null,
           },
+          accessibility: [],
           // Both pages independently mint "chunk-0" -- the documented
           // per-document id collision.
           chunks: [
@@ -480,7 +485,8 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
           toolCallId: invocation.toolCallId,
           status: "success",
           payload: {
-            metadata: { title: "Example", url: invocation.arguments.url, language: "en", description: null, publishedTime: null, httpStatus: 200, contentType: null },
+            metadata: { title: "Example", url: invocation.arguments.url, origin: new URL(invocation.arguments.url).origin, language: "en", description: null, author: null, publishedTime: null, updatedTime: null, siteName: null, pageType: null, imageUrl: null, httpStatus: 200, contentType: null },
+            accessibility: [],
             chunks: [{ chunkId: "chunk-0", text: "Content.", startOffset: 0, endOffset: 8 }],
             warnings: [],
             truncations: [],

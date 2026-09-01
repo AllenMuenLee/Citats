@@ -23,19 +23,16 @@ from browser_service.contracts import (
     InvocationExploreWebsite,
     InvocationGetPageUnderstandingSlice,
     InvocationNavigateAndExtract,
-    InvocationProposeGenerativeUiPlan,
     InvocationSystemEcho,
     SuccessResultExploreWebsite,
     SuccessResultGetPageUnderstandingSlice,
     SuccessResultNavigateAndExtract,
-    SuccessResultProposeGenerativeUiPlan,
     SuccessResultSystemEcho,
 )
 from browser_service.tool_outcome import ToolHandlerOutcome
 from browser_service.tools.explore_website import run_explore_website
 from browser_service.tools.get_page_understanding_slice import run_get_page_understanding_slice
 from browser_service.tools.navigate_and_extract import run_navigate_and_extract
-from browser_service.tools.propose_generative_ui_plan import run_propose_generative_ui_plan
 
 MAX_ARTIFICIAL_DELAY_MS = 2_000
 
@@ -87,10 +84,5 @@ TOOL_REGISTRY: dict[str, ToolRegistration] = {
         InvocationGetPageUnderstandingSlice,
         run_get_page_understanding_slice,
         SuccessResultGetPageUnderstandingSlice,
-    ),
-    "ui.propose_generative_ui_plan": ToolRegistration(
-        InvocationProposeGenerativeUiPlan,
-        run_propose_generative_ui_plan,
-        SuccessResultProposeGenerativeUiPlan,
     ),
 }

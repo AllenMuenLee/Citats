@@ -80,6 +80,113 @@
         "document": {
           "additionalProperties": false,
           "properties": {
+            "accessibility": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "correlated": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "maxLength": 1000,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "domTag": {
+                    "anyOf": [
+                      {
+                        "maxLength": 60,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "maxLength": 500,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nodeId": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "parentId": {
+                    "anyOf": [
+                      {
+                        "maxLength": 64,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "role": {
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "states": {
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "maxLength": 60,
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "propertyNames": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "maxLength": 300,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "nodeId",
+                  "parentId",
+                  "role",
+                  "name",
+                  "description",
+                  "value",
+                  "states",
+                  "domTag",
+                  "correlated"
+                ],
+                "type": "object"
+              },
+              "maxItems": 1500,
+              "type": "array"
+            },
             "chunks": {
               "items": {
                 "additionalProperties": false,
@@ -118,6 +225,17 @@
             "metadata": {
               "additionalProperties": false,
               "properties": {
+                "author": {
+                  "anyOf": [
+                    {
+                      "maxLength": 300,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "contentType": {
                   "anyOf": [
                     {
@@ -152,10 +270,37 @@
                     }
                   ]
                 },
+                "imageUrl": {
+                  "anyOf": [
+                    {
+                      "maxLength": 2048,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "language": {
                   "maxLength": 35,
                   "minLength": 1,
                   "type": "string"
+                },
+                "origin": {
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "pageType": {
+                  "anyOf": [
+                    {
+                      "maxLength": 100,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "publishedTime": {
                   "anyOf": [
@@ -169,10 +314,33 @@
                     }
                   ]
                 },
+                "siteName": {
+                  "anyOf": [
+                    {
+                      "maxLength": 300,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "title": {
                   "maxLength": 500,
                   "minLength": 1,
                   "type": "string"
+                },
+                "updatedTime": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "url": {
                   "maxLength": 2048,
@@ -182,9 +350,15 @@
               "required": [
                 "title",
                 "url",
+                "origin",
                 "language",
                 "description",
+                "author",
                 "publishedTime",
+                "updatedTime",
+                "siteName",
+                "pageType",
+                "imageUrl",
                 "httpStatus",
                 "contentType"
               ],
@@ -249,7 +423,10 @@
                       "document_truncated",
                       "chunk_truncated",
                       "chunk_limit_reached",
-                      "no_semantic_container"
+                      "no_semantic_container",
+                      "affordance_limit_reached",
+                      "accessibility_tree_unavailable",
+                      "accessibility_node_limit_reached"
                     ],
                     "type": "string"
                   },
@@ -276,6 +453,7 @@
           },
           "required": [
             "metadata",
+            "accessibility",
             "chunks",
             "warnings",
             "truncations"
@@ -289,6 +467,56 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "argumentSchema": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "maxLength": 60,
+                          "minLength": 1,
+                          "pattern": "^[a-z][a-zA-Z0-9_]*$",
+                          "type": "string"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "type": {
+                          "enum": [
+                            "string",
+                            "number",
+                            "boolean",
+                            "enum"
+                          ],
+                          "type": "string"
+                        },
+                        "values": {
+                          "anyOf": [
+                            {
+                              "items": {
+                                "maxLength": 120,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "maxItems": 24,
+                              "type": "array"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "required",
+                        "values"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 12,
+                    "type": "array"
+                  },
                   "capabilityId": {
                     "maxLength": 128,
                     "minLength": 1,
@@ -422,7 +650,39 @@
                     "maxItems": 5,
                     "type": "array"
                   },
+                  "interactionExecution": {
+                    "enum": [
+                      "internal_react",
+                      "external_ai_action"
+                    ],
+                    "type": "string"
+                  },
                   "owningHandle": {
+                    "anyOf": [
+                      {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9._:-]+$",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "promptTemplate": {
+                    "anyOf": [
+                      {
+                        "maxLength": 600,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "promptTemplateId": {
                     "anyOf": [
                       {
                         "maxLength": 128,
@@ -555,6 +815,10 @@
                   "requiredInputs",
                   "destinationOrigin",
                   "effectClass",
+                  "interactionExecution",
+                  "promptTemplateId",
+                  "promptTemplate",
+                  "argumentSchema",
                   "confidence",
                   "evidence",
                   "requiredCapability"

@@ -9,15 +9,12 @@ import {
   GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractSuccessResultSchema,
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
   ToolErrorResultSchema,
   type Citation,
   type EvidenceChunk,
   type Source,
   type ToolErrorResult,
   type ExploreWebsiteSuccessResult,
-  type GenerativeUiPlan,
-  type PageUnderstanding,
 } from "@ai-browser/contracts";
 import { z } from "zod";
 import type { ModelAdapter, ConversationTurn, HostedToolName } from "../ai";
@@ -82,7 +79,7 @@ export interface OrchestratorOptions {
    * on a digest.
    */
   compressObservation?: (input: { correlationId: string; task: string; result: ExploreWebsiteSuccessResult; signal: AbortSignal }) => Promise<unknown>;
-  generateUi?: (input: { ownerId: string; task: string; plan: GenerativeUiPlan; pageUnderstanding: PageUnderstanding; signal: AbortSignal }) => Promise<GeneratedUiReference | null>;
+  generateUi?: (input: { ownerId: string; task: string; result: ExploreWebsiteSuccessResult; signal: AbortSignal }) => Promise<GeneratedUiReference | null>;
 }
 
 /**
@@ -119,7 +116,6 @@ function resolveRouteTools(
   const routeTools = new Map(tools);
   if (!hasObservation) {
     routeTools.delete(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME);
-    routeTools.delete(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME);
   }
   if (route === "web_search_only") {
     routeTools.delete(NAVIGATE_AND_EXTRACT_TOOL_NAME);
@@ -198,7 +194,7 @@ function namespaceEvidenceChunkIds(toolCallId: string, toolName: string, result:
   const rawDocument = toolName === EXPLORE_WEBSITE_TOOL_NAME
     ? (parsed.data.payload as { document: Record<string, unknown> }).document
     : parsed.data.payload as Record<string, unknown>;
-  const document = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
+  const document = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, accessibility: rawDocument.accessibility, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
   const renamed = new Map(document.chunks.map((chunk) => [chunk.chunkId, `${prefix}-${chunk.chunkId}`]));
   const renamedDocument = {
     ...document,
@@ -236,7 +232,7 @@ function extractEvidenceFromToolResult(
   const rawDocument = toolName === EXPLORE_WEBSITE_TOOL_NAME
     ? (parsed.data.payload as { document: Record<string, unknown> }).document
     : parsed.data.payload as Record<string, unknown>;
-  const { metadata, chunks } = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
+  const { metadata, chunks } = ExploreWebsiteDocumentSchema.parse({ metadata: rawDocument.metadata, accessibility: rawDocument.accessibility, chunks: rawDocument.chunks, warnings: rawDocument.warnings, truncations: rawDocument.truncations });
   const source: Source = {
     id: `source-${toolCallId}`,
     url: metadata.url,
@@ -378,6 +374,9 @@ export class ChatOrchestrator {
       }
       const explicitUrl = decision.route === "website_read_required" ? findExplicitSafeUrl(parsed.text) : undefined;
       let hasObservation = historyHasObservation(selected.messages);
+      // One generated view per turn: later explorations in the same turn
+      // refine the answer, they do not each open their own panel.
+      let generatedUiEmitted = false;
       const resolved = resolveRouteTools(decision.route, explicitUrl, this.options.tools, hasObservation);
       const { hostedTools, usedDiscovery } = resolved;
       let routeTools = resolved.routeTools;
@@ -474,7 +473,6 @@ export class ChatOrchestrator {
           const isRepeat = callFingerprints.has(fingerprint);
           callFingerprints.add(fingerprint);
           let result: unknown;
-          let validatedArgs: unknown;
           let targetUrl: string | undefined;
           if (isRepeat) {
             // The model re-issued a call it already made (with identical arguments) earlier in
@@ -488,10 +486,6 @@ export class ChatOrchestrator {
             try {
               const json = JSON.parse(call.arguments);
               const args = tool.parseArguments(json);
-              validatedArgs = args;
-              if (call.name === PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME) {
-                console.info("[generative-ui] validated plan", JSON.stringify(args));
-              }
               targetUrl = exploredUrl(call.name, args);
               state = "tool-execution";
               yield { type: "tool-status", id: call.id, label: call.name, state: "running", ...(targetUrl ? { url: targetUrl } : {}) };
@@ -529,23 +523,23 @@ export class ChatOrchestrator {
             routeTools = resolveRouteTools(decision.route, explicitUrl, this.options.tools, true).routeTools;
             if (requiresGeneratedUi) routeTools.delete(NAVIGATE_AND_EXTRACT_TOOL_NAME);
           }
-          if (call.name === PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME && this.options.generateUi && !isRepeat && !ToolErrorResultSchema.safeParse(result).success) {
-            // Only ever reachable when `tool.execute` above actually
-            // succeeded, so `validatedArgs` is the plan `tool.parseArguments`
-            // already validated against the closed `GenerativeUiPlanSchema`
-            // (limits included) -- never a raw, unchecked re-parse of the
-            // model's own arguments string, which could carry an
-            // out-of-contract plan (e.g. too many detailRegionHandles) that
-            // only surfaces much later as an opaque UI-generation failure.
-            const exploration = [...committedTools].reverse().find((item) => item.name === EXPLORE_WEBSITE_TOOL_NAME);
-            const parsedExploration = exploration ? ExploreWebsiteSuccessResultSchema.safeParse(exploration.result) : null;
+          // Generation is driven by the exploration itself, not by anything
+          // the conversation model proposes: the dedicated extraction model
+          // turns this capture plus the user's prompt into the free-form
+          // implementation prompt, and the UI model writes React from that.
+          // The conversation model never authors the plan and never decides
+          // that a view should exist.
+          if (exploreResult?.success && exploreResult.data.status === "success" && this.options.generateUi && !generatedUiEmitted) {
+            generatedUiEmitted = true;
             try {
-              const plan = validatedArgs as GenerativeUiPlan;
-              if (parsedExploration?.success && parsedExploration.data.status === "success") {
-                const reference = await this.options.generateUi({ ownerId: parsed.ownerId, task: parsed.text, plan, pageUnderstanding: parsedExploration.data.payload.pageUnderstanding, signal });
-                if (reference) yield { type: "generated-ui", id: this.createId(), ...reference };
-              }
-            } catch {
+              const reference = await this.options.generateUi({ ownerId: parsed.ownerId, task: parsed.text, result: exploreResult.data, signal });
+              if (reference) yield { type: "generated-ui", id: this.createId(), ...reference };
+            } catch (error) {
+              if (signal.aborted) throw error;
+              // A failed generation degrades to the cited text answer the
+              // conversation model is already producing, so it is logged
+              // here rather than failing the turn.
+              console.error("[generative-ui] generation failed for this observation", error);
             }
           }
           const evidence = extractEvidenceFromToolResult(call.id, call.name, result);

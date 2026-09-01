@@ -9,9 +9,3 @@ export interface UiGenerationMetric {
   readonly fallbackReason: string | null;
   readonly repaired: boolean;
 }
-
-export interface UiGenerationStabilityMetric {
-  readonly cacheKey: string;
-  readonly normalizedStructureDigest: string;
-  readonly sourceDigest: string;
-}

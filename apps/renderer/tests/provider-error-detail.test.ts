@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import { mapHttpStatus, readProviderErrorDetail } from "../src/server/ai/streaming";
+import { mapHttpStatus, readProviderErrorDetail, retryDelayFromMessage } from "../src/server/ai/streaming";
 
 describe("readProviderErrorDetail", () => {
   it("keeps only the four diagnosable fields of a provider error body", () => {
@@ -72,5 +72,53 @@ describe("mapHttpStatus", () => {
   it("never carries the provider message into the user-facing error", () => {
     const error = mapHttpStatus(400, { status: 400, message: "invalid JSON schema for tool browser.explore_website" });
     expect(error.message).toBe("The AI service rejected this request as invalid.");
+  });
+});
+
+/**
+ * A live Gemini 429 carries no `Retry-After` and no `x-ratelimit-*` header --
+ * the stated wait exists only in the body, in two places, and missing both
+ * collapsed the backoff to its 100ms floor and spent the remaining attempts
+ * against an already-exhausted quota.
+ */
+describe("rate-limit delay recovery", () => {
+  const geminiRateLimitBody = JSON.stringify({
+    error: {
+      code: 429,
+      message: "You exceeded your current quota, please check your plan and billing details. "
+        + "* Quota exceeded for metric: generate_content_free_tier_requests, limit: 15, "
+        + "model: gemini-3.5-flash-lite. Please retry in 3.215563756s.",
+      status: "RESOURCE_EXHAUSTED",
+      details: [
+        { "@type": "type.googleapis.com/google.rpc.Help", links: [{ url: "https://ai.google.dev/" }] },
+        { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaMetric: "generate_content_free_tier_requests" }] },
+        { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "3.215563756s" },
+      ],
+    },
+  });
+
+  it("recovers Gemini's RetryInfo from error.details", () => {
+    expect(readProviderErrorDetail(429, geminiRateLimitBody).retryAfterMs).toBe(3_216);
+  });
+
+  it("keeps the rest of error.details out of the logged detail", () => {
+    const detail = readProviderErrorDetail(429, geminiRateLimitBody);
+    expect(detail).not.toHaveProperty("details");
+    expect(JSON.stringify(detail)).not.toContain("QuotaFailure");
+  });
+
+  it("omits retryAfterMs when the body states no delay", () => {
+    expect(readProviderErrorDetail(429, JSON.stringify({ error: { message: "slow down" } })))
+      .not.toHaveProperty("retryAfterMs");
+    expect(readProviderErrorDetail(429, JSON.stringify({ error: { details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "soon" }] } })))
+      .not.toHaveProperty("retryAfterMs");
+  });
+
+  it("reads the stated delay from either provider's wording", () => {
+    expect(retryDelayFromMessage("Please retry in 3.215563756s.")).toBe(3_216);
+    expect(retryDelayFromMessage("Rate limit reached. Please try again in 812ms")).toBe(812);
+    expect(retryDelayFromMessage("Rate limit reached. Please try again in 1m")).toBe(60_000);
+    expect(retryDelayFromMessage("no delay stated")).toBe(0);
+    expect(retryDelayFromMessage(undefined)).toBe(0);
   });
 });

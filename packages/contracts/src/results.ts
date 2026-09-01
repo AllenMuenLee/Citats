@@ -10,7 +10,6 @@ import { SystemEchoResultSchema } from "./tools/system-echo";
 import { NavigateAndExtractResultSchema } from "./tools/navigate-and-extract";
 import { ExploreWebsiteResultSchema } from "./tools/explore-website";
 import { GetPageUnderstandingSliceResultSchema } from "./tools/get-page-understanding-slice";
-import { ProposeGenerativeUiPlanResultSchema } from "./tools/propose-generative-ui-plan";
 
 /**
  * Generic factory for a tool success result: correlation metadata echoed
@@ -53,13 +52,6 @@ export const GetPageUnderstandingSliceSuccessResultSchema = makeToolSuccessResul
 );
 export type GetPageUnderstandingSliceSuccessResult = z.infer<
   typeof GetPageUnderstandingSliceSuccessResultSchema
->;
-
-export const ProposeGenerativeUiPlanSuccessResultSchema = makeToolSuccessResultSchema(
-  ProposeGenerativeUiPlanResultSchema,
-);
-export type ProposeGenerativeUiPlanSuccessResult = z.infer<
-  typeof ProposeGenerativeUiPlanSuccessResultSchema
 >;
 
 /**

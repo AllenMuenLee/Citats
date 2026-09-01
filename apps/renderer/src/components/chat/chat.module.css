@@ -6,7 +6,10 @@
 .body { flex: 1; min-height: 0; width: 100%; display: flex; gap: var(--space-16); }
 .body.split { max-width: 1400px; margin: 0 auto; }
 .body.split .conversation { max-width: none; margin: 0; flex: 1 1 55%; min-width: 360px; }
-.contextPane { flex: 0 0 45%; min-width: 320px; max-width: 70vw; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-bg-surface); overflow: auto; resize: horizontal; }
+.contextPane { flex: 0 0 45%; min-width: 280px; max-width: 70%; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-bg-surface); overflow: auto; }
+.paneResizer { flex: 0 0 8px; align-self: stretch; margin: 0 calc(var(--space-8) * -1 + 4px); border: 0; border-radius: var(--radius-control); background: transparent; cursor: col-resize; touch-action: none; }
+.paneResizer:hover, .paneResizer:focus-visible { background: var(--color-accent); }
+.paneResizer:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .contextPaneHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--color-border); }
 .contextPaneBody { flex: 1; min-height: 0; overflow: auto; padding: var(--space-16); }
 .generatedUiPrompt { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); padding: var(--space-12); border: 1px solid var(--color-border); border-radius: var(--radius-panel); background: var(--color-bg-elevated); }
@@ -57,6 +60,8 @@
 .recovery { padding: var(--space-8) var(--space-16); color: var(--color-danger); background: var(--color-bg-elevated); }
 .sendButton:focus-visible, .stopButton:focus-visible, .secondaryButton:focus-visible, .recovery button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-@media (max-width: 900px) { .body.split { flex-direction: column; } .body.split .conversation { max-width: 920px; margin: 0 auto; min-width: 0; flex: 1 1 auto; } .contextPane { flex: 0 0 50vh; max-width: none; resize: vertical; } }
+/* Below the 800x600 compact desktop layout the pane stacks under the
+   conversation instead of splitting the width, so both stay usable. */
+@media (max-width: 900px) { .body.split { flex-direction: column; } .body.split .conversation { max-width: 920px; margin: 0 auto; min-width: 0; flex: 1 1 auto; } .contextPane { flex: 0 0 50vh !important; max-width: none; min-width: 0; } .paneResizer { display: none; } }
 @media (max-width: 800px) { .workspace { padding: 0; } .header { padding: 0 var(--space-16); } .conversation { border-right: 0; border-left: 0; border-radius: 0; } .scrollRegion { padding: var(--space-16); } .composer { margin: var(--space-8); } .user { max-width: 90%; } }
 @media (prefers-reduced-motion: reduce) { .workspace * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }

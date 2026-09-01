@@ -61,7 +61,11 @@ export function retryDelayMs(response: Response): number {
 }
 
 export function retryDelayFromMessage(message: string | undefined): number {
-  const match = message?.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)(ms|s|m)/i);
+  // Groq phrases this as "try again in 3.2s" and Gemini as "Please retry in
+  // 3.2s". Matching only the former silently collapsed every Gemini 429 to
+  // the 100ms floor below, which spent two more requests against the very
+  // quota that had just been exhausted.
+  const match = message?.match(/(?:try again|retry) in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)/i);
   if (!match) return 0;
   const amount = Number(match[1]);
   const unit = match[2].toLowerCase();
@@ -78,6 +82,29 @@ export interface ProviderErrorDetail {
   type?: string;
   code?: string;
   message?: string;
+  /** The provider's own requested wait, when it stated one in the body rather than a header. */
+  retryAfterMs?: number;
+}
+
+/**
+ * Reads a `google.rpc.RetryInfo` out of a Gemini error body. Gemini sends no
+ * `Retry-After` and no `x-ratelimit-*` header on a 429 -- the only machine-
+ * readable delay it gives is this one, nested in `error.details`. It is
+ * parsed to a number here so the one field that escapes `details` cannot
+ * carry provider text into the log.
+ */
+function readRetryInfoMs(error: Record<string, unknown>): number | undefined {
+  const details: unknown = error.details;
+  if (!Array.isArray(details)) return undefined;
+  for (const entry of details) {
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as Record<string, unknown>;
+    if (typeof record["@type"] !== "string" || !record["@type"].endsWith("google.rpc.RetryInfo")) continue;
+    // A protobuf Duration on the wire is always seconds with an `s` suffix.
+    const match = typeof record.retryDelay === "string" ? record.retryDelay.match(/^([0-9]+(?:\.[0-9]+)?)s$/) : null;
+    if (match) return Math.ceil(Number(match[1]) * 1_000);
+  }
+  return undefined;
 }
 
 /**
@@ -93,11 +120,13 @@ export function readProviderErrorDetail(status: number, body: string): ProviderE
     const error: unknown = (parsed as { error?: unknown } | null)?.error;
     if (!error || typeof error !== "object") return { status };
     const record = error as Record<string, unknown>;
+    const retryAfterMs = readRetryInfoMs(record);
     return {
       status,
       type: typeof record.type === "string" ? record.type : undefined,
       code: typeof record.code === "string" ? record.code : undefined,
       message: typeof record.message === "string" ? record.message.slice(0, MAX_ERROR_MESSAGE_CHARS) : undefined,
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     };
   } catch {
     return { status };
@@ -232,7 +261,11 @@ export function createStreamingAdapter(
       const backoff = async (minimumDelayMs = 0): Promise<boolean> => {
         if (attemptCount > config.maxRetries) return false;
         const delay = Math.max(minimumDelayMs, Math.floor((100 * (2 ** (attemptCount - 1))) + random() * 100));
-        if ((now() - startedAt) + delay > config.retryMaxElapsedMs) return false;
+        // `timeoutSignal` spans the whole call, sleeps included, so a wait
+        // that would outlive it must be declined here rather than entered:
+        // sleeping into that abort would surface the provider's own
+        // "retry in 47s" as a raw timeout instead of AI_RATE_LIMITED.
+        if ((now() - startedAt) + delay > Math.min(config.retryMaxElapsedMs, config.timeoutMs)) return false;
         await sleep(delay, signal);
         return true;
       };
@@ -268,7 +301,7 @@ export function createStreamingAdapter(
               ...detail,
             });
             const mapped = mapStatus(response.status, detail);
-            if (isRetryable(mapped.code) && await backoff(Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message)))) continue;
+            if (isRetryable(mapped.code) && await backoff(Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message), detail.retryAfterMs ?? 0))) continue;
             throw mapped;
           }
           for (const header of provider.requestIdHeaders ?? []) {

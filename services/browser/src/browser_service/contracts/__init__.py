@@ -48,10 +48,12 @@ from browser_service.contracts.generated.cancellation_request import (
 from browser_service.contracts.generated.cancellation_result import (
     CancellationResult as _GeneratedCancellationResult,
 )
+from browser_service.contracts.generated.compiled_generated_ui_artifact import (
+    CompiledGeneratedUiArtifact,
+)
 from browser_service.contracts.generated.correlation_metadata import (
     CorrelationMetadata,
 )
-from browser_service.contracts.generated.compiled_generated_ui_artifact import CompiledGeneratedUiArtifact
 from browser_service.contracts.generated.error_result import ErrorResult
 from browser_service.contracts.generated.evidence_item import (
     EvidenceItem as _GeneratedEvidenceItem,
@@ -64,9 +66,6 @@ from browser_service.contracts.generated.invocation_get_page_understanding_slice
 )
 from browser_service.contracts.generated.invocation_navigate_and_extract import (
     InvocationNavigateAndExtract as _GeneratedInvocationNavigateAndExtract,
-)
-from browser_service.contracts.generated.invocation_propose_generative_ui_plan import (
-    InvocationProposeGenerativeUiPlan as _GeneratedInvocationProposeGenerativeUiPlan,
 )
 from browser_service.contracts.generated.invocation_system_echo import (
     InvocationSystemEcho as _GeneratedInvocationSystemEcho,
@@ -84,15 +83,14 @@ from browser_service.contracts.generated.success_result_get_page_understanding_s
 from browser_service.contracts.generated.success_result_navigate_and_extract import (
     SuccessResultNavigateAndExtract as _GeneratedSuccessResultNavigateAndExtract,
 )
-from browser_service.contracts.generated.success_result_propose_generative_ui_plan import (
-    SuccessResultProposeGenerativeUiPlan as _GeneratedSuccessResultProposeGenerativeUiPlan,
-)
 from browser_service.contracts.generated.success_result_system_echo import (
     SuccessResultSystemEcho as _GeneratedSuccessResultSystemEcho,
 )
 from browser_service.contracts.generated.tool_definition import ToolDefinition
 from browser_service.contracts.generated.ui_generation_request import UiGenerationRequest
-from browser_service.contracts.generated.ui_generation_response import UiGenerationResponse as _GeneratedUiGenerationResponse
+from browser_service.contracts.generated.ui_generation_response import (
+    UiGenerationResponse as _GeneratedUiGenerationResponse,
+)
 
 __all__ = [
     "ForbiddenCredentialFieldError",
@@ -113,8 +111,6 @@ __all__ = [
     "SuccessResultExploreWebsite",
     "InvocationGetPageUnderstandingSlice",
     "SuccessResultGetPageUnderstandingSlice",
-    "InvocationProposeGenerativeUiPlan",
-    "SuccessResultProposeGenerativeUiPlan",
     "UiGenerationRequest",
     "UiGenerationResponse",
     "CompiledGeneratedUiArtifact",
@@ -317,20 +313,3 @@ class SuccessResultGetPageUnderstandingSlice(_GeneratedSuccessResultGetPageUnder
         assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
         return self
 
-
-class InvocationProposeGenerativeUiPlan(_GeneratedInvocationProposeGenerativeUiPlan):
-    """Rejects credential-shaped field names in `arguments`."""
-
-    @model_validator(mode="after")
-    def _check_arguments_for_forbidden_fields(self) -> InvocationProposeGenerativeUiPlan:
-        assert_no_forbidden_fields(self.arguments.model_dump(), base_path="arguments")
-        return self
-
-
-class SuccessResultProposeGenerativeUiPlan(_GeneratedSuccessResultProposeGenerativeUiPlan):
-    """Rejects credential-shaped field names in `payload`."""
-
-    @model_validator(mode="after")
-    def _check_payload_for_forbidden_fields(self) -> SuccessResultProposeGenerativeUiPlan:
-        assert_no_forbidden_fields(self.payload.model_dump(), base_path="payload")
-        return self

@@ -35,7 +35,12 @@ function displayProps(request: UiGenerationRequest): Readonly<Record<string, unk
     records: request.recordBindings.map((record) => ({ id: record.recordId, collectionId: record.collectionId })),
     sources: request.sourceBindings.map((source) => ({ id: source.sourceId, provider: source.provider, label: source.displayLabel })),
     media: request.mediaBindings.map((media) => ({ id: media.mediaId, kind: media.kind, altText: media.altText, safeReference: media.safeReference })),
-    capabilities: request.capabilityBindings.map((capability) => ({ id: capability.capabilityId, allowedCommandKinds: capability.allowedCommandKinds })),
+    capabilities: request.capabilityBindings.map((capability) => ({
+      id: capability.capabilityId,
+      allowedCommandKinds: capability.allowedCommandKinds,
+      execution: capability.interactionExecution,
+      promptTemplateId: capability.promptTemplateId,
+    })),
   });
 }
 

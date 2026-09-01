@@ -6,6 +6,7 @@ import { ChatOrchestrator, compressObservation, createToolRegistry, Orchestrator
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import {
+  buildImplementationPlan,
   buildUiGenerationRequest,
   createAdaptiveGeneratedUi,
   createUiGenerationAdapter,
@@ -27,7 +28,7 @@ const conversations = new InMemoryConversationRepository();
 const GENERATED_UI_RUNTIME_EXPORTS = [
   "GeneratedViewProps", "Stack", "Inline", "Grid", "Card", "Text", "Heading", "Badge", "List", "ListItem",
   "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell", "Label", "Select", "Option",
-  "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal", "CommandButton", "useBoundedState",
+  "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal", "CommandButton", "useBoundedState", "useLocalCollection",
   "formatNumber", "formatCurrency", "formatDate",
 ];
 
@@ -76,8 +77,16 @@ async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
       navigateAndExtractExecutor: browserServiceClient,
       phaseThreeExecutor: browserServiceClient,
     }),
-    generateUi: uiRole ? async ({ ownerId, task, plan, pageUnderstanding, signal }) => {
-      const request = buildUiGenerationRequest({ task, plan, page: pageUnderstanding, requestId: randomUUID(), userId: ownerId });
+    generateUi: uiRole ? async ({ ownerId, task, result, signal }) => {
+      const requestId = randomUUID();
+      // Two separate models, in order: the extraction model turns the
+      // capture plus the user's prompt into a free-form implementation
+      // prompt and a validated metadata artifact, and only then does the UI
+      // model write React from them. Without EXTRACTION_MODEL the plan
+      // degrades to a deterministic one rather than disappearing.
+      const brief = await buildImplementationPlan(extractionAdapter, { correlationId: requestId, task, result, signal });
+      const pageUnderstanding = result.payload.pageUnderstanding;
+      const request = buildUiGenerationRequest({ task, brief, page: pageUnderstanding, requestId, userId: ownerId });
       const adapter = createUiGenerationAdapter({
         model: uiRole.model, compilerVersion: GENERATED_UI_TOOLCHAIN_VERSION,
         maxTokens: uiRole.provider === "groq" ? 3_000 : 16_000, deadlineMs: 90_000,

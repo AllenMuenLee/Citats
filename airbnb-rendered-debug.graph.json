@@ -1,0 +1,3677 @@
+{
+  "htmlLength": 905996,
+  "nodeCount": 272,
+  "collections": [
+    {
+      "handle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB",
+      "role": "generic_records",
+      "itemCount": 3,
+      "recordHandles": [
+        "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r0",
+        "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r1",
+        "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r2"
+      ],
+      "truncated": false,
+      "paginationHandle": null
+    },
+    {
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "role": "generic_records",
+      "itemCount": 5,
+      "recordHandles": [
+        "collection-6CTFPWDzFFZYej_F6f0dSnzc-r0",
+        "collection-6CTFPWDzFFZYej_F6f0dSnzc-r1",
+        "collection-6CTFPWDzFFZYej_F6f0dSnzc-r2",
+        "collection-6CTFPWDzFFZYej_F6f0dSnzc-r3",
+        "collection-6CTFPWDzFFZYej_F6f0dSnzc-r4"
+      ],
+      "truncated": false,
+      "paginationHandle": null
+    },
+    {
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "role": "generic_records",
+      "itemCount": 10,
+      "recordHandles": [
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r0",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r1",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r2",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r3",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r4",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r5",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r6",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r7",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r8",
+        "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r9"
+      ],
+      "truncated": false,
+      "paginationHandle": null
+    },
+    {
+      "handle": "collection-6KFskHLG9TF-mhiyuavZ9OA0",
+      "role": "generic_records",
+      "itemCount": 3,
+      "recordHandles": [
+        "collection-6KFskHLG9TF-mhiyuavZ9OA0-r0",
+        "collection-6KFskHLG9TF-mhiyuavZ9OA0-r1",
+        "collection-6KFskHLG9TF-mhiyuavZ9OA0-r2"
+      ],
+      "truncated": false,
+      "paginationHandle": null
+    }
+  ],
+  "sourceCandidates": [],
+  "nodes": [
+    {
+      "kind": "repeated_record",
+      "handle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB",
+      "index": 0
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r1",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB",
+      "index": 1
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB-r2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-3oXVmeMpgUV_2gRtY4bQfjsB",
+      "index": 2
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc-r0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "index": 0
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc-r1",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "index": 1
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc-r2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "index": 2
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc-r3",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "index": 3
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6CTFPWDzFFZYej_F6f0dSnzc-r4",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6CTFPWDzFFZYej_F6f0dSnzc",
+      "index": 4
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 0
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r1",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 1
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 2
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r3",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 3
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r4",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 4
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r5",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 5
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r6",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 6
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r7",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 7
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r8",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 8
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_-r9",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-kkJk3iQjxsjLSQU2sjPcDRP_",
+      "index": 9
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6KFskHLG9TF-mhiyuavZ9OA0-r0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6KFskHLG9TF-mhiyuavZ9OA0",
+      "index": 0
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6KFskHLG9TF-mhiyuavZ9OA0-r1",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6KFskHLG9TF-mhiyuavZ9OA0",
+      "index": 1
+    },
+    {
+      "kind": "repeated_record",
+      "handle": "collection-6KFskHLG9TF-mhiyuavZ9OA0-r2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "generic_record",
+      "collectionHandle": "collection-6KFskHLG9TF-mhiyuavZ9OA0",
+      "index": 2
+    },
+    {
+      "kind": "link",
+      "handle": "node-OMrfNrGc8lMTHhu7ODdJsc2T",
+      "boundingBox": {
+        "x": -1,
+        "y": -1,
+        "width": 1,
+        "height": 1
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Skip to content",
+      "destination": "https://www.airbnb.com/s/Seattle--WA/homes",
+      "destinationClass": "same_page"
+    },
+    {
+      "kind": "feedback",
+      "handle": "node-ckWvMk_VbNo-BukT_znNcAy3",
+      "boundingBox": {
+        "x": 0,
+        "y": 0,
+        "width": 743,
+        "height": 0
+      },
+      "visibility": "visible",
+      "role": "alert",
+      "text": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-yFh3Zvsc7nALJ1b2OCosaZnN",
+      "boundingBox": {
+        "x": 0,
+        "y": 0,
+        "width": 743,
+        "height": 136
+      },
+      "visibility": "visible",
+      "role": "banner",
+      "label": null
+    },
+    {
+      "kind": "link",
+      "handle": "node--Ljv6xrGMxzYqupMXLv65BfO",
+      "boundingBox": {
+        "x": 32,
+        "y": 0,
+        "width": 30,
+        "height": 80
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb homepage",
+      "destination": "https://www.airbnb.com/",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "svg_chart",
+      "handle": "node-Fa2qsbIfsC1DmcnuK2ylQMbL",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "illustration",
+      "label": null
+    },
+    {
+      "kind": "svg_chart",
+      "handle": "node-WvqYCkYdJbP7klP7AU80UKFU",
+      "boundingBox": {
+        "x": 32,
+        "y": 24,
+        "width": 30,
+        "height": 32
+      },
+      "visibility": "visible",
+      "role": "illustration",
+      "label": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-ZKBYdst9pMQ7nFJHgFiAXVbE",
+      "boundingBox": {
+        "x": 32,
+        "y": 0,
+        "width": 679,
+        "height": 80
+      },
+      "visibility": "visible",
+      "role": "search",
+      "label": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-jUUXHLgSy_hn2ZKYFKoci_HX",
+      "boundingBox": {
+        "x": 121.5,
+        "y": -87,
+        "width": 500.0,
+        "height": 104
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Start your search",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-H5NhuFmku4zrTCNpi2xEFMO4",
+      "boundingBox": {
+        "x": 121.5,
+        "y": -59,
+        "width": 500.0,
+        "height": 48
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Homes Experiences Services",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-LEAbkofHsPaQjsgaU2qI4TAp",
+      "boundingBox": {
+        "x": 121.5,
+        "y": -59,
+        "width": 500.0,
+        "height": 48
+      },
+      "visibility": "visible",
+      "role": "tab_list",
+      "ordered": null,
+      "itemCount": 0,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "control",
+      "handle": "node-ZWMrdfDcDnp0Lcw55imVLJOW",
+      "boundingBox": {
+        "x": 173.0625,
+        "y": -59,
+        "width": 98.5625,
+        "height": 36
+      },
+      "visibility": "visible",
+      "role": "tab",
+      "label": "Homes Homes",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-FSYPGpxt-S2XU5LdYb8zz9Fe",
+      "boundingBox": {
+        "x": 173.0625,
+        "y": -41.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Homes",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-ElGEKQtXsmEzr9jkptpH_g4E",
+      "boundingBox": {
+        "x": 306.625,
+        "y": -59,
+        "width": 124.671875,
+        "height": 36
+      },
+      "visibility": "visible",
+      "role": "tab",
+      "label": "Experiences Experiences",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-xuxWkFafPFNhHR6zD_S3F4d-",
+      "boundingBox": {
+        "x": 306.625,
+        "y": -41.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Experiences",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-Vw8hsrywCqDxUsKrCS_JWYh8",
+      "boundingBox": {
+        "x": 466.296875,
+        "y": -59,
+        "width": 103.640625,
+        "height": 36
+      },
+      "visibility": "visible",
+      "role": "tab",
+      "label": "Services Services",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-lDB74l_745_mtjjPpUrqgVBN",
+      "boundingBox": {
+        "x": 466.296875,
+        "y": -41.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Services",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-O63XyLZkcSgXvUec4PH8g1An",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 17,
+        "width": 339.5,
+        "height": 46
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Start your search",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-Ij2ySIRI6YxyzJhN8ZTLKNj9",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 17,
+        "width": 339.5,
+        "height": 46
+      },
+      "visibility": "visible",
+      "role": "search",
+      "label": "Start your search"
+    },
+    {
+      "kind": "text",
+      "handle": "node-9Qgicc2MF7QMUaCFOL0OQiQS",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 39.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Start your search",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-oWYJGKK9hrwSj4KGw2M9ss2a",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 17,
+        "width": 105.0625,
+        "height": 46
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Location",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": true,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-rmslkRKaD5STS5JkFJ1Sa7IA",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 39.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Location",
+      "headingLevel": null
+    },
+    {
+      "kind": "image",
+      "handle": "node-cIHaFjquph72sNl7nT7P09mr",
+      "boundingBox": {
+        "x": 209.75,
+        "y": 16,
+        "width": 48.0,
+        "height": 48
+      },
+      "visibility": "visible",
+      "role": "photo",
+      "altText": null,
+      "source": "https://a0.muscache.com/im/pictures/airbnb-platform-assets/AirbnbPlatformAssets-search-bar-icons/original/4aae4ed7-5939-4e76-b100-e69440ebeae4.png",
+      "intrinsicWidth": null,
+      "intrinsicHeight": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-8fgfs82GFdO4Px79tF0ft_W5",
+      "boundingBox": {
+        "x": 257.75,
+        "y": 29,
+        "width": 33.0625,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anywhere",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-66tybF6TKYvKr2OTQbsKcfxG",
+      "boundingBox": {
+        "x": 257.75,
+        "y": 29,
+        "width": 67.3125,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anywhere",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-MgQ_z5sP4GGU8i3LqZApSFzp",
+      "boundingBox": {
+        "x": 257.75,
+        "y": 31,
+        "width": 67.3125,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anywhere",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-JktWuUSmijg4JyXK3ObFCZtq",
+      "boundingBox": {
+        "x": 201.75,
+        "y": 29,
+        "width": 67.3125,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anywhere",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-MG3o_09CpxNi1UE37gbl2suR",
+      "boundingBox": {
+        "x": 307.8125,
+        "y": 17,
+        "width": 88.375,
+        "height": 46
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Check in / Check out",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": true,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-QFw3qVQsV-cWCmD1qqQWOZW9",
+      "boundingBox": {
+        "x": 307.8125,
+        "y": 39.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Check in / Check out",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-s0_MJIjy7VDtGYqrJlVjZmOv",
+      "boundingBox": {
+        "x": 323.8125,
+        "y": 29,
+        "width": 56.375,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anytime",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-m25XYF1_iQc0KCzJxPng6YwA",
+      "boundingBox": {
+        "x": 323.8125,
+        "y": 29,
+        "width": 56.375,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anytime",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-mTonhnz1jUm3mE7Cl1S1MYvh",
+      "boundingBox": {
+        "x": 323.8125,
+        "y": 31,
+        "width": 56.375,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anytime",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-kik_2GZ0moMNfIAc8GMBsHOq",
+      "boundingBox": {
+        "x": 323.8125,
+        "y": 29,
+        "width": 56.375,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Anytime",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-7PN63kjk80FK87Q9L49_t5p-",
+      "boundingBox": {
+        "x": 397.1875,
+        "y": 17,
+        "width": 105.0625,
+        "height": 46
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Guests",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": true,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-VtoUGx0QCmHEgrZyf3KcngLw",
+      "boundingBox": {
+        "x": 397.1875,
+        "y": 39.5,
+        "width": 1.0,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Guests",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-qjxlOqE6v8hHWSQzUtvStzWX",
+      "boundingBox": {
+        "x": 413.1875,
+        "y": 29,
+        "width": 73.0625,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Add guests",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Bbv5AzJRd0SfY0DlWNUvHXnU",
+      "boundingBox": {
+        "x": 413.1875,
+        "y": 29,
+        "width": 75.125,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Add guests",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Eg7L0u79itu0-bThtrpOtSgj",
+      "boundingBox": {
+        "x": 413.1875,
+        "y": 31,
+        "width": 75.125,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Add guests",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-0SqK8Yf5u57X_g2AJDCzgiKV",
+      "boundingBox": {
+        "x": 413.1875,
+        "y": 29,
+        "width": 75.125,
+        "height": 22
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Add guests",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-HYVVnsinXLjAdLzcxgDWPiyN",
+      "boundingBox": {
+        "x": 619,
+        "y": 0,
+        "width": 92,
+        "height": 80
+      },
+      "visibility": "visible",
+      "role": "navigation",
+      "label": "Profile"
+    },
+    {
+      "kind": "link",
+      "handle": "node-t52DhbIFFzoVFv1PPInnORiv",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Become a host",
+      "destination": "https://www.airbnb.com/s/Seattle--WA/homes",
+      "destinationClass": "same_page"
+    },
+    {
+      "kind": "text",
+      "handle": "node-RAsrHYFGhbJ8u6SlGO2eb8DO",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Become a host",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-hepm7lpxy6UqT785ZpwyUbDe",
+      "boundingBox": {
+        "x": 619,
+        "y": 20,
+        "width": 40,
+        "height": 40
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Choose a language and currency",
+      "destination": "https://www.airbnb.com/s/Seattle--WA/homes",
+      "destinationClass": "same_page"
+    },
+    {
+      "kind": "link",
+      "handle": "node-pYLBz3l0fabsBNhGRWmPq5Ac",
+      "boundingBox": {
+        "x": 671,
+        "y": 20,
+        "width": 40,
+        "height": 40
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Main navigation menu",
+      "destination": "https://www.airbnb.com/s/Seattle--WA/homes",
+      "destinationClass": "same_page"
+    },
+    {
+      "kind": "link",
+      "handle": "node-4lzq_my0S89zxFIYdUzyQHKB",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Help Center",
+      "destination": "https://www.airbnb.com/help",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-f-zioErK3Lm5v41koivm1J4J",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Help Center",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-2W2dsj06VNPti8KkLkFY6Hvc",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Help Center",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-0D4_05iWFPLX9lGd48siEvc7",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Help Center",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node--8IPZ3kozmeeg7pYlkAK0zBD",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "button",
+      "label": "Become a host It's easy to start hosting and earn extra income.",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-e7prSXHzgZ1P1ZgDBzS3Cgaz",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Become a host It's easy to start hosting and earn extra income.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Lo8UqSO65yh3-wpA2cJRqqH2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Become a host It's easy to start hosting and earn extra income.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-YwrMZ5C0HvkcHQC0CYrU8PlX",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Become a host",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-awBm4TWFl6Rk0KhaYUuAAjkL",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "It's easy to start hosting and earn extra income.",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-VM50q0OA2ZMlx-PfLN5AEowk",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Refer a Host",
+      "destination": "https://www.airbnb.com/refer",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-8bjVTL-YS7vazRXSyFjEM_Ms",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Refer a Host",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-pki4lyVD2vozgK4XoeMZvBdy",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Refer a Host",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-iTTkhGcYSuDZIGMWBi4xgkzX",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Refer a Host",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-AGrf2xEyv_GJBY6Q5Cm9Q4al",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Find a co-host",
+      "destination": "https://www.airbnb.com/co-hosts/home",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-CSbw7Qoxpq95FEHvK9PCE9rs",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Find a co-host",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-CuEGUHZ0QH-1Wp2tOZDOIGOD",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Find a co-host",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-KWk66iNYz5m5Sh6uJ7IM1WjG",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Find a co-host",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-roZX9GedauA-srq6CRBleNeX",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Gift cards",
+      "destination": "https://www.airbnb.com/giftcards",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-MdC_2A2yhpiTOrP4SKmE7SO_",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Gift cards",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-GtgqGu4TGgKwclaZ0xYgtd2_",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Gift cards",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-OU9ebaq3C9Fq8FHOoPlrKJhP",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Gift cards",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-p8EANwdMOaLRQDMU1DiYeKQG",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Log in or sign up",
+      "destination": "https://www.airbnb.com/signup_login",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-tYxBpjWtA3gBeU2RdqU2YIcD",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Log in or sign up",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Ijg1zO2N4kEHlfGKeMeObuD7",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Log in or sign up",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-zok7pquDdMEtVPk9C2IY72jf",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Log in or sign up",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-4U5kAHNz37qWPclufRK3zWuI",
+      "boundingBox": {
+        "x": 711,
+        "y": 34,
+        "width": 0,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Close",
+      "destination": "https://www.airbnb.com/s/Seattle--WA/homes",
+      "destinationClass": "same_page"
+    },
+    {
+      "kind": "text",
+      "handle": "node-9kdjzOpspofTwQKkSeYBfK8U",
+      "boundingBox": {
+        "x": 32,
+        "y": 81,
+        "width": 679,
+        "height": 54
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-tSAV46Edb5WNRmJoPLP1yZXY",
+      "boundingBox": {
+        "x": -7.5,
+        "y": 81,
+        "width": 758.0,
+        "height": 54
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-gHQQ3e7fUkiEmm2dbHXOmm67",
+      "boundingBox": {
+        "x": -7.5,
+        "y": 81,
+        "width": 758.0,
+        "height": 0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-leIYMW6oPQ1JN7ehS9lvglLP",
+      "boundingBox": {
+        "x": -7.5,
+        "y": 81,
+        "width": 1.0,
+        "height": 1
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-Wz7UIqCfG0eSymSb0tG8jvcX",
+      "boundingBox": {
+        "x": 37.5,
+        "y": 93,
+        "width": 33.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Filters",
+      "state": {
+        "expanded": false,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-P_1I1bP1eJBWu9QxsrvGm2qS",
+      "boundingBox": {
+        "x": 37.5,
+        "y": 93,
+        "width": 33.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-TjnD2O1vUTyLHSKNFlQQoKyj",
+      "boundingBox": {
+        "x": 37.5,
+        "y": 93,
+        "width": 33.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-q0OT3h3KS9T65-tBnT_ZzSig",
+      "boundingBox": {
+        "x": 37.5,
+        "y": 93,
+        "width": 33.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Filters",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-Chs-VzaT7YGHhydHBS9oAPsZ",
+      "boundingBox": {
+        "x": 122.140625,
+        "y": 93,
+        "width": 58.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 1",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-DPuWTB0eVrqvMQ1vmKMKKAlX",
+      "boundingBox": {
+        "x": 122.140625,
+        "y": 93,
+        "width": 58.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 1",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Ra1QkhRhnnLPnDgd86v6Z_Xu",
+      "boundingBox": {
+        "x": 122.140625,
+        "y": 93,
+        "width": 58.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 1",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-ClnXVU8wpOtiHtU78k2M9UT0",
+      "boundingBox": {
+        "x": 214.28125,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 2",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-1YxKlpmUFpdJxwvj3dZJoArJ",
+      "boundingBox": {
+        "x": 214.28125,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 2",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-cR9Xb8O9J5xbsoaEZ3etgGp1",
+      "boundingBox": {
+        "x": 214.28125,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 2",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-ECcyWnbWJAluSPQF1YWF2FnQ",
+      "boundingBox": {
+        "x": 308.15625,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 3",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-qsHcNjc9A_aCpB0PjnSYdUAp",
+      "boundingBox": {
+        "x": 308.15625,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 3",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-zRTUEyPHlD3TchvVkRxSyAYK",
+      "boundingBox": {
+        "x": 308.15625,
+        "y": 93,
+        "width": 59.875,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 3",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-q2eazivCLtWVaHEbezdOufJi",
+      "boundingBox": {
+        "x": 402.03125,
+        "y": 93,
+        "width": 60.109375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 4",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-F-mn2P_nKPGDICTTv-buTj10",
+      "boundingBox": {
+        "x": 402.03125,
+        "y": 93,
+        "width": 60.109375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 4",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-rd2Sp_oxZsb3A-JBRbQQUb8Y",
+      "boundingBox": {
+        "x": 402.03125,
+        "y": 93,
+        "width": 60.109375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 4",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-RARN_om_IgPIBj6JHLJtfCdX",
+      "boundingBox": {
+        "x": 496.140625,
+        "y": 93,
+        "width": 59.734375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 5",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-PvNmbhmGFe_JBKRG_U4ZLjcv",
+      "boundingBox": {
+        "x": 496.140625,
+        "y": 93,
+        "width": 59.734375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 5",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-2v1Afm7291MrmyMh22pCV5E6",
+      "boundingBox": {
+        "x": 496.140625,
+        "y": 93,
+        "width": 59.734375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 5",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-dbdG_YMt5Q3KUiBspJ3ltyTZ",
+      "boundingBox": {
+        "x": 589.875,
+        "y": 93,
+        "width": 60.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 6",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-tmUB8h6iAdzH5keY7yDVmKKC",
+      "boundingBox": {
+        "x": 589.875,
+        "y": 93,
+        "width": 60.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 6",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-f9gisgxpm9oaqsf6cWoAL5kn",
+      "boundingBox": {
+        "x": 589.875,
+        "y": 93,
+        "width": 60.140625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 6",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-iRqDpgRdJmMWXhzV_63G76-s",
+      "boundingBox": {
+        "x": 684.015625,
+        "y": 93,
+        "width": 59.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 7",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-1ypBMkNCWlP2YLK3Z1G9WJCd",
+      "boundingBox": {
+        "x": 684.015625,
+        "y": 93,
+        "width": 59.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 7",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-12VfVghp8rloY_roYrEEhcIq",
+      "boundingBox": {
+        "x": 684.015625,
+        "y": 93,
+        "width": 59.640625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 7",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-YSEI9AFUPx3ZHmyx_it_AKKF",
+      "boundingBox": {
+        "x": 777.65625,
+        "y": 93,
+        "width": 60.125,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 8",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-_UYgQd_4RjAROenr14z3Ctim",
+      "boundingBox": {
+        "x": 777.65625,
+        "y": 93,
+        "width": 60.125,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 8",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-BJnL8XJ2xoJf5keO6AKJ61Bh",
+      "boundingBox": {
+        "x": 777.65625,
+        "y": 93,
+        "width": 60.125,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 8",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-spOam7gxSGhdSzaReNYP332x",
+      "boundingBox": {
+        "x": 871.78125,
+        "y": 93,
+        "width": 60.09375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 9",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-uo8OyF2DG3t_585jiNHGfE4-",
+      "boundingBox": {
+        "x": 871.78125,
+        "y": 93,
+        "width": 60.09375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 9",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-RE6WMOS21jT8ZgPBA8rdmWUX",
+      "boundingBox": {
+        "x": 871.78125,
+        "y": 93,
+        "width": 60.09375,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 9",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-mkYoBmch4PHEKS3UwhCCF4_a",
+      "boundingBox": {
+        "x": 965.875,
+        "y": 93,
+        "width": 65.40625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "toggle",
+      "label": "Fake title 10",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-N4-d-wkrNOaI5Uu47e0spCiy",
+      "boundingBox": {
+        "x": 965.875,
+        "y": 93,
+        "width": 65.40625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 10",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-8y5W3aPgyuaYPcwTmv-zwTlz",
+      "boundingBox": {
+        "x": 965.875,
+        "y": 93,
+        "width": 65.40625,
+        "height": 16
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Fake title 10",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-eqnXXmsg-ZCgRAonRZVuVOYE",
+      "boundingBox": {
+        "x": 32,
+        "y": 136,
+        "width": 679,
+        "height": 3656.640625
+      },
+      "visibility": "visible",
+      "role": "main",
+      "label": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-XA1uteEXSRKpqk0S8kU53fTO",
+      "boundingBox": {
+        "x": 332.859375,
+        "y": 401,
+        "width": 92.28125,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Show map",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-I2EeO7dOJzdppftPfA7SHX0z",
+      "boundingBox": {
+        "x": 332.859375,
+        "y": 401,
+        "width": 92.28125,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Show map",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-_Q2XZj1Gs7gEwaA78MX_CfQJ",
+      "boundingBox": {
+        "x": 332.859375,
+        "y": 401,
+        "width": 68.28125,
+        "height": 18
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Show map",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-sI2_OQpGwVMLpVt74VV_feIe",
+      "boundingBox": {
+        "x": 32,
+        "y": 160,
+        "width": 240,
+        "height": 27.015625
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Search results; Over 1,000 stays",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-CfmfEIo-IIT_v_QCKllmKFOy",
+      "boundingBox": {
+        "x": 32,
+        "y": 160,
+        "width": 240,
+        "height": 27.015625
+      },
+      "visibility": "visible",
+      "role": "section",
+      "label": "Search results; Over 1,000 stays"
+    },
+    {
+      "kind": "text",
+      "handle": "node-Zkw-oFdGgeY_vfHsvi4jhMeW",
+      "boundingBox": {
+        "x": 32,
+        "y": 160,
+        "width": 240,
+        "height": 27.015625
+      },
+      "visibility": "visible",
+      "role": "heading",
+      "text": "Search results; Over 1,000 stays",
+      "headingLevel": 1
+    },
+    {
+      "kind": "text",
+      "handle": "node-Bu-v5Elbh4g837QOLtz49tRT",
+      "boundingBox": {
+        "x": 32,
+        "y": 160,
+        "width": 1,
+        "height": 1
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Search results; Over 1,000 stays",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-fD2lfdNArahDBBqNDVsdtVCg",
+      "boundingBox": {
+        "x": 32,
+        "y": 211.015625,
+        "width": 679,
+        "height": 3477.625
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Loading",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-tcF-HaTIfWKXYWDNxzy6L7Ts",
+      "boundingBox": {
+        "x": 711,
+        "y": 176,
+        "width": 0,
+        "height": 282
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Google Map",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-srsH8XRv0luvoj3c0v5EQ6VR",
+      "boundingBox": {
+        "x": 40,
+        "y": 3792.640625,
+        "width": 663,
+        "height": 582.171875
+      },
+      "visibility": "visible",
+      "role": "contentinfo",
+      "label": "Site Footer"
+    },
+    {
+      "kind": "text",
+      "handle": "node-arswmK9h3tD5QMhrXStpvGuj",
+      "boundingBox": {
+        "x": 40,
+        "y": 3792.640625,
+        "width": 663,
+        "height": 582.171875
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Site Footer Support Hosting",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-jnNBTC4-PWO755_-fxoPZ1pt",
+      "boundingBox": {
+        "x": 40,
+        "y": 3792.640625,
+        "width": 1,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Site Footer",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-WsRheY9zWk9Rte5EnZDTM660",
+      "boundingBox": {
+        "x": 40,
+        "y": 3792.640625,
+        "width": 1,
+        "height": 30.015625
+      },
+      "visibility": "visible",
+      "role": "heading",
+      "text": "Site Footer",
+      "headingLevel": 2
+    },
+    {
+      "kind": "text",
+      "handle": "node-6lyyM5PB_7mg59q9E92EjNvx",
+      "boundingBox": {
+        "x": 40,
+        "y": 3816.640625,
+        "width": 663,
+        "height": 414.171875
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Support Hosting",
+      "headingLevel": null
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-9xNupKCkJi-6fgF5yGjwPZT9",
+      "boundingBox": {
+        "x": 40,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 414.171875
+      },
+      "visibility": "visible",
+      "role": "section",
+      "label": "Support"
+    },
+    {
+      "kind": "text",
+      "handle": "node-QhafSFgwqf9Wl5asU-3EKRMa",
+      "boundingBox": {
+        "x": 40,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "heading",
+      "text": "Support",
+      "headingLevel": 3
+    },
+    {
+      "kind": "list",
+      "handle": "node--j0M3gSP8ZgCt1EpcanXM8Ow",
+      "boundingBox": {
+        "x": 40,
+        "y": 3850.640625,
+        "width": 210.328125,
+        "height": 272.125
+      },
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 8,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-94ihB8kKLkI1OLqwqIZeyT5T",
+      "boundingBox": {
+        "x": 40,
+        "y": 3851.640625,
+        "width": 78.140625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Help Center",
+      "destination": "https://www.airbnb.com/help/home",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-qv1EfXAoFtHJD9R8RSnAlt_0",
+      "boundingBox": {
+        "x": 40,
+        "y": 3887.65625,
+        "width": 176.34375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Get help with a safety issue",
+      "destination": "https://www.airbnb.com/help/contact-us",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-bcDA2dTZoY_2o-Yx_TITYUdq",
+      "boundingBox": {
+        "x": 40,
+        "y": 3923.671875,
+        "width": 57.4375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "AirCover",
+      "destination": "https://www.airbnb.com/aircover",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-HswxjuTNHgNfsb6zU9vD3tqj",
+      "boundingBox": {
+        "x": 40,
+        "y": 3959.6875,
+        "width": 103.921875,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Travel insurance",
+      "destination": "https://www.airbnb.com/travelinsurance",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-ik7lH7hBKSGL954GOWksb5EN",
+      "boundingBox": {
+        "x": 40,
+        "y": 3995.703125,
+        "width": 123.234375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Anti-discrimination",
+      "destination": "https://www.airbnb.com/against-discrimination",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-35OFQBgGD6Mj8kq8XUgIjfhJ",
+      "boundingBox": {
+        "x": 40,
+        "y": 4031.71875,
+        "width": 114,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Disability support",
+      "destination": "https://www.airbnb.com/accessibility",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-2oqiBojSHYppYIS-LPdYoj8v",
+      "boundingBox": {
+        "x": 40,
+        "y": 4067.734375,
+        "width": 132.71875,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Cancellation options",
+      "destination": "https://www.airbnb.com/help/article/2701/extenuating-circumstances-policy-and-the-coronavirus-covid19",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-_RACtrgEY1C5UzAqSWtWvbyz",
+      "boundingBox": {
+        "x": 40,
+        "y": 4103.75,
+        "width": 196.765625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Report neighborhood concern",
+      "destination": "https://www.airbnb.com/neighbors",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-9FuDDL5yQPq5oUyrX6e91Z-D",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 414.171875
+      },
+      "visibility": "visible",
+      "role": "section",
+      "label": "Hosting"
+    },
+    {
+      "kind": "text",
+      "handle": "node-ep6XWOqbtAcYCyQhUTpz3URu",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "heading",
+      "text": "Hosting",
+      "headingLevel": 3
+    },
+    {
+      "kind": "list",
+      "handle": "node-0ao7AJQY8Dta57q_gokXRuro",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3850.640625,
+        "width": 210.328125,
+        "height": 380.171875
+      },
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 11,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-3NDFuIgESdMKDwA9mZEdAJzk",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3851.640625,
+        "width": 116.265625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb your home",
+      "destination": "https://www.airbnb.com/host/homes",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-0BjgxzqHvji7zlfmY7q-VmmM",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3887.65625,
+        "width": 151.4375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb your experience",
+      "destination": "https://www.airbnb.com/host/experiences",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-36S3NAjJEPDSwHhssVf_FbyZ",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3923.671875,
+        "width": 125.359375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb your service",
+      "destination": "https://www.airbnb.com/host/services",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-9rBhlf06cOMFIIyKOAO1Z_fH",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3959.6875,
+        "width": 119.78125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "AirCover for Hosts",
+      "destination": "https://www.airbnb.com/aircover-for-hosts",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-IB3i_GxPqObCsNg8cRAObyo_",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 3995.703125,
+        "width": 117.140625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Hosting resources",
+      "destination": "https://www.airbnb.com/resources",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-_ydz2cmK2496ZZ81vfxHndnf",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4031.71875,
+        "width": 118.828125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Community forum",
+      "destination": "https://community.withairbnb.com/t5/Community-Center/ct-p/community-center",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-hBca-uHNQ4P1w79r4FopT2LG",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4067.734375,
+        "width": 127.734375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Hosting responsibly",
+      "destination": "https://www.airbnb.com/help/responsible-hosting",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-4qAg5hLDr0p4y098PcbQTljy",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4103.75,
+        "width": 177.5625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb-friendly apartments",
+      "destination": "https://www.airbnb.com/airbnb-friendly",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-44CB08SjUcvYtjkyV3a7gdbs",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4139.765625,
+        "width": 153.59375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Join a free hosting class",
+      "destination": "https://www.airbnb.com/e/intro-to-hosting",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-S7HUeMWRgp9N3lBseR6SXP0H",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4175.78125,
+        "width": 90.671875,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Find a co‑host",
+      "destination": "https://www.airbnb.com/host/co-hosts",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-EFiCQWUmEyF4u8FjnmOBZeg3",
+      "boundingBox": {
+        "x": 266.328125,
+        "y": 4211.796875,
+        "width": 77.40625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Refer a host",
+      "destination": "https://www.airbnb.com/refer",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "landmark",
+      "handle": "node-yln6FAAsQZ916w1My3l4wZrW",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 414.171875
+      },
+      "visibility": "visible",
+      "role": "section",
+      "label": "Airbnb"
+    },
+    {
+      "kind": "text",
+      "handle": "node-JQKJ_WcrAFxtIjSrqxHTapO6",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3816.640625,
+        "width": 210.328125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "heading",
+      "text": "Airbnb",
+      "headingLevel": 3
+    },
+    {
+      "kind": "list",
+      "handle": "node-IG1pzLsBXzBW9NcYUtchYUS3",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3850.640625,
+        "width": 210.328125,
+        "height": 200.09375
+      },
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 6,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-0XaJKwiiNhFuQ2xUsmKUZiJS",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3851.640625,
+        "width": 142.546875,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "2026 Summer Release",
+      "destination": "https://www.airbnb.com/release",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-jOyiEnXYYKKwxwB3jJMmbWuH",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3887.65625,
+        "width": 70.515625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Newsroom",
+      "destination": "https://www.airbnb.com/press/news",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-xLgLCtDTzI2wMHEatgA-u-r0",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3923.671875,
+        "width": 50.8125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Careers",
+      "destination": "https://www.airbnb.com/careers",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-3jSdklYk56UnNjzW7jzJoEmX",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3959.6875,
+        "width": 59.0,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Investors",
+      "destination": "https://investors.airbnb.com/",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-RxZip0Kosui-it3_rCQV6ikc",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 3995.703125,
+        "width": 64.0625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Gift cards",
+      "destination": "https://www.airbnb.com/giftcards",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-sHugHbx2Dko85IkzMOz2ME44",
+      "boundingBox": {
+        "x": 492.65625,
+        "y": 4031.71875,
+        "width": 182.265625,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Airbnb.org emergency stays",
+      "destination": "https://www.airbnb.org/",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-Xzd0DBT2N7oUXQ8Uzj8A6elr",
+      "boundingBox": {
+        "x": 40,
+        "y": 4287.8125,
+        "width": 663,
+        "height": 63.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Footer section",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-BH39JgNi-Xn-397i0ButB2Rp",
+      "boundingBox": {
+        "x": 40,
+        "y": 4287.8125,
+        "width": 1,
+        "height": 1.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Footer section",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-pr1KPZu-yzKMMxQo-fITSBdW",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-w76oCGrzdrg6WBRhgF_k8ppi",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a language",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-6vXQPD7SqepUtBQzoqCo9WH_",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-NP-5rizlqQHdFxfx_l8t5D9Y",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-aJL6jMfeS34Tcn2nXvnmoiYy",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a currency",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-e162ZqWDqi3LChko0G4iB7XA",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-uddBy8Jy1foI6lxa33UlCJtl",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-WxEpDZRaizRsEoar0bvFrh2_",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-XnTeMyPWn_labZv2nzNUVUoh",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-mBT5M-Mnnv5xd6Z_WPtDcaHV",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-Ze45_eNB7blHbdPPfxoFTKCG",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Facebook",
+      "destination": "https://www.facebook.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-5P_YTYz81WIF_UXPkHFfdOht",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Twitter",
+      "destination": "https://twitter.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-iKd_MI_9p5vA5iUHptWqzw2F",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Instagram",
+      "destination": "https://instagram.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-7sspKHHDK9KEqZwYmpAP5D4k",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-2bH8-lOXi5BEmdgeGCQtdrC6",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc. ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-SPra-a_tPeN6Z1nNZWWOfL8p",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-xsxgmhWLqAwAMd4YoH1i-jYX",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-9WOW7YGRNsue1yRjAGob5qXm",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-dr1xH4nuQSHREL1wGOesdx8F",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "list",
+      "ordered": true,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "text",
+      "handle": "node-BS_N_azEPgWI7LdTR2_YVyRh",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node--lpvJPX0lUpc3F7MjbU763F7",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Privacy",
+      "destination": "https://www.airbnb.com/terms/privacy_policy",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-e0SxEpIJhaWbco7_uplorXFI",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-8c3s3Rsv6lpeOJ8htMf5E8S3",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "· ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-4b-5xZ16e0POAShAXVErxI7a",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-sVF2XH_zeX4ijLtrdsPG6wsU",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Terms",
+      "destination": "https://www.airbnb.com/terms",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-L9rfgt7nAAEsVKiwrRbZ02pJ",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-6JM6piRAv-hrsdr8GxsAvhdD",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-ETaaFZ-X8MujLuG-J_km4tgR",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-2_gnx50w2WuTGzyoVaIYxli0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Your Privacy Choices",
+      "destination": "https://www.airbnb.com/help/sale-share-opt-out",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-vdl_35bvQhNbKzMESsBFuUXn",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Your Privacy Choices",
+      "headingLevel": null
+    },
+    {
+      "kind": "svg_chart",
+      "handle": "node-AqhhbuHJbtd3UdpfKBCeS4gI",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "illustration",
+      "label": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-vGTp_DBjuiFPQxhhLFD09Pq5",
+      "boundingBox": {
+        "x": 40,
+        "y": 4293.8125,
+        "width": 100.953125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a language",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-_ND5c8Fh4-n5liGrwA-oAejA",
+      "boundingBox": {
+        "x": 40,
+        "y": 4293.8125,
+        "width": 100.953125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-aEvyuTKw43e_QzJ4s6Tejf_7",
+      "boundingBox": {
+        "x": 40,
+        "y": 4293.8125,
+        "width": 100.953125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-OsbP1MSqMBH-FVs-hCAKakW4",
+      "boundingBox": {
+        "x": 160.953125,
+        "y": 4293.8125,
+        "width": 50.078125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a currency",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": true
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-erIRdQILjLnRth0bvQjFLKi4",
+      "boundingBox": {
+        "x": 160.953125,
+        "y": 4293.8125,
+        "width": 50.078125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-_WIeOecpKcywzgUGEv6e4T1N",
+      "boundingBox": {
+        "x": 160.953125,
+        "y": 4293.8125,
+        "width": 50.078125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-e1ux2Wu5spn2U-jxs6Wfquj0",
+      "boundingBox": {
+        "x": 160.953125,
+        "y": 4293.8125,
+        "width": 8.328125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "$",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-Bkcy3gmOU5BTLK8X4itFbjo_",
+      "boundingBox": {
+        "x": 177.28125,
+        "y": 4293.8125,
+        "width": 33.75,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-GlOdyH7dnp6GaXC6KCzBxmVc",
+      "boundingBox": {
+        "x": 607,
+        "y": 4295.8125,
+        "width": 96,
+        "height": 16.0
+      },
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-jwEmcoPNfD6TAqIPJKV6KfIG",
+      "boundingBox": {
+        "x": 607,
+        "y": 4295.8125,
+        "width": 16,
+        "height": 16.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Facebook",
+      "destination": "https://www.facebook.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-Jk-7QH0BxDPrZhqzpqAe4NbL",
+      "boundingBox": {
+        "x": 647,
+        "y": 4295.8125,
+        "width": 16,
+        "height": 16.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Twitter",
+      "destination": "https://twitter.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-AuLxbwt0vZ-VLHyeOw3b6Qrc",
+      "boundingBox": {
+        "x": 687,
+        "y": 4295.8125,
+        "width": 16,
+        "height": 16.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Instagram",
+      "destination": "https://instagram.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-qLNhWipYoPy8FQ5idvrp8gld",
+      "boundingBox": {
+        "x": 40,
+        "y": 4327.8125,
+        "width": 663,
+        "height": 23.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-ecZAGIi7ydoDsMXpqxwcigO9",
+      "boundingBox": {
+        "x": 40,
+        "y": 4327.8125,
+        "width": 663,
+        "height": 23.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-dUnnu3r6_6xsiSKtxcBFlQ39",
+      "boundingBox": {
+        "x": 40,
+        "y": 4327.8125,
+        "width": 663,
+        "height": 23.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc. ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-upm2__q0mFu3k7g-DXp3_eP1",
+      "boundingBox": {
+        "x": 40,
+        "y": 4328.8125,
+        "width": 123.28125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-hFZCEGEp0gs2tWBEx_k-7Pfo",
+      "boundingBox": {
+        "x": 163.28125,
+        "y": 4327.8125,
+        "width": 312.21875,
+        "height": 20.375
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-TspiUojM8wLb2gbidPuHeBlS",
+      "boundingBox": {
+        "x": 163.28125,
+        "y": 4327.8125,
+        "width": 19.359375,
+        "height": 20.015625
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-p2iOP_32FpuhP3zP3anoD1q_",
+      "boundingBox": {
+        "x": 182.640625,
+        "y": 4328.8125,
+        "width": 292.859375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "list",
+      "ordered": true,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "text",
+      "handle": "node-DqlDX15Oge2DuIK2m3MI9HVg",
+      "boundingBox": {
+        "x": 182.640625,
+        "y": 4328.8125,
+        "width": 65.671875,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-X3D5qFUouFpcAIDY22kqrseU",
+      "boundingBox": {
+        "x": 182.640625,
+        "y": 4328.8125,
+        "width": 46.3125,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Privacy",
+      "destination": "https://www.airbnb.com/terms/privacy_policy",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-W2PlxdYrcckhtnb2RjW015S3",
+      "boundingBox": {
+        "x": 228.953125,
+        "y": 4328.8125,
+        "width": 19.359375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-WHENxZWeAiaEP8elDZ41vNUp",
+      "boundingBox": {
+        "x": 248.3125,
+        "y": 4328.8125,
+        "width": 59.34375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "· ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-ZJFi5elFBoDjJyjf6ImlprFw",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-U7aD6qxZ8d5xIXvjbj5NIUUd",
+      "boundingBox": {
+        "x": 248.3125,
+        "y": 4328.8125,
+        "width": 39.984375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Terms",
+      "destination": "https://www.airbnb.com/terms",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-hX1b7lic8asnU3zin-IpzTfJ",
+      "boundingBox": {
+        "x": 288.296875,
+        "y": 4328.8125,
+        "width": 19.359375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-MDGhY-EnYr_9nS-SHg06_M-r",
+      "boundingBox": {
+        "x": 307.65625,
+        "y": 4328.8125,
+        "width": 167.84375,
+        "height": 19.375
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-njDZAFvys1P9H72Av3ujvo0E",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-eC1vlyVLuGhjpX3esQdVuXhd",
+      "boundingBox": {
+        "x": 307.65625,
+        "y": 4328.8125,
+        "width": 167.84375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "link",
+      "label": "Your Privacy Choices",
+      "destination": "https://www.airbnb.com/help/sale-share-opt-out",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-rUtcdD_mlJv3DBUcLiVnQ1lB",
+      "boundingBox": {
+        "x": 307.65625,
+        "y": 4328.8125,
+        "width": 167.84375,
+        "height": 18.0
+      },
+      "visibility": "visible",
+      "role": "span",
+      "text": "Your Privacy Choices",
+      "headingLevel": null
+    },
+    {
+      "kind": "svg_chart",
+      "handle": "node-W__NSWATcZpuHTzkBhM9w9DH",
+      "boundingBox": {
+        "x": 449.5,
+        "y": 4332.1875,
+        "width": 26.0,
+        "height": 12.0
+      },
+      "visibility": "visible",
+      "role": "illustration",
+      "label": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-M27Ah-VlGWsYbEMf5h73Wh7U",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-vQw6ENLqFJMUx71DC2EKArmd",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-FJp86rcXRaU1DCnBHP0DPDSA",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc. ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-gCmCQI1TlKY04QlRWgPdmJq-",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "© 2026 Airbnb, Inc.",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-iX1oJ5RgmIkG7kv-Oj9serCC",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-tAZ6wA24m8OVAxIGD-4eDJ3v",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-IbS7qkRzESbOtnNRvJydxnqJ",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "list",
+      "ordered": true,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "text",
+      "handle": "node-DMehcq9Gv_3cvVvkYHAGPgYK",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-XqFQHVO05bw1-Lj6xfcnuIK7",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Privacy",
+      "destination": "https://www.airbnb.com/terms/privacy_policy",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-Ozm4OYKqITlz_vh8X2M_osc2",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-7zddCJc9OMXQ63yt6_abYNYF",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "· ·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-gPGEJqnykoN7_kMm98X8-Oq9",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-0zT1BYxg5v9Z50YN9Z78Zt6M",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Terms",
+      "destination": "https://www.airbnb.com/terms",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-fyUQkZ-Ru_cjKv09br8bmW2r",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-mwS5X6s2v8LMnk21d6Jbk8g4",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-7Dzmip15Fatp_QUh5GqhFVO6",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "·",
+      "headingLevel": null
+    },
+    {
+      "kind": "link",
+      "handle": "node-Cr9_RZU4ghF6oIlqCSrar0om",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Your Privacy Choices",
+      "destination": "https://www.airbnb.com/help/sale-share-opt-out",
+      "destinationClass": "same_origin"
+    },
+    {
+      "kind": "text",
+      "handle": "node-y71omTQZoxbrY_7xHbUuag9T",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "Your Privacy Choices",
+      "headingLevel": null
+    },
+    {
+      "kind": "svg_chart",
+      "handle": "node-UZvvqp6A8p6UBwveqBtwy3US",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "illustration",
+      "label": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-cGFfwqRz-wWQKZecHooKLXh0",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a language",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-t-O3VQpRAcx9O8Sg_UrUf6c4",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-mxk-2GBbFOUwNGyiHddG-ghg",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "English (US)",
+      "headingLevel": null
+    },
+    {
+      "kind": "control",
+      "handle": "node-rk2nGgWUDls4Sk9dH56Vsc7X",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "button",
+      "label": "Choose a currency",
+      "state": {
+        "expanded": null,
+        "pressed": null,
+        "checked": null,
+        "selected": null,
+        "current": null,
+        "busy": false,
+        "invalid": false,
+        "required": false,
+        "disabled": false,
+        "readOnly": false,
+        "focusable": false
+      }
+    },
+    {
+      "kind": "text",
+      "handle": "node-M-ZEFa-DUttGB89yzfWcSpRO",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-i4JCpiV2CcRuGprew-soj5Lp",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$ TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-YS6aK5Tnw3srhNZEW-dibYEx",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "$",
+      "headingLevel": null
+    },
+    {
+      "kind": "text",
+      "handle": "node-TK4v-npP8zQB5-M0dOn7RBxb",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "span",
+      "text": "TWD",
+      "headingLevel": null
+    },
+    {
+      "kind": "list",
+      "handle": "node-fyL07RzGVw-BJ9iqd7t9Mn0A",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "list",
+      "ordered": false,
+      "itemCount": 3,
+      "nested": false,
+      "truncated": false
+    },
+    {
+      "kind": "link",
+      "handle": "node-74xBTDRvW8fPIzLfnrAsUVhA",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Facebook",
+      "destination": "https://www.facebook.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-PFk1bssH-NallUKSVXP-uGGy",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Twitter",
+      "destination": "https://twitter.com/airbnb",
+      "destinationClass": "external_origin"
+    },
+    {
+      "kind": "link",
+      "handle": "node-EB8q6MTBHRjw1GwbKKeBgH_z",
+      "boundingBox": null,
+      "visibility": "visible",
+      "role": "link",
+      "label": "Navigate to Instagram",
+      "destination": "https://instagram.com/airbnb",
+      "destinationClass": "external_origin"
+    }
+  ],
+  "documentChunks": [
+    {
+      "chunkId": "chunk-0",
+      "text": "Search results; Over 1,000 stays",
+      "startOffset": 0,
+      "endOffset": 32
+    }
+  ]
+}

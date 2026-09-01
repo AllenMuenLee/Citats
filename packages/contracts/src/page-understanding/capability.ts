@@ -64,6 +64,89 @@ export const CapabilityEvidenceSchema = z.discriminatedUnion("kind", [
 
 export type CapabilityEvidence = z.infer<typeof CapabilityEvidenceSchema>;
 
+/**
+ * How the Phase 4 generated component is allowed to run this interaction
+ * (P03-F02 step 4):
+ *
+ * - `internal_react` -- sorting, filtering, selection, expansion, tabs,
+ *   galleries and anything else that only reorders or reveals data the
+ *   component was already given. It executes entirely inside the generated
+ *   React component and never reaches the host, the server, the model, or
+ *   the website.
+ * - `external_ai_action` -- an intent that would affect the real website
+ *   (navigate, refresh, search, book, buy, submit). The generated
+ *   component may only emit the opaque `capabilityId` plus this
+ *   capability's `promptTemplateId` and schema-valid bounded arguments;
+ *   the trusted server reconstructs the actual AI action prompt from
+ *   `promptTemplate` before any later-phase browser action.
+ */
+export const InteractionExecutionSchema = z.enum(["internal_react", "external_ai_action"]);
+
+export type InteractionExecution = z.infer<typeof InteractionExecutionSchema>;
+
+export const CAPABILITY_ARGUMENT_NAME_PATTERN = /^[a-z][a-zA-Z0-9_]*$/;
+export const MAX_CAPABILITY_ARGUMENTS = 12;
+export const MAX_CAPABILITY_ARGUMENT_ENUM_VALUES = 24;
+
+/**
+ * One allowlisted argument an external capability accepts. Names only, plus
+ * a coarse type and an optional closed value set -- never a page value, a
+ * default sourced from the page, or anything a credential/payment field
+ * could travel in.
+ */
+export const CapabilityArgumentSchema = z
+  .object({
+    name: z.string().min(1).max(60).regex(CAPABILITY_ARGUMENT_NAME_PATTERN),
+    type: z.enum(["string", "number", "boolean", "enum"]),
+    required: z.boolean(),
+    /** Present only for `type: "enum"`; a closed set of display-safe values. */
+    values: z.array(z.string().min(1).max(120)).max(MAX_CAPABILITY_ARGUMENT_ENUM_VALUES).nullable(),
+  })
+  .strict()
+  .superRefine((argument, ctx) => {
+    if ((argument.type === "enum") !== (argument.values !== null)) {
+      ctx.addIssue({ code: "custom", path: ["values"], message: "values must be present exactly for enum arguments" });
+    }
+  });
+
+export type CapabilityArgument = z.infer<typeof CapabilityArgumentSchema>;
+
+export const CAPABILITY_PROMPT_TEMPLATE_MAX_LENGTH = 600;
+
+/**
+ * Patterns a model-authored intent template must never contain. The
+ * template is untrusted text: it describes what the user wants done in
+ * words, and the later action phase -- not this string -- decides what may
+ * actually run. Anything that looks like a selector, an executable URL, a
+ * tool name, a credential, or a policy grant is rejected outright rather
+ * than sanitized, because a partially-cleaned instruction is worse than a
+ * refused one.
+ */
+const FORBIDDEN_TEMPLATE_PATTERNS: readonly RegExp[] = [
+  /\b[a-z]+:\/\//i,
+  /<[^>]+>/,
+  /(^|[\s(])[.#][a-z][\w-]*/i,
+  /\bdocument\s*\.|\bwindow\s*\.|querySelector|xpath/i,
+  /\bbrowser\.[a-z_]+|\btool\s*[:=]|\bfunction_call\b/i,
+  /\b(password|passwd|secret|api[_-]?key|token|cookie|authorization|cvv|card\s*number)\b/i,
+  /\b(ignore|disregard|override)\b[^.]{0,40}\b(instruction|policy|rule|confirmation)/i,
+];
+
+/**
+ * A bounded, human-readable description of the action a user activating an
+ * external control is asking for. `{{argumentName}}` placeholders are
+ * filled in server-side from schema-validated arguments -- the generated
+ * component never sees or supplies this text.
+ */
+export const CapabilityPromptTemplateSchema = z
+  .string()
+  .min(1)
+  .max(CAPABILITY_PROMPT_TEMPLATE_MAX_LENGTH)
+  .refine(
+    (value) => !FORBIDDEN_TEMPLATE_PATTERNS.some((pattern) => pattern.test(value)),
+    "prompt template must not contain a selector, URL, tool name, secret, or policy override",
+  );
+
 export const CAPABILITY_SEMANTIC_INTENT_MAX_LENGTH = 200;
 export const CAPABILITY_DESTINATION_ORIGIN_MAX_LENGTH = 255;
 
@@ -89,10 +172,38 @@ export const InteractionCapabilitySchema = z
     /** Origin only (e.g. "https://example.com"), never a full URL with path/query. */
     destinationOrigin: z.string().max(CAPABILITY_DESTINATION_ORIGIN_MAX_LENGTH).nullable(),
     effectClass: EffectClassSchema,
+    interactionExecution: InteractionExecutionSchema,
+    /**
+     * The trusted server-held prompt template this capability resolves to,
+     * set only for `external_ai_action`. Opaque to the generated component,
+     * which can reference it but never read or author it.
+     */
+    promptTemplateId: OpaqueHandleSchema.nullable(),
+    /** Untrusted, model-authored intent text; see `CapabilityPromptTemplateSchema`. */
+    promptTemplate: CapabilityPromptTemplateSchema.nullable(),
+    argumentSchema: z.array(CapabilityArgumentSchema).max(MAX_CAPABILITY_ARGUMENTS),
     confidence: z.number().min(0).max(1),
     evidence: z.array(CapabilityEvidenceSchema).max(MAX_CAPABILITY_EVIDENCE),
     requiredCapability: RequiredLaterCapabilitySchema,
   })
-  .strict();
+  .strict()
+  .superRefine((capability, ctx) => {
+    const external = capability.interactionExecution === "external_ai_action";
+    if (external !== (capability.promptTemplateId !== null) || external !== (capability.promptTemplate !== null)) {
+      ctx.addIssue({ code: "custom", path: ["promptTemplateId"], message: "a prompt template is required exactly for external_ai_action capabilities" });
+    }
+    if (!external && capability.argumentSchema.length > 0) {
+      ctx.addIssue({ code: "custom", path: ["argumentSchema"], message: "internal_react capabilities take no arguments" });
+    }
+    if (new Set(capability.argumentSchema.map((argument) => argument.name)).size !== capability.argumentSchema.length) {
+      ctx.addIssue({ code: "custom", path: ["argumentSchema"], message: "argument names must be unique" });
+    }
+    const declared = new Set(capability.argumentSchema.map((argument) => argument.name));
+    for (const placeholder of capability.promptTemplate?.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g) ?? []) {
+      if (!declared.has(placeholder[1]!)) {
+        ctx.addIssue({ code: "custom", path: ["promptTemplate"], message: `prompt template references undeclared argument ${placeholder[1]}` });
+      }
+    }
+  });
 
 export type InteractionCapability = z.infer<typeof InteractionCapabilitySchema>;

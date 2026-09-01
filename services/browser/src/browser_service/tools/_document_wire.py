@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from browser_service.extraction import (
-    Affordance,
+    AccessibilityNode,
     Chunk,
     DocumentMetadata,
     ExtractedDocument,
@@ -48,11 +48,31 @@ def metadata_to_wire(
     return {
         "title": metadata.title,
         "url": metadata.url,
+        "origin": metadata.origin,
         "language": metadata.language,
         "description": metadata.description,
+        "author": metadata.author,
         "publishedTime": normalize_published_time(metadata.published_time),
+        "updatedTime": normalize_published_time(metadata.updated_time),
+        "siteName": metadata.site_name,
+        "pageType": metadata.page_type,
+        "imageUrl": metadata.image_url,
         "httpStatus": http_status,
         "contentType": content_type,
+    }
+
+
+def accessibility_to_wire(node: AccessibilityNode) -> dict[str, Any]:
+    return {
+        "nodeId": node.node_id,
+        "parentId": node.parent_id,
+        "role": node.role,
+        "name": node.name,
+        "description": node.description,
+        "value": node.value,
+        "states": node.states,
+        "domTag": node.dom_tag,
+        "correlated": node.correlated,
     }
 
 
@@ -89,15 +109,6 @@ def truncation_to_wire(truncation: TruncationDetail) -> dict[str, Any]:
     return wire
 
 
-def affordance_to_wire(affordance: Affordance) -> dict[str, Any]:
-    return {
-        "affordanceId": affordance.affordance_id,
-        "role": affordance.role.value,
-        "label": affordance.label,
-        "destination": affordance.destination,
-        "disabled": affordance.disabled,
-    }
-
 
 def build_evidence(doc: ExtractedDocument, final_url: str) -> list[dict[str, Any]]:
     """One bounded `EvidenceItem` per chunk (capped at 20, per
@@ -119,7 +130,7 @@ def build_evidence(doc: ExtractedDocument, final_url: str) -> list[dict[str, Any
 
 
 __all__ = [
-    "affordance_to_wire",
+    "accessibility_to_wire",
     "build_evidence",
     "chunk_to_wire",
     "metadata_to_wire",

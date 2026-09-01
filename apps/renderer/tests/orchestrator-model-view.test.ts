@@ -58,7 +58,8 @@ describe("projectToolResultForModel", () => {
       toolCallId: "call-2",
       status: "success",
       payload: {
-        metadata: { title: "Example", url: "https://example.com/a", language: "en", description: null, publishedTime: null, httpStatus: 200, contentType: null },
+        metadata: { title: "Example", url: "https://example.com/a", origin: "https://example.com", language: "en", description: null, author: null, publishedTime: null, updatedTime: null, siteName: null, pageType: null, imageUrl: null, httpStatus: 200, contentType: null },
+        accessibility: [],
         chunks: [{ chunkId: "chunk-0", text: "The sky is blue.", startOffset: 0, endOffset: 17 }],
         warnings: [],
         truncations: [],

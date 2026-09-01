@@ -53,6 +53,9 @@ export const ExtractionWarningCodeSchema = z.enum([
   "chunk_truncated",
   "chunk_limit_reached",
   "no_semantic_container",
+  "affordance_limit_reached",
+  "accessibility_tree_unavailable",
+  "accessibility_node_limit_reached",
 ]);
 
 export type ExtractionWarningCode = z.infer<typeof ExtractionWarningCodeSchema>;
@@ -95,20 +98,59 @@ export type ExtractionTruncation = z.infer<typeof ExtractionTruncationSchema>;
 export const NAVIGATE_AND_EXTRACT_TITLE_MAX_LENGTH = 500;
 export const NAVIGATE_AND_EXTRACT_DESCRIPTION_MAX_LENGTH = 1_000;
 
-/** Document-level metadata captured only from trustworthy structured sources -- never guessed from free text. */
+/**
+ * Document-level metadata captured only from trustworthy structured
+ * sources -- never guessed from free text. `origin`, `author`,
+ * `updatedTime`, and the social/structured fields (`siteName`, `pageType`,
+ * `imageUrl`) come from the same fixed head-element set the rest of this
+ * shape does; `imageUrl` is kept only when it resolves to a plain
+ * `http`/`https` address, so a `data:`/binary URL never reaches the model.
+ */
 export const NavigateAndExtractMetadataSchema = z
   .object({
     title: z.string().min(1).max(NAVIGATE_AND_EXTRACT_TITLE_MAX_LENGTH),
     url: HttpUrlSchema,
+    origin: z.string().min(1).max(255),
     language: z.string().min(1).max(35),
     description: z.string().max(NAVIGATE_AND_EXTRACT_DESCRIPTION_MAX_LENGTH).nullable(),
+    author: z.string().max(300).nullable(),
     publishedTime: IsoDateTimeSchema.nullable(),
+    updatedTime: IsoDateTimeSchema.nullable(),
+    siteName: z.string().max(300).nullable(),
+    pageType: z.string().max(100).nullable(),
+    imageUrl: HttpUrlSchema.nullable(),
     httpStatus: z.number().int().min(100).max(599).nullable(),
     contentType: z.string().max(200).nullable(),
   })
   .strict();
 
 export type NavigateAndExtractMetadata = z.infer<typeof NavigateAndExtractMetadataSchema>;
+
+export const MAX_EXTRACTED_ACCESSIBILITY_NODES = 1_500;
+
+/**
+ * One bounded node of the rendered page's accessibility tree, sourced from
+ * CDP `Accessibility.getFullAXTree` and correlated back onto the pierced
+ * DOM snapshot by `backendDOMNodeId` (`domTag`/`correlated`). Ids are
+ * document-local; a raw `AXNodeId`, a backend node id, and a selector
+ * never appear. `value` is omitted entirely for editable text roles, so an
+ * entered form value or a credential can never travel on this shape.
+ */
+export const ExtractedAccessibilityNodeSchema = z
+  .object({
+    nodeId: z.string().min(1).max(EXTRACTED_CHUNK_ID_MAX_LENGTH),
+    parentId: z.string().max(EXTRACTED_CHUNK_ID_MAX_LENGTH).nullable(),
+    role: z.string().min(1).max(60),
+    name: z.string().max(500).nullable(),
+    description: z.string().max(1_000).nullable(),
+    value: z.string().max(300).nullable(),
+    states: z.record(z.string().max(40), z.union([z.boolean(), z.string().max(60)])),
+    domTag: z.string().max(60).nullable(),
+    correlated: z.boolean(),
+  })
+  .strict();
+
+export type ExtractedAccessibilityNode = z.infer<typeof ExtractedAccessibilityNodeSchema>;
 
 /** Timing breakdown for the composed navigate+extract operation, in milliseconds. */
 export const NavigateAndExtractTimingSchema = z
@@ -124,6 +166,7 @@ export type NavigateAndExtractTiming = z.infer<typeof NavigateAndExtractTimingSc
 export const NavigateAndExtractResultSchema = z
   .object({
     metadata: NavigateAndExtractMetadataSchema,
+    accessibility: z.array(ExtractedAccessibilityNodeSchema).max(MAX_EXTRACTED_ACCESSIBILITY_NODES),
     chunks: z.array(ExtractedChunkSchema).max(MAX_EXTRACTED_CHUNKS),
     warnings: z.array(ExtractionWarningSchema).max(100),
     truncations: z.array(ExtractionTruncationSchema).max(50),

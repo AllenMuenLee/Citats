@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import { GeneratedUiMessageSchema, MAX_BRIDGE_MESSAGE_BYTES, type GeneratedUiMessage } from "./protocol";
 
-export type BridgeCapability = Readonly<{ kinds: ReadonlySet<string>; argumentSchema: ZodType }>;
+export type BridgeCapability = Readonly<{ kinds: ReadonlySet<string>; argumentSchema: ZodType; promptTemplateId: string | null }>;
 export type BridgeInstance = Readonly<{
   channel: string;
   instanceId: string;
@@ -34,6 +34,10 @@ export class BridgeMessageValidator {
     if (message.type === "command") {
       const binding = this.instance.capabilities.get(message.command.capabilityId);
       if (!binding || !binding.kinds.has(message.command.kind)) throw new Error("command is not capability-bound");
+      // An internal-only capability has no template, so a command naming one
+      // can never match -- which is the intended outcome: React-only
+      // interactions must never cross the bridge at all.
+      if (binding.promptTemplateId !== message.command.promptTemplateId) throw new Error("command prompt template is not capability-bound");
       binding.argumentSchema.parse(message.command.arguments);
     }
     this.sequence = message.sequence;

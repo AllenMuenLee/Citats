@@ -27,6 +27,12 @@ export const UiCommandMessageSchema = z.object({
   command: z.object({
     kind: z.enum(["activate", "select", "set_value", "open_detail", "media_control"]),
     capabilityId: identifier,
+    /**
+     * The Phase 3 prompt-template this command resolves to. The generated
+     * component can reference it but never read or author it -- the trusted
+     * server rebuilds the AI action prompt from its own copy.
+     */
+    promptTemplateId: identifier,
     arguments: z.record(z.string().max(100), safeValue),
   }).strict(),
 }).strict();
@@ -41,7 +47,3 @@ export const GeneratedUiMessageSchema = z.discriminatedUnion("type", [
 
 export type GeneratedUiMessage = z.infer<typeof GeneratedUiMessageSchema>;
 export type UiCommandMessage = z.infer<typeof UiCommandMessageSchema>;
-
-export function encodedMessageSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).byteLength; } catch { return Number.POSITIVE_INFINITY; }
-}

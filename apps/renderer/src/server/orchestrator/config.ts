@@ -7,7 +7,7 @@ import { z } from "zod";
  * where the model keeps issuing tool calls without ever producing a final
  * answer, not to cap how long a legitimate multi-step turn (web search,
  * several real browser.explore_website / navigate_and_extract calls, then
- * ui.propose_generative_ui_plan and UI generation) is allowed to take.
+ * UI generation) is allowed to take.
  * There is deliberately no time-based deadline here: a turn ends when the
  * model finishes, this step cap is hit, or the user stops it themselves
  * (see the Stop control wired through to the request's own AbortSignal in

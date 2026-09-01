@@ -10,10 +10,6 @@ import {
   GetPageUnderstandingSliceArgsSchema,
   GetPageUnderstandingSliceInvocationSchema,
   GetPageUnderstandingSliceSuccessResultSchema,
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
-  ProposeGenerativeUiPlanArgsSchema,
-  ProposeGenerativeUiPlanInvocationSchema,
-  ProposeGenerativeUiPlanSuccessResultSchema,
   MAX_URL_LENGTH,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractArgsSchema,
@@ -27,7 +23,6 @@ import {
   type ExploreWebsiteInvocation,
   type GetPageUnderstandingSliceInvocation,
   type NavigateAndExtractInvocation,
-  type ProposeGenerativeUiPlanInvocation,
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
 import type { ModelToolDefinition } from "../ai";
@@ -60,43 +55,6 @@ function withoutNull(value: unknown, key: string): unknown {
 
 const OPAQUE_HANDLE_JSON_SCHEMA = {
   type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$",
-} as const;
-
-const UI_SOURCE_FIELD_ROLES = [
-  "title", "description", "image", "audio", "video", "price", "rating", "date",
-  "amenity", "availability", "provider", "action",
-] as const;
-
-const GENERATIVE_UI_PLAN_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "observationId", "layoutKind", "sourceCollectionHandles", "selectedFields", "groupBy",
-    "orderBy", "filters", "detailRegionHandles", "mediaPlacement", "provenance", "freshness",
-    "warnings", "localInteractionIntents", "externalWorkflowIntents",
-  ],
-  properties: {
-    observationId: OPAQUE_HANDLE_JSON_SCHEMA,
-    layoutKind: { enum: ["list", "grid", "card_grid", "table", "comparison", "gallery", "timeline", "map", "detail", "generic_collection", "cited_text"] },
-    sourceCollectionHandles: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
-    selectedFields: { type: "array", maxItems: 24, items: { enum: UI_SOURCE_FIELD_ROLES } },
-    groupBy: { anyOf: [{ enum: UI_SOURCE_FIELD_ROLES }, { type: "null" }] },
-    orderBy: { anyOf: [
-      { type: "object", additionalProperties: false, required: ["field", "direction"], properties: { field: { enum: UI_SOURCE_FIELD_ROLES }, direction: { enum: ["asc", "desc"] } } },
-      { type: "null" },
-    ] },
-    filters: { type: "array", maxItems: 10, items: {
-      type: "object", additionalProperties: false, required: ["field", "operator", "value"],
-      properties: { field: { enum: UI_SOURCE_FIELD_ROLES }, operator: { enum: ["equals", "contains", "range", "exists"] }, value: { anyOf: [{ type: "string", maxLength: 200 }, { type: "null" }] } },
-    } },
-    detailRegionHandles: { type: "array", maxItems: 5, items: OPAQUE_HANDLE_JSON_SCHEMA },
-    mediaPlacement: { enum: ["leading", "trailing", "background", "none"] },
-    provenance: { type: "object", additionalProperties: false, required: ["sourceUrl", "retrievedAt"], properties: { sourceUrl: HTTP_URL_JSON_SCHEMA, retrievedAt: { type: "string", format: "date-time" } } },
-    freshness: { enum: ["live", "cached", "unknown"] },
-    warnings: { type: "array", maxItems: 10, items: { type: "string", maxLength: 300 } },
-    localInteractionIntents: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
-    externalWorkflowIntents: { type: "array", maxItems: 10, items: OPAQUE_HANDLE_JSON_SCHEMA },
-  },
 } as const;
 
 export interface EchoToolExecutor {
@@ -161,13 +119,13 @@ export interface NavigateAndExtractToolExecutor {
 }
 
 export interface PhaseThreeToolExecutor {
-  invoke(invocation: ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation | ProposeGenerativeUiPlanInvocation, signal?: AbortSignal): Promise<unknown>;
+  invoke(invocation: ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation, signal?: AbortSignal): Promise<unknown>;
 }
 
 function createPhaseThreeTool(
   name: string,
   argsSchema: { parse(value: unknown): unknown },
-  invocationSchema: { parse(value: unknown): ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation | ProposeGenerativeUiPlanInvocation },
+  invocationSchema: { parse(value: unknown): ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation },
   resultSchema: { or(other: typeof ToolErrorResultSchema): { parse(value: unknown): unknown } },
   executor: PhaseThreeToolExecutor,
   description: string,
@@ -259,7 +217,6 @@ export function createToolRegistry(options: {
     tools.set(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, createPhaseThreeTool(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, GetPageUnderstandingSliceArgsSchema, GetPageUnderstandingSliceInvocationSchema, GetPageUnderstandingSliceSuccessResultSchema, options.phaseThreeExecutor, "Retrieve an owned bounded page-understanding slice.", {
       type: "object", additionalProperties: false, required: ["observationId", "handle"], properties: { observationId: OPAQUE_HANDLE_JSON_SCHEMA, handle: OPAQUE_HANDLE_JSON_SCHEMA },
     }));
-    tools.set(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, createPhaseThreeTool(PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME, ProposeGenerativeUiPlanArgsSchema, ProposeGenerativeUiPlanInvocationSchema, ProposeGenerativeUiPlanSuccessResultSchema, options.phaseThreeExecutor, "Validate declarative display intent without rendering or execution.", GENERATIVE_UI_PLAN_JSON_SCHEMA));
   }
   return tools;
 }

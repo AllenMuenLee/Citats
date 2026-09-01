@@ -31,6 +31,7 @@ from browser_service.page_observation.layout import fetch_bounding_boxes
 from browser_service.page_observation.settle import wait_for_settle
 from browser_service.tool_outcome import ToolExecutionError, ToolHandlerOutcome
 from browser_service.tools._document_wire import (
+    accessibility_to_wire,
     build_evidence,
     chunk_to_wire,
     metadata_to_wire,
@@ -80,8 +81,8 @@ async def run_explore_website(
         navigation_ms = (time.monotonic() - nav_start) * 1000
 
         try:
-            content = await navigation.get_content(page, cancelled=cancelled)
             settle = await wait_for_settle(page)
+            content = await navigation.get_content(page, cancelled=cancelled)
             observation_start = time.monotonic()
             captured = await capture_page(page)
             graph = build_graph(
@@ -101,7 +102,13 @@ async def run_explore_website(
         observation_ms = (time.monotonic() - observation_start) * 1000
 
     extraction_start = time.monotonic()
-    document = extract_document(content.content or "", nav.final_url)
+    document = extract_document(
+        content.content or "",
+        nav.final_url,
+        accessibility_nodes=captured.raw_ax_nodes,
+        accessibility_available=captured.ax_available,
+        dom_tag_by_backend_id=captured.dom_tag_by_backend_id,
+    )
     extraction_ms = (time.monotonic() - extraction_start) * 1000
     capabilities, coverage = classify_capabilities(graph.nodes, graph.relationships)
     warnings = list(graph.warnings)
@@ -139,9 +146,9 @@ async def run_explore_website(
             "title": document.metadata.title,
             "language": document.metadata.language,
             "description": document.metadata.description,
-            "author": None,
+            "author": document.metadata.author,
             "publishedTime": document.metadata.published_time,
-            "updatedTime": None,
+            "updatedTime": document.metadata.updated_time,
             "favicon": None,
             "themeColor": None,
             "viewportHint": None,
@@ -198,6 +205,7 @@ async def run_explore_website(
     payload = {
         "document": {
             "metadata": metadata_to_wire(document.metadata, None, None),
+            "accessibility": [accessibility_to_wire(n) for n in document.accessibility],
             "chunks": [chunk_to_wire(c) for c in document.chunks],
             "warnings": [warning_to_wire(w) for w in document.warnings],
             "truncations": [truncation_to_wire(t) for t in document.truncations],

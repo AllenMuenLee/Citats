@@ -27,7 +27,6 @@ export * from "./page-understanding";
 export * from "./generated-ui";
 export * from "./tools/explore-website";
 export * from "./tools/get-page-understanding-slice";
-export * from "./tools/propose-generative-ui-plan";
 export * from "./invocation";
 export * from "./results";
 export * from "./progress";

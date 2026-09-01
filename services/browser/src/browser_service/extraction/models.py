@@ -31,6 +31,8 @@ class WarningCode(StrEnum):
     CHUNK_LIMIT_REACHED = "chunk_limit_reached"
     NO_SEMANTIC_CONTAINER = "no_semantic_container"
     AFFORDANCE_LIMIT_REACHED = "affordance_limit_reached"
+    ACCESSIBILITY_TREE_UNAVAILABLE = "accessibility_tree_unavailable"
+    ACCESSIBILITY_NODE_LIMIT_REACHED = "accessibility_node_limit_reached"
 
 
 class ExtractionWarning(BaseModel):
@@ -63,15 +65,27 @@ class TruncationDetail(BaseModel):
 
 
 class DocumentMetadata(BaseModel):
-    """Document-level metadata captured only from trustworthy structured sources."""
+    """Document-level metadata captured only from trustworthy structured sources.
+
+    ``origin``/``author``/``updated_time``/``site_name``/``page_type``/
+    ``image_url`` come from the same fixed set of head elements the rest of
+    this model does -- never mined out of free page text, and never a
+    ``data:``/binary URL.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     title: str
     url: str
+    origin: str
     language: str = "und"
     description: str | None = None
+    author: str | None = None
     published_time: str | None = None
+    updated_time: str | None = None
+    site_name: str | None = None
+    page_type: str | None = None
+    image_url: str | None = None
     http_status: int | None = None
     content_type: str | None = None
 
@@ -182,6 +196,33 @@ class Affordance(BaseModel):
     disabled: bool = False
 
 
+class AccessibilityNode(BaseModel):
+    """One bounded node of the rendered page's accessibility tree.
+
+    Sourced from CDP ``Accessibility.getFullAXTree`` (the same call
+    ``tests/ast_scraping_test.py`` demonstrates) and correlated back to the
+    DOM by ``backendDOMNodeId``. Only the semantics that materially explain
+    visible content or a control survive: role, accessible name,
+    description, a display-safe value, and a bounded state map. Never a
+    selector, a backend/DOM node id, a script, an entered form value, or a
+    credential -- ``value`` is dropped outright for editable text roles.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    node_id: str
+    parent_id: str | None = None
+    role: str
+    name: str | None = None
+    description: str | None = None
+    value: str | None = None
+    states: dict[str, bool | str] = Field(default_factory=dict)
+    #: The correlated DOM tag name (e.g. ``"a"``), when the AX node mapped
+    #: back onto a node in the post-render DOM snapshot.
+    dom_tag: str | None = None
+    correlated: bool = False
+
+
 class Chunk(BaseModel):
     """A stable, bounded slice of the document's canonical flattened text."""
 
@@ -202,6 +243,7 @@ class ExtractionLimits(BaseModel):
     max_total_chars: int = 50_000
     max_chunk_chars: int = 2_000
     max_chunks: int = 50
+    max_accessibility_nodes: int = 1_500
 
 
 class ExtractedDocument(BaseModel):
@@ -214,6 +256,7 @@ class ExtractedDocument(BaseModel):
     anchors: list[Anchor]
     images: list[ImageRef]
     affordances: list[Affordance]
+    accessibility: list[AccessibilityNode] = Field(default_factory=list)
     chunks: list[Chunk]
     warnings: list[ExtractionWarning]
     truncations: list[TruncationDetail]

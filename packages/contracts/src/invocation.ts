@@ -13,10 +13,6 @@ import {
   GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   GetPageUnderstandingSliceArgsSchema,
 } from "./tools/get-page-understanding-slice";
-import {
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
-  ProposeGenerativeUiPlanArgsSchema,
-} from "./tools/propose-generative-ui-plan";
 
 /**
  * Generic factory for a tool invocation envelope: correlation metadata,
@@ -74,11 +70,3 @@ export const GetPageUnderstandingSliceInvocationSchema = makeToolInvocationSchem
 );
 
 export type GetPageUnderstandingSliceInvocation = z.infer<typeof GetPageUnderstandingSliceInvocationSchema>;
-
-/** Concrete invocation envelope for the `ui.propose_generative_ui_plan` tool. */
-export const ProposeGenerativeUiPlanInvocationSchema = makeToolInvocationSchema(
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
-  ProposeGenerativeUiPlanArgsSchema,
-);
-
-export type ProposeGenerativeUiPlanInvocation = z.infer<typeof ProposeGenerativeUiPlanInvocationSchema>;

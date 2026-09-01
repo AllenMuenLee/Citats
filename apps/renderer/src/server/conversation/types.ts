@@ -3,7 +3,6 @@ import { z } from "zod";
 export const MAX_PART_LENGTH = 32_000;
 
 export const TrustLabelSchema = z.enum(["trusted-user", "trusted-server", "untrusted-tool"]);
-export type TrustLabel = z.infer<typeof TrustLabelSchema>;
 
 export const ConversationPartSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string().min(1).max(MAX_PART_LENGTH), trust: TrustLabelSchema }).strict(),

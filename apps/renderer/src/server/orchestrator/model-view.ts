@@ -27,8 +27,7 @@ import type { ConversationTurn } from "../ai";
  *
  * The model never needs the whole graph to do its job. It needs chunk ids
  * and enough chunk text to cite, and it needs the handles that the tools it
- * may call actually accept: collection/region handles and capability ids for
- * `ui.propose_generative_ui_plan`, plus `observationId` for that tool and
+ * may call actually accept: `observationId` and collection/region handles for
  * `browser.get_page_understanding_slice`. Node-level detail is exactly what
  * the slice tool exists to fetch on demand (see that tool's contract:
  * "instead of the whole graph being placed in every model turn").

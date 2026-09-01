@@ -8,9 +8,6 @@ import {
   GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
   GetPageUnderstandingSliceInvocationSchema,
   GetPageUnderstandingSliceSuccessResultSchema,
-  PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME,
-  ProposeGenerativeUiPlanInvocationSchema,
-  ProposeGenerativeUiPlanSuccessResultSchema,
   NAVIGATE_AND_EXTRACT_TOOL_NAME,
   NavigateAndExtractInvocationSchema,
   NavigateAndExtractSuccessResultSchema,
@@ -24,8 +21,6 @@ import {
   type GetPageUnderstandingSliceSuccessResult,
   type NavigateAndExtractInvocation,
   type NavigateAndExtractSuccessResult,
-  type ProposeGenerativeUiPlanInvocation,
-  type ProposeGenerativeUiPlanSuccessResult,
   type SystemEchoInvocation,
   type SystemEchoSuccessResult,
   type ToolErrorResult,
@@ -47,7 +42,7 @@ export interface BrowserServiceClientOptions {
 }
 
 /** Every invocation shape `invoke` accepts, keyed by their `toolName` literal. */
-export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation | ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation | ProposeGenerativeUiPlanInvocation;
+export type KnownInvocation = SystemEchoInvocation | NavigateAndExtractInvocation | ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation;
 
 /** Maps each known tool's `toolName` literal to its success-result type, so `invoke`'s return type is inferred from the invocation passed in. */
 interface ToolSuccessResultMap {
@@ -55,7 +50,6 @@ interface ToolSuccessResultMap {
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResult;
   [EXPLORE_WEBSITE_TOOL_NAME]: ExploreWebsiteSuccessResult;
   [GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME]: GetPageUnderstandingSliceSuccessResult;
-  [PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME]: ProposeGenerativeUiPlanSuccessResult;
 }
 
 export type InvokeResult<TInvocation extends KnownInvocation> =
@@ -73,7 +67,6 @@ const INVOCATION_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractInvocationSchema,
   [EXPLORE_WEBSITE_TOOL_NAME]: ExploreWebsiteInvocationSchema,
   [GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME]: GetPageUnderstandingSliceInvocationSchema,
-  [PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME]: ProposeGenerativeUiPlanInvocationSchema,
 };
 
 const SUCCESS_RESULT_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
@@ -81,7 +74,6 @@ const SUCCESS_RESULT_SCHEMA_BY_TOOL: Record<string, z.ZodTypeAny> = {
   [NAVIGATE_AND_EXTRACT_TOOL_NAME]: NavigateAndExtractSuccessResultSchema,
   [EXPLORE_WEBSITE_TOOL_NAME]: ExploreWebsiteSuccessResultSchema,
   [GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME]: GetPageUnderstandingSliceSuccessResultSchema,
-  [PROPOSE_GENERATIVE_UI_PLAN_TOOL_NAME]: ProposeGenerativeUiPlanSuccessResultSchema,
 };
 
 function validateLoopbackBaseUrl(raw: string): URL {

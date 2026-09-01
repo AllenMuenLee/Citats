@@ -15,6 +15,13 @@ export type CommandArguments = Readonly<Record<string, CommandArgument>>;
 export interface UiCommand {
   readonly kind: CommandKind;
   readonly capabilityId: OpaqueId;
+  /**
+   * The trusted prompt template this command resolves to. Supplied by the
+   * host as part of the capability binding -- generated code references it
+   * and never authors it, and the host rebuilds the actual action prompt
+   * from its own copy.
+   */
+  readonly promptTemplateId: OpaqueId;
   readonly revision: number;
   readonly arguments: CommandArguments;
 }
@@ -22,7 +29,20 @@ export interface UiCommand {
 export interface DisplayRecord { readonly id: OpaqueId; readonly fields: Readonly<Record<string, string | number | boolean | null>> }
 export interface DisplaySource { readonly id: OpaqueId; readonly label: string; readonly provider: string }
 export interface DisplayMedia { readonly id: OpaqueId; readonly kind: "image" | "audio" | "video" | "chart"; readonly altText: string; readonly safeReference: string }
-export interface DisplayCapability { readonly id: OpaqueId; readonly allowedCommandKinds: readonly CommandKind[] }
+/**
+ * One capability the generated component may reference.
+ *
+ * `execution` decides how it may run at all: an `internal_react` capability
+ * has no `promptTemplateId` and must be handled with component-local state
+ * only, while an `external_ai_action` capability is the only kind
+ * `dispatchCommand` will carry.
+ */
+export interface DisplayCapability {
+  readonly id: OpaqueId;
+  readonly allowedCommandKinds: readonly CommandKind[];
+  readonly execution: "internal_react" | "external_ai_action";
+  readonly promptTemplateId: OpaqueId | null;
+}
 
 export interface GeneratedViewProps {
   readonly instanceRevision: number;
@@ -75,16 +95,42 @@ export const Icon = ({ name, label }: { readonly name: "search" | "filter" | "so
 export const Media = ({ media }: { readonly media: DisplayMedia }) => media.kind === "image" ? <img src={media.safeReference} alt={media.altText} /> : <div role="img" aria-label={media.altText}>{media.altText}</div>;
 export function Modal({ open, title, onClose, children }: { readonly open: boolean; readonly title: string; readonly onClose: () => void; readonly children: ReactNode }) { return open ? <div role="dialog" aria-modal="true" aria-label={title}><button type="button" onClick={onClose}>Close</button>{children}</div> : null; }
 
+/**
+ * The only path from generated code to an external action. It refuses to
+ * dispatch for anything but an `external_ai_action` capability, so an
+ * internal interaction cannot reach the host even if the generated
+ * component tries -- the host rejects it a second time regardless.
+ */
 export function CommandButton({ capabilityId, kind, arguments: args = {}, runtime, children, disabled }: { readonly capabilityId: OpaqueId; readonly kind: CommandKind; readonly arguments?: CommandArguments; readonly runtime: GeneratedViewProps; readonly children: ReactNode; readonly disabled?: boolean }) {
   const capability = runtime.getCapability(capabilityId);
-  const permitted = capability?.allowedCommandKinds.includes(kind) === true;
-  return <button type="button" disabled={disabled || !permitted} onClick={() => permitted && runtime.dispatchCommand(Object.freeze({ kind, capabilityId, revision: runtime.instanceRevision, arguments: Object.freeze({ ...args }) }))}>{children}</button>;
+  const permitted = capability?.execution === "external_ai_action"
+    && capability.promptTemplateId !== null
+    && capability.allowedCommandKinds.includes(kind);
+  return <button type="button" disabled={disabled || !permitted} onClick={() => permitted && runtime.dispatchCommand(Object.freeze({ kind, capabilityId, promptTemplateId: capability.promptTemplateId!, revision: runtime.instanceRevision, arguments: Object.freeze({ ...args }) }))}>{children}</button>;
 }
 
+/**
+ * Component-local state for an internal interaction, bounded to an
+ * allowlist of values. Nothing here contacts the host, the server, or the
+ * model: an internal interaction is a React state change and nothing more.
+ */
 export function useBoundedState<T>(initial: T, allowed: readonly T[]): readonly [T, (next: T) => void] {
   const [value, setValue] = useState(initial);
   const setBounded = useCallback((next: T) => { if (allowed.includes(next)) setValue(next); }, [allowed]);
   return useMemo(() => [value, setBounded] as const, [value, setBounded]);
+}
+
+/**
+ * Ordering and filtering over already-supplied records, as pure local
+ * derivation. Provided so a generated component never has a reason to
+ * reach outward for data it already holds.
+ */
+export function useLocalCollection<T>(items: readonly T[], options: { readonly filter?: (item: T) => boolean; readonly compare?: (a: T, b: T) => number }): readonly T[] {
+  const { filter, compare } = options;
+  return useMemo(() => {
+    const selected = filter ? items.filter(filter) : [...items];
+    return compare ? selected.sort(compare) : selected;
+  }, [items, filter, compare]);
 }
 export function formatNumber(value: number, locale = "en-US") { return new Intl.NumberFormat(locale).format(value); }
 export function formatCurrency(value: number, currency: string, locale = "en-US") { return new Intl.NumberFormat(locale, { style: "currency", currency }).format(value); }

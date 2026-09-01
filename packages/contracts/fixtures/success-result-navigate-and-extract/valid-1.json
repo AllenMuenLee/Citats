@@ -16,8 +16,42 @@
       "description": "An overview of AI-native browsing.",
       "publishedTime": "2026-08-01T09:00:00Z",
       "httpStatus": 200,
-      "contentType": "text/html; charset=utf-8"
+      "contentType": "text/html; charset=utf-8",
+      "origin": "https://example.com",
+      "author": "Example Newsroom",
+      "updatedTime": "2026-08-02T11:30:00Z",
+      "siteName": "Example Publications",
+      "pageType": "article",
+      "imageUrl": "https://example.com/images/ai-native-browsers.png"
     },
+    "accessibility": [
+      {
+        "nodeId": "ax-1",
+        "parentId": null,
+        "role": "heading",
+        "name": "What is an AI-native browser?",
+        "description": null,
+        "value": null,
+        "states": {
+          "level": "1"
+        },
+        "domTag": "h1",
+        "correlated": true
+      },
+      {
+        "nodeId": "ax-2",
+        "parentId": "ax-1",
+        "role": "link",
+        "name": "Read the full overview",
+        "description": "Opens the long-form overview",
+        "value": null,
+        "states": {
+          "disabled": false
+        },
+        "domTag": "a",
+        "correlated": true
+      }
+    ],
     "chunks": [
       {
         "chunkId": "chunk-0",

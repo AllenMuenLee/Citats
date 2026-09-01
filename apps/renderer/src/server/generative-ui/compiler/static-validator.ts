@@ -2,7 +2,7 @@ import ts from "typescript";
 import type { StaticValidationInput, StaticValidationIssue, StaticValidationResult } from "./types";
 
 const RUNTIME_MODULE = "@ai-browser/generated-ui-runtime";
-const RUNTIME_EXPORTS = new Set(["GeneratedViewProps", "OpaqueId", "CommandKind", "CommandArgument", "CommandArguments", "UiCommand", "DisplayRecord", "DisplaySource", "DisplayMedia", "DisplayCapability", "semanticTokens", "Stack", "Inline", "Grid", "Card", "Text", "Heading", "Badge", "List", "ListItem", "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell", "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal", "CommandButton", "useBoundedState", "formatNumber", "formatCurrency", "formatDate", "createElement"]);
+const RUNTIME_EXPORTS = new Set(["GeneratedViewProps", "OpaqueId", "CommandKind", "CommandArgument", "CommandArguments", "UiCommand", "DisplayRecord", "DisplaySource", "DisplayMedia", "DisplayCapability", "semanticTokens", "Stack", "Inline", "Grid", "Card", "Text", "Heading", "Badge", "List", "ListItem", "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell", "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal", "CommandButton", "useBoundedState", "useLocalCollection", "formatNumber", "formatCurrency", "formatDate", "createElement"]);
 const FORBIDDEN_IDENTIFIERS = new Set([
   "window", "document", "globalThis", "self", "top", "parent", "frames", "navigator", "location", "history",
   "localStorage", "sessionStorage", "indexedDB", "fetch", "XMLHttpRequest", "WebSocket", "EventSource",

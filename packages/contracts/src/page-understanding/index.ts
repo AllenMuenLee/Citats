@@ -5,4 +5,4 @@ export * from "./relationships";
 export * from "./capability";
 export * from "./source-candidate";
 export * from "./page-understanding";
-export * from "./generative-ui-plan";
+export * from "./website-ui-metadata";

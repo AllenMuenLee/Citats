@@ -2,9 +2,11 @@ import { z } from "zod";
 import { HttpUrlSchema } from "../primitives";
 import { ToolDefinitionSchema } from "../tool-definition";
 import {
+  ExtractedAccessibilityNodeSchema,
   ExtractedChunkSchema,
   ExtractionTruncationSchema,
   ExtractionWarningSchema,
+  MAX_EXTRACTED_ACCESSIBILITY_NODES,
   MAX_EXTRACTED_CHUNKS,
   NavigateAndExtractMetadataSchema,
 } from "./navigate-and-extract";
@@ -42,6 +44,7 @@ export type ExploreWebsiteArgs = z.infer<typeof ExploreWebsiteArgsSchema>;
 export const ExploreWebsiteDocumentSchema = z
   .object({
     metadata: NavigateAndExtractMetadataSchema,
+    accessibility: z.array(ExtractedAccessibilityNodeSchema).max(MAX_EXTRACTED_ACCESSIBILITY_NODES),
     chunks: z.array(ExtractedChunkSchema).max(MAX_EXTRACTED_CHUNKS),
     warnings: z.array(ExtractionWarningSchema).max(100),
     truncations: z.array(ExtractionTruncationSchema).max(50),

@@ -4,9 +4,8 @@ import { CorrelationMetadataSchema } from "./correlation";
 import { IsoDateTimeSchema } from "./primitives";
 import {
   CoverageReportSchema,
-  GenerativeUiFreshnessSchema,
-  GenerativeUiPlanSchema,
   InteractionCapabilitySchema,
+  InteractionExecutionSchema,
   OpaqueHandleSchema,
   PageNodeSchema,
   PageRegionSchema,
@@ -14,13 +13,71 @@ import {
   PageWarningSchema,
   RepeatedCollectionSchema,
   UiSourceCandidateSchema,
+  UiSourceFieldRoleSchema,
+  WebsiteUiFreshnessSchema,
+  WebsiteUiMetadataSchema,
+  digestWebsiteUiMetadata,
 } from "./page-understanding";
-
-export const UiGenerationBriefSchema = GenerativeUiPlanSchema;
-export type UiGenerationBrief = z.infer<typeof UiGenerationBriefSchema>;
 
 export const SHA256_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 export const DigestSchema = z.string().regex(SHA256_DIGEST_PATTERN, "must be a lowercase SHA-256 digest");
+
+export const UI_IMPLEMENTATION_PROMPT_MAX_LENGTH = 24_000;
+
+/**
+ * The Phase 3 extraction model's UI implementation prompt: free-form prose
+ * covering website style, static content, internal React interactions,
+ * external AI-action intents, and the metadata artifact.
+ *
+ * Deliberately unstructured. Nothing validates its headings, ordering, or
+ * wording, because a useful plan phrased differently is still a useful
+ * plan -- the checkable facts live in `metadata` instead. It is untrusted,
+ * model-authored text, subordinate to the server-owned system instruction
+ * wherever the two disagree.
+ */
+export const UiImplementationPromptSchema = z.string().trim().min(1).max(UI_IMPLEMENTATION_PROMPT_MAX_LENGTH);
+
+export const MAX_BRIEF_COLLECTION_HANDLES = 10;
+export const MAX_BRIEF_DETAIL_REGIONS = 5;
+export const MAX_BRIEF_IMPORTANT_FIELDS = 24;
+export const MAX_BRIEF_COMPARISON_REQUIREMENTS = 12;
+export const MAX_BRIEF_WARNINGS = 16;
+
+/**
+ * `UiGenerationBrief` (P03-F05 step 6): the validated envelope around the
+ * free-form implementation prompt and its `WebsiteUiMetadata` companion.
+ *
+ * Everything outside `implementationPrompt` is checkable and is checked --
+ * handles must belong to the same observation, and `metadataDigest` must
+ * match the canonical serialization of `metadata`, so a plan can never be
+ * paired with metadata it was not written against.
+ */
+export const UiGenerationBriefSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    observationId: OpaqueHandleSchema,
+    canonicalUserGoal: z.string().trim().min(1).max(2_000),
+    implementationPrompt: UiImplementationPromptSchema,
+    metadata: WebsiteUiMetadataSchema,
+    metadataDigest: DigestSchema,
+    prioritizedCollectionHandles: z.array(OpaqueHandleSchema).max(MAX_BRIEF_COLLECTION_HANDLES),
+    detailRegionHandles: z.array(OpaqueHandleSchema).max(MAX_BRIEF_DETAIL_REGIONS),
+    importantFields: z.array(UiSourceFieldRoleSchema).max(MAX_BRIEF_IMPORTANT_FIELDS),
+    comparisonRequirements: z.array(z.string().min(1).max(300)).max(MAX_BRIEF_COMPARISON_REQUIREMENTS),
+    freshness: WebsiteUiFreshnessSchema,
+    warnings: z.array(z.string().max(300)).max(MAX_BRIEF_WARNINGS),
+  })
+  .strict()
+  .superRefine((brief, ctx) => {
+    if (brief.metadata.observationId !== brief.observationId) {
+      ctx.addIssue({ code: "custom", path: ["metadata"], message: "metadata belongs to a different observation" });
+    }
+    if (digestWebsiteUiMetadata(brief.metadata) !== brief.metadataDigest) {
+      ctx.addIssue({ code: "custom", path: ["metadataDigest"], message: "metadata digest does not match the canonical metadata" });
+    }
+  });
+
+export type UiGenerationBrief = z.infer<typeof UiGenerationBriefSchema>;
 
 export const MAX_UI_GENERATION_SOURCE_BYTES = 64 * 1024;
 export const MAX_UI_GENERATION_BINDINGS = 256;
@@ -59,7 +116,27 @@ export const UiCapabilityBindingSchema = z.object({
   capability: InteractionCapabilitySchema,
   allowedCommandKinds: z.array(z.enum(["activate", "select", "set_value", "open_detail", "media_control"])).max(8),
   argumentSchemaId: OpaqueHandleSchema,
-}).strict();
+  /**
+   * How the generated component may run this binding. `internal_react`
+   * bindings are React-only and carry no prompt template: emitting a
+   * command for one is a policy violation, not a supported path.
+   */
+  interactionExecution: InteractionExecutionSchema,
+  promptTemplateId: OpaqueHandleSchema.nullable(),
+}).strict().superRefine((binding, ctx) => {
+  const external = binding.interactionExecution === "external_ai_action";
+  if (external !== (binding.promptTemplateId !== null)) {
+    ctx.addIssue({ code: "custom", path: ["promptTemplateId"], message: "a prompt template id is required exactly for external_ai_action bindings" });
+  }
+  if (binding.interactionExecution !== binding.capability.interactionExecution) {
+    ctx.addIssue({ code: "custom", path: ["interactionExecution"], message: "binding disagrees with its capability's execution classification" });
+  }
+  if (external && binding.promptTemplateId !== binding.capability.promptTemplateId) {
+    ctx.addIssue({ code: "custom", path: ["promptTemplateId"], message: "binding prompt template does not match its capability" });
+  }
+});
+
+export type UiCapabilityBinding = z.infer<typeof UiCapabilityBindingSchema>;
 
 export const UiGenerationLimitsSchema = z.object({
   maxSourceBytes: z.number().int().positive().max(MAX_UI_GENERATION_SOURCE_BYTES),
@@ -84,6 +161,15 @@ const UiGenerationRequestBaseSchema = z.object({
   promptDigest: DigestSchema,
   canonicalUserTask: z.string().trim().min(1).max(2_000),
   brief: UiGenerationBriefSchema,
+  /**
+   * The Phase 3 implementation prompt and metadata artifact, lifted out of
+   * `brief` so the UI adapter can address them directly. Both are copies of
+   * the brief's own values and are checked against it below -- the brief
+   * stays the single source of truth.
+   */
+  implementationPrompt: UiImplementationPromptSchema,
+  websiteUiMetadata: WebsiteUiMetadataSchema,
+  websiteUiMetadataDigest: DigestSchema,
   graph: z.object({
     nodes: z.array(PageNodeSchema).max(512),
     relationships: z.array(PageRelationshipSchema).max(1_024),
@@ -95,7 +181,7 @@ const UiGenerationRequestBaseSchema = z.object({
   mediaBindings: z.array(UiMediaBindingSchema).max(MAX_UI_GENERATION_BINDINGS),
   capabilityBindings: z.array(UiCapabilityBindingSchema).max(MAX_UI_GENERATION_BINDINGS),
   coverage: CoverageReportSchema,
-  freshness: GenerativeUiFreshnessSchema,
+  freshness: WebsiteUiFreshnessSchema,
   warnings: z.array(PageWarningSchema).max(MAX_UI_GENERATION_WARNINGS),
   runtimeApiVersion: VersionSchema,
   theme: UiGenerationThemeConstraintsSchema,
@@ -112,6 +198,29 @@ export const UiGenerationRequestSchema = UiGenerationRequestBaseSchema.superRefi
   duplicateIssue(request.recordBindings.map((item) => item.recordId), "recordBindings", ctx);
   duplicateIssue(request.mediaBindings.map((item) => item.mediaId), "mediaBindings", ctx);
   duplicateIssue(request.capabilityBindings.map((item) => item.capabilityId), "capabilityBindings", ctx);
+  if (request.implementationPrompt !== request.brief.implementationPrompt) {
+    ctx.addIssue({ code: "custom", path: ["implementationPrompt"], message: "implementation prompt does not match the validated brief" });
+  }
+  if (request.websiteUiMetadataDigest !== request.brief.metadataDigest) {
+    ctx.addIssue({ code: "custom", path: ["websiteUiMetadataDigest"], message: "metadata digest does not match the validated brief" });
+  }
+  if (digestWebsiteUiMetadata(request.websiteUiMetadata) !== request.websiteUiMetadataDigest) {
+    ctx.addIssue({ code: "custom", path: ["websiteUiMetadata"], message: "metadata digest does not match the canonical metadata" });
+  }
+  // Every external binding must be declared in the metadata artifact, so the
+  // trusted server can always resolve a command's prompt template from data
+  // it validated rather than from anything the generated component sent.
+  const declaredExternal = new Map(request.websiteUiMetadata.externalCapabilities.map((item) => [item.capabilityId, item.promptTemplateId]));
+  const declaredInternal = new Set(request.websiteUiMetadata.internalInteractions.map((item) => item.capabilityId));
+  for (const binding of request.capabilityBindings) {
+    if (binding.interactionExecution === "external_ai_action") {
+      if (declaredExternal.get(binding.capabilityId) !== binding.promptTemplateId) {
+        ctx.addIssue({ code: "custom", path: ["capabilityBindings"], message: `external capability ${binding.capabilityId} is not declared in the website metadata` });
+      }
+    } else if (!declaredInternal.has(binding.capabilityId)) {
+      ctx.addIssue({ code: "custom", path: ["capabilityBindings"], message: `internal capability ${binding.capabilityId} is not declared in the website metadata` });
+    }
+  }
 });
 export type UiGenerationRequest = z.infer<typeof UiGenerationRequestSchema>;
 
@@ -191,7 +300,7 @@ function canonicalize(value: unknown, key?: string): unknown {
   if (value === undefined) return null;
   if (Array.isArray(value)) {
     const items = value.map((item) => canonicalize(item));
-    const unordered = new Set(["sourceBindings", "recordBindings", "mediaBindings", "capabilityBindings", "warnings", "allowedTokens", "supportedThemes", "fieldNodeIds", "allowedCommandKinds"]);
+    const unordered = new Set(["sourceBindings", "recordBindings", "mediaBindings", "capabilityBindings", "warnings", "allowedTokens", "supportedThemes", "fieldNodeIds", "allowedCommandKinds", "recordIds", "mediaIds", "internalInteractions", "externalCapabilities", "confirmationFields", "argumentSchema", "importantFields", "comparisonRequirements", "notes"]);
     return unordered.has(key ?? "") ? items.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) : items;
   }
   if (value !== null && typeof value === "object") {

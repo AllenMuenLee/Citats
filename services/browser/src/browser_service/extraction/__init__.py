@@ -17,7 +17,14 @@ instructions.
 
 from __future__ import annotations
 
+from browser_service.extraction.accessibility import (
+    AccessibilityReduction,
+    RawAxNode,
+    raw_ax_node,
+    reduce_ax_tree,
+)
 from browser_service.extraction.models import (
+    AccessibilityNode,
     Affordance,
     AffordanceRole,
     Anchor,
@@ -40,6 +47,8 @@ from browser_service.extraction.models import (
 from browser_service.extraction.pipeline import extract_document
 
 __all__ = [
+    "AccessibilityNode",
+    "AccessibilityReduction",
     "Affordance",
     "AffordanceRole",
     "Anchor",
@@ -56,7 +65,10 @@ __all__ = [
     "ParagraphBlock",
     "TableBlock",
     "TableCell",
+    "RawAxNode",
     "TruncationDetail",
     "WarningCode",
     "extract_document",
+    "raw_ax_node",
+    "reduce_ax_tree",
 ]
