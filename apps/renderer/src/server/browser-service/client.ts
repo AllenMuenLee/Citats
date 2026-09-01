@@ -32,11 +32,20 @@ import {
   BrowserServiceUnavailableError,
 } from "./errors";
 import { redactForLog } from "./redaction";
+import { resolveToolTimeoutMs } from "./timeouts";
 
 export interface BrowserServiceClientOptions {
   baseUrl: string;
   serviceToken: string;
-  timeoutMs?: number;
+  /**
+   * Server-owned per-tool deadline resolution (P03-R01 step 1). Deliberately
+   * a function of the tool name rather than one scalar: a single budget for
+   * every tool is exactly what put a five-second bridge timeout in front of
+   * a thirty-second exploration. Overridable only from trusted server code
+   * and tests -- the model, the renderer client, page content, and tool
+   * arguments cannot reach this constructor.
+   */
+  resolveTimeoutMs?: (toolName: string) => number;
   fetchImpl?: typeof fetch;
   log?: (record: Record<string, unknown>) => void;
 }
@@ -88,7 +97,7 @@ function validateLoopbackBaseUrl(raw: string): URL {
 export class BrowserServiceClient {
   readonly #baseUrl: URL;
   readonly #serviceToken: string;
-  readonly #timeoutMs: number;
+  readonly #resolveTimeoutMs: (toolName: string) => number;
   readonly #fetch: typeof fetch;
   readonly #log: (record: Record<string, unknown>) => void;
 
@@ -96,7 +105,7 @@ export class BrowserServiceClient {
     this.#baseUrl = validateLoopbackBaseUrl(options.baseUrl);
     if (!options.serviceToken) throw new TypeError("A service token is required.");
     this.#serviceToken = options.serviceToken;
-    this.#timeoutMs = options.timeoutMs ?? 5_000;
+    this.#resolveTimeoutMs = options.resolveTimeoutMs ?? resolveToolTimeoutMs;
     this.#fetch = options.fetchImpl ?? fetch;
     this.#log = options.log ?? (() => undefined);
   }
@@ -111,9 +120,30 @@ export class BrowserServiceClient {
       throw new TypeError(`Unknown tool '${invocation.toolName}'.`);
     }
     const payload = invocationSchema.parse(invocation) as TInvocation;
-    const timeout = AbortSignal.timeout(this.#timeoutMs);
+    const deadlineMs = this.#resolveTimeoutMs(invocation.toolName);
+    const startedAt = Date.now();
+    const timeout = AbortSignal.timeout(deadlineMs);
     const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
-    this.#log(redactForLog({ event: "bridge.request", ...payload.correlation }) as Record<string, unknown>);
+    /**
+     * P03-R01 step 5. Carries correlation, tool, phase, elapsed, the
+     * configured deadline, and a typed failure category -- and nothing
+     * else. The service token lives only in the request header and never in
+     * this record; arguments, response payloads, and provider/browser
+     * exception text are all excluded because any of them may quote
+     * untrusted page content.
+     */
+    const trace = (phase: string, extra: Record<string, unknown> = {}): void => {
+      this.#log(redactForLog({
+        event: "bridge",
+        phase,
+        toolName: invocation.toolName,
+        ...payload.correlation,
+        deadlineMs,
+        elapsedMs: Date.now() - startedAt,
+        ...extra,
+      }) as Record<string, unknown>);
+    };
+    trace("request");
     let response: Response;
     try {
       response = await this.#fetch(new URL("v1/tools/invoke", this.#baseUrl), {
@@ -127,28 +157,48 @@ export class BrowserServiceClient {
         signal: combinedSignal,
       });
     } catch (error) {
-      if (timeout.aborted) throw new BrowserServiceTimeoutError("Browser service request timed out.", { cause: error });
-      if (signal?.aborted) throw error;
+      // Deadline first: when the caller stops a request that had already run
+      // out of budget both signals read as aborted, and the exhausted
+      // deadline is the cause worth reporting.
+      if (timeout.aborted) {
+        trace("failed", { failure: "browser_service_timeout" });
+        throw new BrowserServiceTimeoutError("Browser service request timed out.", { cause: error });
+      }
+      if (signal?.aborted) {
+        trace("failed", { failure: "cancelled" });
+        throw error;
+      }
+      trace("failed", { failure: "browser_service_unavailable" });
       throw new BrowserServiceUnavailableError("Browser service is unavailable.", { cause: error });
     }
     if (!response.ok) {
+      trace("failed", { failure: "browser_service_unavailable", httpStatus: response.status });
       throw new BrowserServiceUnavailableError(`Browser service returned HTTP ${response.status}.`);
     }
     let body: unknown;
     try {
       body = await response.json();
     } catch (error) {
+      trace("failed", { failure: "browser_service_contract" });
       throw new BrowserServiceContractError("Browser service returned invalid JSON.", { cause: error });
     }
     const parsed = successResultSchema.or(ToolErrorResultSchema).safeParse(body);
     if (!parsed.success) {
+      trace("failed", { failure: "browser_service_contract" });
       throw new BrowserServiceContractError("Browser service response violated the contract.");
     }
     const data = parsed.data as InvokeResult<TInvocation>;
     if (data.correlation.requestId !== payload.correlation.requestId) {
+      trace("failed", { failure: "browser_service_contract" });
       throw new BrowserServiceContractError("Browser service response violated the contract.");
     }
-    this.#log(redactForLog({ event: "bridge.response", ...data.correlation, status: data.status }) as Record<string, unknown>);
+    // A structured error the service produced itself is returned unchanged
+    // (P03-R01 step 3): its own typed code describes the real cause better
+    // than anything this boundary could re-derive from the outside.
+    trace("response", {
+      status: data.status,
+      ...(data.status === "error" ? { failure: "service_reported", errorCode: data.errorCode } : {}),
+    });
     return data;
   }
 }

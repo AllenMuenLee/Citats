@@ -98,7 +98,7 @@ describe("BrowserServiceClient", () => {
     const fetchImpl = vi.fn((_url: URL | RequestInfo, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
     }));
-    const client = new BrowserServiceClient({ baseUrl: "http://localhost:1", serviceToken: "x", timeoutMs: 5, fetchImpl });
+    const client = new BrowserServiceClient({ baseUrl: "http://localhost:1", serviceToken: "x", resolveTimeoutMs: () => 5, fetchImpl });
     await expect(client.invoke(invocation)).rejects.toBeInstanceOf(BrowserServiceTimeoutError);
   });
 

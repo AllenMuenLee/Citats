@@ -13,21 +13,41 @@ export const RECORDS_PER_COLLECTION = 20;
 const FIELDS_PER_RECORD = 5;
 
 /**
+ * Shape overrides for one built observation. Defaults reproduce the
+ * original mid-sized fixture exactly, so every existing caller is
+ * unaffected; P03-R06 uses them to build the six-record accommodation
+ * results page and its partial-coverage variant.
+ */
+export interface ExploreResultOptions {
+  recordsPerCollection?: number;
+  collectionHandles?: readonly string[];
+  finalUrl?: string;
+  status?: "complete" | "partial" | "timeout" | "unstable";
+  warnings?: readonly { code: string; message: string; nodeHandle: string | null }[];
+  truncations?: readonly { reason: string; category: string; removedCount: number }[];
+  inaccessibleRegionCount?: number;
+  coverageNotes?: readonly string[];
+}
+
+/**
  * A mid-sized -- not worst-case -- observation of a search-results page: two
  * collections of twenty records, five bound fields each, forty controls, ten
  * regions, and a dozen document chunks. The contract permits roughly four
  * times this (400 nodes, 800 relationships, 50 chunks of 8,000 characters),
  * so the reduction measured against this fixture is a conservative floor.
  */
-export function buildExploreResult(): ExploreWebsiteSuccessResult {
+export function buildExploreResult(options: ExploreResultOptions = {}): ExploreWebsiteSuccessResult {
+  const recordsPerCollection = options.recordsPerCollection ?? RECORDS_PER_COLLECTION;
   const nodes: PageNode[] = [];
   const relationships: PageRelationship[] = [];
   const capabilities: InteractionCapability[] = [];
   const sourceCandidates: UiSourceCandidate[] = [];
-  const collections = ["col-search-results", "col-related-items"];
+  const collections = [...(options.collectionHandles ?? ["col-search-results", "col-related-items"])];
+  const finalUrl = options.finalUrl ?? "https://example.com/s/seattle";
+  const origin = new URL(finalUrl).origin;
 
   for (const [collectionIndex, collectionHandle] of collections.entries()) {
-    for (let record = 0; record < RECORDS_PER_COLLECTION; record += 1) {
+    for (let record = 0; record < recordsPerCollection; record += 1) {
       const recordHandle = `rec-${collectionIndex}-${record}`;
       const controlHandle = `ctl-${collectionIndex}-${record}`;
       const capabilityId = `cap-${collectionIndex}-${record}`;
@@ -119,8 +139,8 @@ export function buildExploreResult(): ExploreWebsiteSuccessResult {
       document: {
         metadata: {
           title: "Stays in Seattle",
-          url: "https://example.com/s/seattle",
-          origin: "https://example.com",
+          url: finalUrl,
+          origin,
           language: "en",
           description: "Search results",
           author: null,
@@ -149,8 +169,8 @@ export function buildExploreResult(): ExploreWebsiteSuccessResult {
         schemaVersion: 1,
         observationId: "obs-1",
         metadata: {
-          finalUrl: "https://example.com/s/seattle",
-          origin: "https://example.com",
+          finalUrl,
+          origin,
           title: "Stays in Seattle",
           language: "en",
           description: "Search results",
@@ -165,31 +185,33 @@ export function buildExploreResult(): ExploreWebsiteSuccessResult {
           charset: "utf-8",
           robots: null,
         },
-        status: "complete",
+        status: options.status ?? "complete",
         nodes,
         relationships,
         regions,
         collections: collections.map((handle, index) => ({
           handle,
           role: index === 0 ? "search_results" : "generic_records",
-          itemCount: RECORDS_PER_COLLECTION,
-          recordHandles: Array.from({ length: RECORDS_PER_COLLECTION }, (_, record) => `rec-${index}-${record}`),
+          itemCount: recordsPerCollection,
+          recordHandles: Array.from({ length: recordsPerCollection }, (_, record) => `rec-${index}-${record}`),
           truncated: false,
           paginationHandle: null,
         })),
         capabilities,
         sourceCandidates,
         viewport: { width: 1280, height: 800, scrollX: 0, scrollY: 0, scrollHeight: 4_800, devicePixelRatio: 2 },
-        warnings: [],
-        truncations: [],
+        warnings: options.warnings ?? [],
+        truncations: options.truncations ?? [],
         coverage: {
           observedControlCount: 40,
           safelyExploredControlCount: 40,
           prohibitedControlCount: 0,
           unknownControlCount: 0,
-          inaccessibleRegionCount: 0,
+          inaccessibleRegionCount: options.inaccessibleRegionCount ?? 0,
           unobservedLazyStateCount: 1,
-          notes: ["Lazy-loaded results below the fold were not observed."],
+          notes: options.coverageNotes
+            ? [...options.coverageNotes]
+            : ["Lazy-loaded results below the fold were not observed."],
         },
         observationDigest: "digest-1",
         untrusted: true,

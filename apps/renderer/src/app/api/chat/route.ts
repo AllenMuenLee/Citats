@@ -1,4 +1,4 @@
-import { createModelAdapter, createTextCompletion, readAiConfig, type ModelMetrics, type ModelRoleConfig } from "../../../server/ai";
+import { createModelAdapter, createTextCompletion, createTranscriptLogger, readAiConfig, withTranscriptLog, type ModelMetrics, type ModelRoleConfig } from "../../../server/ai";
 import { BrowserServiceClient } from "../../../server/browser-service/client";
 import { readBrowserServiceConfig } from "../../../server/browser-service/config";
 import { InMemoryConversationRepository } from "../../../server/conversation";
@@ -44,8 +44,17 @@ async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
     ? (role: ModelRoleConfig, label: string) => (metrics: ModelMetrics) =>
         console.info(`[ai] usage ${label}`, { provider: role.provider, model: role.model, correlationId: metrics.correlationId, promptTokens: metrics.promptTokens, completionTokens: metrics.completionTokens, durationMs: metrics.durationMs })
     : undefined;
+  // Opt-in, developer-only. `CHAT_LOG_CONVERSATION=1` writes every model
+  // request and response -- routing, discovery, each tool-loop step, and the
+  // extraction pass -- plus the orchestrator's own decisions to one JSONL
+  // file, which is what makes "the model stopped calling tools" diagnosable.
+  const transcript = createTranscriptLogger();
   const adapterFor = (role: ModelRoleConfig, label: string) =>
-    createModelAdapter(role, emitMetrics ? { emitMetrics: emitMetrics(role, label) } : {});
+    withTranscriptLog(
+      createModelAdapter(role, emitMetrics ? { emitMetrics: emitMetrics(role, label) } : {}),
+      label,
+      transcript,
+    );
   // The extraction model reads one rendered-page observation and returns a
   // closed-schema digest of it. It is never given a local tool, never given a
   // hosted tool, and never answers the user -- see
@@ -61,6 +70,9 @@ async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
   return new ChatOrchestrator({
     model: adapterFor(ai.chat, "chat"),
     conversations,
+    ...(transcript.enabled
+      ? { trace: (event: string, detail: Record<string, unknown>) => transcript.record({ kind: "orchestrator", correlationId: String(detail.requestId ?? ""), event, detail }) }
+      : {}),
     ...(extractionAdapter
       ? { compressObservation: (input) => compressObservation(extractionAdapter, input) }
       : {}),

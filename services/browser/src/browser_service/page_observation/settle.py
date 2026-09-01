@@ -16,9 +16,12 @@ from dataclasses import dataclass
 from nodriver.cdp import dom as cdp_dom
 from nodriver.core.tab import Tab  # type: ignore[import-untyped]
 
+from browser_service.page_observation.cdp import CdpTimeoutError, send_bounded
+
 DEFAULT_QUIET_WINDOW_SECONDS = 0.5
 DEFAULT_MAX_SETTLE_SECONDS = 8.0
 DEFAULT_MAX_MUTATION_EVENTS = 4_000
+DEFAULT_ENABLE_TIMEOUT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,10 @@ class SettleConfig:
     quiet_window_seconds: float = DEFAULT_QUIET_WINDOW_SECONDS
     max_settle_seconds: float = DEFAULT_MAX_SETTLE_SECONDS
     max_mutation_events: int = DEFAULT_MAX_MUTATION_EVENTS
+    #: Wall-clock bound on `DOM.enable` itself (P03-R02 step 1). Enabling the
+    #: domain is an awaited CDP round trip like any other, and an unbounded
+    #: one here would stall before the settle loop's own clock ever started.
+    enable_timeout_seconds: float = DEFAULT_ENABLE_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -39,6 +46,10 @@ class SettleResult:
     status: str
     elapsed_seconds: float
     mutation_count: int
+    #: Whether mutation events were ever enabled. When `DOM.enable` itself
+    #: exceeded its bound the settle result is honest about having observed
+    #: nothing, rather than reporting a quiet page.
+    events_enabled: bool = True
 
 
 _MUTATION_EVENT_TYPES = (
@@ -70,7 +81,17 @@ async def wait_for_settle(page: Tab, config: SettleConfig | None = None) -> Sett
     for event_type in _MUTATION_EVENT_TYPES:
         page.add_handler(event_type, on_mutation)
     try:
-        await page.send(cdp_dom.enable())
+        try:
+            await send_bounded(
+                page,
+                cdp_dom.enable(),
+                timeout_seconds=min(cfg.enable_timeout_seconds, cfg.max_settle_seconds),
+                phase="dom.enable",
+            )
+        except CdpTimeoutError:
+            # No mutation stream, so no quiet window can be observed. Report
+            # `timeout` rather than waiting out a budget that cannot succeed.
+            return SettleResult("timeout", time.monotonic() - start, 0, events_enabled=False)
         while True:
             now = time.monotonic()
             elapsed = now - start

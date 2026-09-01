@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import { mapHttpStatus, readProviderErrorDetail, retryDelayFromMessage } from "../src/server/ai/streaming";
+import {
+  mapHttpStatus,
+  rateLimitResetLogFields,
+  readProviderErrorDetail,
+  retryDelayFromMessage,
+} from "../src/server/ai/streaming";
 
 describe("readProviderErrorDetail", () => {
   it("keeps only the four diagnosable fields of a provider error body", () => {
@@ -120,5 +125,21 @@ describe("rate-limit delay recovery", () => {
     expect(retryDelayFromMessage("Rate limit reached. Please try again in 1m")).toBe(60_000);
     expect(retryDelayFromMessage("no delay stated")).toBe(0);
     expect(retryDelayFromMessage(undefined)).toBe(0);
+  });
+
+  it("formats a provider-supplied reset as seconds and an absolute time for logs", () => {
+    expect(rateLimitResetLogFields(3_216, Date.parse("2026-09-01T12:00:00.000Z"))).toEqual({
+      retryAfterSeconds: 4,
+      retryAt: "2026-09-01T12:00:03.216Z",
+      resetHint: "provider-supplied",
+    });
+  });
+
+  it("states explicitly when the provider supplied no reset countdown", () => {
+    expect(rateLimitResetLogFields(0)).toEqual({
+      retryAfterSeconds: null,
+      retryAt: null,
+      resetHint: "not-provided",
+    });
   });
 });

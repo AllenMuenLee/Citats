@@ -26,6 +26,15 @@ export function createTextCompletion(role: ModelRoleConfig, fetchImpl: typeof fe
 export { createGeminiAdapter, createGeminiCompletion } from "./gemini/adapter";
 export { createGroqAdapter, createGroqCompletion } from "./groq/adapter";
 export {
+  NOOP_TRANSCRIPT_LOGGER,
+  createTranscriptLogger,
+  readTranscriptLogConfig,
+  withTranscriptLog,
+  type TranscriptEntry,
+  type TranscriptLogConfig,
+  type TranscriptLogger,
+} from "./transcript-log";
+export {
   AiConfigError,
   readAiConfig,
   type AiConfig,

@@ -42,6 +42,7 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 import nodriver
 from nodriver.cdp import target as cdp_target
@@ -56,6 +57,34 @@ logger = logging.getLogger("browser_service.browser.lifecycle")
 BROWSER_EXECUTABLE_PATH_ENV_VAR = "BROWSER_SERVICE_CHROME_EXECUTABLE"
 DEFAULT_MAX_CONCURRENT_CONTEXTS = 4
 DEFAULT_BROWSER_START_TIMEOUT_SECONDS = 30.0
+#: Cleanup must be bounded (P03-R05 step 1). Closing a page over a websocket
+#: that has already stopped answering is exactly the situation cleanup runs
+#: in, so an unbounded `await page.close()` in a `finally` turns one stalled
+#: task into a permanently stuck one.
+DEFAULT_CLEANUP_TIMEOUT_SECONDS = 5.0
+#: Bounded liveness probe used before admitting new work after a task ended
+#: badly (P03-R05 steps 3-4). Deliberately a single round trip with a
+#: deadline -- never a retry loop.
+DEFAULT_HEALTH_PROBE_TIMEOUT_SECONDS = 5.0
+
+
+async def _bounded_cleanup(awaitable: Any, timeout_seconds: float, operation: str) -> bool:
+    """Awaits one cleanup step under a deadline, swallowing every failure.
+
+    Cleanup must never replace the primary typed error a task is already
+    reporting (P03-R05 step 1), so this returns success as a boolean and
+    logs rather than raising.
+    """
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            await awaitable
+        return True
+    except (TimeoutError, asyncio.CancelledError):
+        logger.warning("browser_service.browser.cleanup_timeout", extra={"operation": operation})
+        return False
+    except Exception:  # noqa: BLE001 -- a resource already gone is a fine outcome
+        logger.warning("browser_service.browser.cleanup_failed", extra={"operation": operation})
+        return False
 
 
 @dataclass(frozen=True)
@@ -74,6 +103,8 @@ class LifecycleConfig:
     sandbox: bool = True
     max_concurrent_contexts: int = DEFAULT_MAX_CONCURRENT_CONTEXTS
     browser_start_timeout_seconds: float = DEFAULT_BROWSER_START_TIMEOUT_SECONDS
+    cleanup_timeout_seconds: float = DEFAULT_CLEANUP_TIMEOUT_SECONDS
+    health_probe_timeout_seconds: float = DEFAULT_HEALTH_PROBE_TIMEOUT_SECONDS
 
     @staticmethod
     def from_env() -> LifecycleConfig:
@@ -103,6 +134,12 @@ class IsolatedBrowserContext:
         self.context_id = context_id
         self._registry = registry
         self._pages: list[Tab] = []
+        self._cleanup_timeout_seconds = DEFAULT_CLEANUP_TIMEOUT_SECONDS
+        #: Set when a task saw evidence that this context's connection is no
+        #: longer trustworthy -- a CDP deadline, a cancellation mid-request.
+        #: The manager reads it on exit and probes the shared browser before
+        #: admitting new work (P03-R05 step 3).
+        self.unhealthy_reason: str | None = None
         # Chrome requires at least one open window/tab per browser context
         # to be able to attach further tabs to it (empirically confirmed:
         # closing this page before calling open_page() makes every
@@ -111,6 +148,21 @@ class IsolatedBrowserContext:
         # only keeps the context's window alive -- and is closed last, when
         # the whole isolated context tears down.
         self._anchor_page = anchor_page
+
+    @property
+    def unhealthy(self) -> bool:
+        return self.unhealthy_reason is not None
+
+    def mark_unhealthy(self, reason: str) -> None:
+        """Records that this context's session may be corrupted.
+
+        Called by task code when a CDP request exceeded its deadline or was
+        cancelled mid-flight: the response may still be in flight, so the
+        page must be retired rather than reused. The reason is a short
+        internal label -- never page content, never an exception message.
+        """
+        if self.unhealthy_reason is None:
+            self.unhealthy_reason = reason[:80]
 
     async def open_page(self) -> Tab:
         """Open and return a brand-new page/tab bound to this isolated context."""
@@ -142,13 +194,16 @@ class IsolatedBrowserContext:
         """
         for page in self._pages:
             target_id = page.target.target_id if page.target is not None else None
-            with contextlib.suppress(Exception):
-                await page.close()
+            # Bounded: this runs in a `finally`, often against a websocket
+            # that has already stopped answering.
+            await _bounded_cleanup(page.close(), self._cleanup_timeout_seconds, "page.close")
             if target_id is not None:
-                await self._registry.remove_page(str(self.context_id), str(target_id))
+                with contextlib.suppress(Exception):
+                    await self._registry.remove_page(str(self.context_id), str(target_id))
         self._pages.clear()
-        with contextlib.suppress(Exception):
-            await self._anchor_page.close()
+        await _bounded_cleanup(
+            self._anchor_page.close(), self._cleanup_timeout_seconds, "anchor_page.close"
+        )
 
 
 class BrowserLifecycleManager:
@@ -205,13 +260,50 @@ class BrowserLifecycleManager:
             # but it must stay open for the lifetime of the context (see
             # IsolatedBrowserContext's anchor_page docstring).
             handle = IsolatedBrowserContext(browser, context_id, self.registry, seed_page)
+            handle._cleanup_timeout_seconds = self._config.cleanup_timeout_seconds
             try:
                 yield handle
             finally:
+                # Every step below is bounded and failure-tolerant, and runs
+                # regardless of how the task ended -- success, typed error,
+                # deadline, or cancellation (P03-R05 steps 1-2).
                 await handle.close_all_pages()
-                await self.registry.unregister_context(str(context_id))
                 with contextlib.suppress(Exception):
-                    await browser.send(cdp_target.dispose_browser_context(context_id))
+                    await self.registry.unregister_context(str(context_id))
+                await _bounded_cleanup(
+                    browser.send(cdp_target.dispose_browser_context(context_id)),
+                    self._config.cleanup_timeout_seconds,
+                    "dispose_browser_context",
+                )
+                if handle.unhealthy:
+                    await self._retire_if_unhealthy(handle.unhealthy_reason or "unknown")
+
+    async def _retire_if_unhealthy(self, reason: str) -> bool:
+        """Probes the shared browser once, and replaces it if it fails.
+
+        A task that hit a CDP deadline may have left the connection in a
+        state where the next task's first request never answers. One bounded
+        round trip decides that -- never a retry loop, which is how a broken
+        websocket listener turns into a CPU spin that starves this service's
+        event loop (P03-R05 step 4).
+
+        Only this service's own browser process is ever replaced; unrelated
+        Chrome processes on the machine are never touched.
+        """
+        browser = self._browser
+        if browser is None:
+            return False
+        logger.warning("browser_service.browser.unhealthy_context", extra={"reason": reason})
+        healthy = await _bounded_cleanup(
+            browser.send(cdp_target.get_targets()),
+            self._config.health_probe_timeout_seconds,
+            "health_probe",
+        )
+        if healthy and not browser.stopped:
+            return False
+        logger.warning("browser_service.browser.retiring_process", extra={"reason": reason})
+        await self.restart()
+        return True
 
     async def reap_abandoned(self, max_age_seconds: float) -> int:
         """Best-effort sweep for contexts older than ``max_age_seconds``.

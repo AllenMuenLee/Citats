@@ -72,6 +72,21 @@ export function retryDelayFromMessage(message: string | undefined): number {
   return Math.ceil(amount * (unit === "ms" ? 1 : unit === "m" ? 60_000 : 1_000));
 }
 
+export function rateLimitResetLogFields(retryAfterMs: number, nowMs = Date.now()): {
+  retryAfterSeconds: number | null;
+  retryAt: string | null;
+  resetHint: "provider-supplied" | "not-provided";
+} {
+  if (!Number.isFinite(retryAfterMs) || retryAfterMs <= 0) {
+    return { retryAfterSeconds: null, retryAt: null, resetHint: "not-provided" };
+  }
+  return {
+    retryAfterSeconds: Math.ceil(retryAfterMs / 1_000),
+    retryAt: new Date(nowMs + retryAfterMs).toISOString(),
+    resetHint: "provider-supplied",
+  };
+}
+
 /** Bound on the error body read for diagnosis -- enough for one message, never a whole payload. */
 const MAX_ERROR_BODY_CHARS = 2_000;
 const MAX_ERROR_MESSAGE_CHARS = 500;
@@ -291,6 +306,11 @@ export function createStreamingAdapter(
           }
           if (!response.ok) {
             const detail = readProviderErrorDetail(response.status, await readErrorBody(response));
+            const retryAfterMs = Math.max(
+              retryDelayMs(response),
+              retryDelayFromMessage(detail.message),
+              detail.retryAfterMs ?? 0,
+            );
             // The user-facing message is deliberately generic, so the provider's
             // own reason is only ever recoverable here. Server-side only, and
             // narrowed to the four diagnosable fields by `readProviderErrorDetail`.
@@ -298,10 +318,15 @@ export function createStreamingAdapter(
               provider: config.provider,
               model: config.model,
               correlationId: request.correlationId,
+              attempt: attemptCount,
               ...detail,
+              // `Date.now()`, not the injected `now`: that clock is the retry
+              // budget's, and spending a tick of it on a log timestamp makes
+              // every logged 429 shorten the budget it is reporting on.
+              ...(response.status === 429 ? rateLimitResetLogFields(retryAfterMs, Date.now()) : {}),
             });
             const mapped = mapStatus(response.status, detail);
-            if (isRetryable(mapped.code) && await backoff(Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message), detail.retryAfterMs ?? 0))) continue;
+            if (isRetryable(mapped.code) && await backoff(retryAfterMs)) continue;
             throw mapped;
           }
           for (const header of provider.requestIdHeaders ?? []) {

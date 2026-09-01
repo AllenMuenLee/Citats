@@ -42,3 +42,7 @@ Thumbs.db
 
 # --- Docker / compose runtime data (named volumes are managed by Docker, not the repo) ---
 docker-data/
+
+# --- Developer-only AI conversation transcripts (CHAT_LOG_CONVERSATION=1) ---
+.ai-logs/
+**/.ai-logs/

@@ -11,6 +11,11 @@ import {
   type SystemEchoInvocation,
 } from "@ai-browser/contracts";
 import type { ModelAdapter, ModelStreamEvent, ModelStreamRequest } from "../src/server/ai";
+import {
+  BrowserServiceContractError,
+  BrowserServiceTimeoutError,
+  BrowserServiceUnavailableError,
+} from "../src/server/browser-service/errors";
 import { InMemoryConversationRepository } from "../src/server/conversation";
 import {
   ChatOrchestrator,
@@ -154,6 +159,19 @@ describe("ChatOrchestrator", () => {
     expect(conversations.read("session-1", "user-1")[0].complete).toBe(true);
   });
 
+  it("re-prompts when a model step contains only hidden reasoning and no actionable output", async () => {
+    const { orchestrator, requests } = harness([
+      [{ type: "finish", reason: "stop" }],
+      [{ type: "text-delta", text: "I can help with that." }, { type: "finish", reason: "stop" }],
+    ]);
+
+    await expect(collect(orchestrator)).resolves.toEqual([
+      { type: "text-delta", delta: "I can help with that." },
+      { type: "done" },
+    ]);
+    expect(requests[2].turns.at(-1)?.content).toContain("no user-visible answer and no tool call");
+  });
+
   it("executes one and multiple validated echo calls before a final reply", async () => {
     const calls = [
       { type: "tool-call-delta" as const, index: 0, id: "call-1", name: "system.echo", argumentsDelta: "{\"message\":\"one\"}" },
@@ -216,10 +234,8 @@ describe("ChatOrchestrator", () => {
   it("answers a repeated identical call with a synthetic error instead of re-executing it, and still enforces the step cap", async () => {
     const repeated = { type: "tool-call-delta" as const, index: 0, id: "call", name: "system.echo", argumentsDelta: "{\"message\":\"same\"}" };
     const repeatedHarness = harness([[repeated], [{ ...repeated, id: "call-2" }]]);
-    const events = await collect(repeatedHarness.orchestrator);
+    await expect(collect(repeatedHarness.orchestrator)).rejects.toMatchObject({ code: "STEP_LIMIT" });
     expect(repeatedHarness.executor.invoke).toHaveBeenCalledTimes(1);
-    expect(events.filter((event) => event.type === "tool-status" && event.state === "failed")).toHaveLength(1);
-    expect(events.at(-1)).toEqual({ type: "done" });
     const capped = harness([[{ ...repeated, argumentsDelta: "{\"message\":\"once\"}" }]], { maxSteps: 1 });
     await expect(collect(capped.orchestrator)).rejects.toBeInstanceOf(OrchestratorError);
   });
@@ -570,5 +586,70 @@ describe("ChatOrchestrator routing (P02-F05)", () => {
     await collect(orchestrator);
     expect(requests[1].hostedTools).toEqual(["web_search"]);
     expect(metrics).toEqual([{ correlationId: expect.any(String), route: "website_read_required", usedDiscovery: true }]);
+  });
+});
+
+/**
+ * P03-R01 step 6 and acceptance item 8. The reproduced Airbnb failure
+ * reported a browser-service timeout to the user as
+ * `INTERNAL -- The tool could not complete safely.`, which named neither
+ * the real cause nor a recovery. Every known failure below must now reach
+ * the renderer as its own typed code and reason, and only a genuinely
+ * unrecognised defect may still fail closed as `INTERNAL`.
+ */
+describe("ChatOrchestrator typed tool failures (P03-R01)", () => {
+  function harnessThrowing(error: unknown) {
+    return harness([
+      [{ type: "tool-call-delta", index: 0, id: "call-x", name: "system.echo", argumentsDelta: "{\"message\":\"hello\"}" }],
+      [{ type: "text-delta", text: "Reported safely." }],
+    ], { executor: { invoke: vi.fn(async () => { throw error; }) } });
+  }
+
+  async function failureFor(error: unknown) {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const events = await collect(harnessThrowing(error).orchestrator);
+      const failed = events.find((event) => event.type === "tool-status" && event.state === "failed");
+      return { failed: failed as Extract<typeof events[number], { type: "tool-status" }>, warn };
+    } finally {
+      warn.mockRestore();
+    }
+  }
+
+  it("reports an exhausted browser-service deadline as TIMEOUT, not INTERNAL", async () => {
+    const { failed } = await failureFor(new BrowserServiceTimeoutError("Browser service request timed out."));
+    expect(failed.response).toBe("TIMEOUT");
+    expect(failed.reason).not.toBe("The tool could not complete safely.");
+    expect(failed.reason).toContain("too long");
+  });
+
+  it("reports an unreachable browser service as UPSTREAM_UNAVAILABLE", async () => {
+    const { failed } = await failureFor(new BrowserServiceUnavailableError("down"));
+    expect(failed.response).toBe("UPSTREAM_UNAVAILABLE");
+  });
+
+  it("reports an unusable browser-service response as UPSTREAM_UNAVAILABLE", async () => {
+    const { failed } = await failureFor(new BrowserServiceContractError("bad shape"));
+    expect(failed.response).toBe("UPSTREAM_UNAVAILABLE");
+  });
+
+  it("still fails closed as INTERNAL for an unexpected defect", async () => {
+    const { failed } = await failureFor(new RangeError("off by one"));
+    expect(failed.response).toBe("INTERNAL");
+  });
+
+  it("logs the typed category without the thrown exception text", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const secretish = "ECONNREFUSED 127.0.0.1:8020 <div>untrusted page text</div>";
+    await collect(harnessThrowing(new BrowserServiceTimeoutError(secretish)).orchestrator);
+    const record = warn.mock.calls.find(([label]) => label === "[orchestrator] tool execution failed");
+    expect(record?.[1]).toMatchObject({
+      toolName: "system.echo",
+      category: "browser_service_timeout",
+      errorCode: "TIMEOUT",
+      retryable: true,
+    });
+    expect(JSON.stringify(record?.[1])).not.toContain("untrusted page text");
+    warn.mockRestore();
   });
 });

@@ -70,6 +70,28 @@ describe("ChatWorkspace", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("reports a stream that closes without a done event instead of leaving Thinking visible", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream()));
+    const user = userEvent.setup(); render(<ChatWorkspace />);
+    await user.type(screen.getByRole("textbox"), "Hello{enter}");
+    expect(await screen.findByText("The assistant response ended before it completed. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("removes the empty assistant placeholder when a generated view completes without text", async () => {
+    let id = 0;
+    vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
+      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 1, coverageLabel: "Full coverage", fallbackText: "Fallback text" },
+      { type: "done" },
+    )));
+    const user = userEvent.setup(); render(<ChatWorkspace />);
+    await user.type(screen.getByRole("textbox"), "Show me{enter}");
+    expect(await screen.findByRole("region", { name: "Generated view" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Thinking...")).not.toBeInTheDocument());
+  });
+
   it("shows a failed tool response and reason", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
       { type: "tool-status", id: "tool-1", label: "browser.explore_website", state: "running", url: "https://example.com/search?q=test" },
