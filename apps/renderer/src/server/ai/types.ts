@@ -31,7 +31,10 @@ export class ModelProviderError extends Error {
   }
 }
 
-/** Safe, non-leaking text for every error code -- never carries provider payloads, keys, or page content. */
+/**
+ * Fallback text for every error code, used when the provider stated no
+ * reason of its own. Never carries provider payloads, keys, or page content.
+ */
 export const SAFE_ERROR_MESSAGES: Readonly<Record<ModelErrorCode, string>> = Object.freeze({
   AI_AUTHENTICATION_FAILED: "The AI service credentials were rejected.",
   AI_RATE_LIMITED: "The AI service is temporarily busy. Please try again.",
@@ -42,8 +45,21 @@ export const SAFE_ERROR_MESSAGES: Readonly<Record<ModelErrorCode, string>> = Obj
   AI_PROVIDER_UNAVAILABLE: "The AI service is temporarily unavailable.",
 });
 
-export function providerError(code: ModelErrorCode, cause?: unknown): ModelProviderError {
-  return new ModelProviderError(code, SAFE_ERROR_MESSAGES[code], cause === undefined ? undefined : { cause });
+/**
+ * Builds the error the caller sees. `detail` is the provider's own reason
+ * -- Gemini's `error.message`, Groq's -- and replaces the generic text when
+ * present, so a rejected request reports what the provider actually said
+ * instead of a summary this app guessed at. Only that one field is carried:
+ * the rest of an error body may quote the model's rejected output, which can
+ * contain untrusted page content.
+ */
+export function providerError(
+  code: ModelErrorCode,
+  cause?: unknown,
+  detail?: string,
+): ModelProviderError {
+  const message = detail?.trim() ? detail.trim() : SAFE_ERROR_MESSAGES[code];
+  return new ModelProviderError(code, message, cause === undefined ? undefined : { cause });
 }
 
 export interface ModelTextDelta {
@@ -57,6 +73,17 @@ export interface ModelToolCallDelta {
   id?: string;
   name?: string;
   argumentsDelta: string;
+  /**
+   * Opaque provider-issued token that must be echoed back verbatim when this
+   * call is replayed in a later request's history. Gemini 3.x returns a
+   * `thoughtSignature` alongside every `functionCall` part and rejects the
+   * next request outright ("Function call is missing a thought_signature in
+   * functionCall parts") if it is not returned -- which made every tool loop
+   * fail with HTTP 400 on its second step, after exactly one successful tool
+   * call. Modelled as one opaque string rather than a Gemini-shaped field so
+   * a provider without the concept simply never sets it.
+   */
+  signature?: string;
 }
 
 export interface ModelUsage {
@@ -118,6 +145,8 @@ export interface ConversationTurn {
     id: string;
     name: string;
     arguments: string;
+    /** Echoed back verbatim when this turn is replayed -- see `ModelToolCallDelta.signature`. */
+    signature?: string;
   }[];
 }
 

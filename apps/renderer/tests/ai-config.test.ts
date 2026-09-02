@@ -16,8 +16,8 @@ describe("AI provider configuration", () => {
   it("resolves each role independently and accepts a provider name in any casing", () => {
     const config = readAiConfig({
       ...base,
-      EXTRACTION_MODEL_PROVIDER: "gemini",
-      EXTRACTION_MODEL: "gemini-3.5-flash-lite",
+      SOURCE_FINDING_MODEL_PROVIDER: "gemini",
+      SOURCE_FINDING_MODEL: "gemini-3.5-flash-lite",
       UI_MODEL_PROVIDER: "GROQ",
       UI_MODEL: "groq-ui",
     });
@@ -28,7 +28,7 @@ describe("AI provider configuration", () => {
       apiKey: "gemini-secret",
       baseUrl: new URL("https://generativelanguage.googleapis.com/v1beta/"),
     });
-    expect(config.extraction).toMatchObject({ provider: "gemini", model: "gemini-3.5-flash-lite" });
+    expect(config.sourceFinding).toMatchObject({ provider: "gemini", model: "gemini-3.5-flash-lite" });
     // Roles are independent: the UI role picks up Groq's own key and base URL.
     expect(config.ui).toMatchObject({
       provider: "groq",
@@ -40,7 +40,7 @@ describe("AI provider configuration", () => {
 
   it("leaves the optional roles unset when neither of their variables is present", () => {
     const config = readAiConfig(base);
-    expect(config.extraction).toBeUndefined();
+    expect(config.sourceFinding).toBeUndefined();
     expect(config.ui).toBeUndefined();
   });
 
@@ -68,14 +68,39 @@ describe("AI provider configuration", () => {
   it("applies the shared transport budget to every role", () => {
     const config = readAiConfig({
       ...base,
-      EXTRACTION_MODEL_PROVIDER: "groq",
-      EXTRACTION_MODEL: "groq-extraction",
+      SOURCE_FINDING_MODEL_PROVIDER: "groq",
+      SOURCE_FINDING_MODEL: "groq-extraction",
       AI_TIMEOUT_MS: "5000",
       AI_MAX_RETRIES: "1",
       AI_RETRY_MAX_ELAPSED_MS: "9000",
     });
-    for (const role of [config.chat, config.extraction!]) {
+    for (const role of [config.chat, config.sourceFinding!]) {
       expect(role).toMatchObject({ timeoutMs: 5_000, maxRetries: 1, retryMaxElapsedMs: 9_000 });
     }
+  });
+});
+
+describe("model selection", () => {
+  const base = {
+    GEMINI_API_KEY: "key",
+    CHAT_MODEL_PROVIDER: "gemini",
+    CHAT_MODEL: "gemini-3.5-flash",
+  };
+
+  // No model family is refused here any more. Which models a provider serves,
+  // and with which capabilities, is the provider's fact and changes without
+  // notice; a local guess at it refused working configurations and hid the
+  // provider's own explanation behind a message this app invented. A model the
+  // provider cannot run now fails on the request, reported in the provider's
+  // own words.
+  it("accepts any model name for any role, leaving the verdict to the provider", () => {
+    expect(() => readAiConfig({ ...base, CHAT_MODEL: "gemma-4-31b-it" })).not.toThrow();
+    expect(() => readAiConfig({ ...base, SOURCE_FINDING_MODEL_PROVIDER: "gemini", SOURCE_FINDING_MODEL: "gemma-4-26b-a4b-it" }))
+      .not.toThrow();
+    expect(() => readAiConfig({ ...base, UI_MODEL_PROVIDER: "gemini", UI_MODEL: "gemma-4-31b-it" })).not.toThrow();
+  });
+
+  it("keeps the model string as written, including a models/ prefix", () => {
+    expect(readAiConfig({ ...base, CHAT_MODEL: "models/gemini-3.5-flash" }).chat.model).toBe("models/gemini-3.5-flash");
   });
 });

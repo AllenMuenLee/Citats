@@ -1,30 +1,33 @@
-/** A resolved source cited somewhere in the completed answer (see `apps/renderer/src/server/citations/`). */
-export interface OrchestratorCitationSource {
+/**
+ * The opaque instance the renderer is handed so it can mount a generated
+ * view. It carries no HTML, no TSX, no prompt, no plan, and no URL -- the
+ * artifact is fetched from the app's own origin by id, and the display
+ * props are the plan projection the instance store already validated.
+ */
+export interface GeneratedViewEvent {
+  type: "generated-ui";
   id: string;
-  url: string;
-  title: string;
-  retrievedAt: string;
+  view: {
+    instanceId: string;
+    artifactId: string;
+    planDigest: string;
+    inputDigest: string;
+    revision: number;
+    expiresAt: string;
+    title: string;
+    sourceCount: number;
+    coverage: "validated" | "partial";
+    fallbackText: string;
+  };
 }
 
 export type OrchestratorEvent =
   | { type: "text-delta"; delta: string }
-  | { type: "tool-status"; id: string; label: string; state: "running" | "completed" | "failed"; url?: string; response?: string; reason?: string }
-  | { type: "artifact"; id: string; artifactType: "image" | "file" | "source"; title: string; url?: string; mediaType?: string }
-  | { type: "generated-ui"; id: string; instanceId: string; artifactId: string; inputDigest: string; observationDigest: string; revision: number; expiresAt: string; displayProps: Readonly<Record<string, unknown>>; sourceCount: number; coverageLabel: string; fallbackText: string }
+  | { type: "tool-status"; id: string; label: string; state: "running" | "completed" | "failed"; response?: string; reason?: string }
+  /** A bounded `ui.generate` stage transition. Never carries HTML, a plan, TSX, a prompt, or compiler state. */
+  | { type: "tool-progress"; id: string; toolCallId: string; state: string; label: string }
+  | GeneratedViewEvent
   | { type: "error"; message: string; retryable: boolean }
-  /**
-   * Inline reference tying a position in the streamed assistant text to a
-   * citation that has already been resolved (validated) against the
-   * evidence for this turn -- an unresolved/invalid citation must never be
-   * emitted as a marker. `position` is the number of assistant-text
-   * characters emitted (via `text-delta`) before this marker; `id` is a
-   * unique id for this marker instance (for de-duplication), distinct from
-   * `citationId` (the resolved `Citation.id`, which may be marked more
-   * than once if the same source is cited at multiple positions).
-   */
-  | { type: "citation-marker"; id: string; citationId: string; sourceId: string; position: number }
-  /** The deduplicated list of sources actually cited in the completed answer. */
-  | { type: "citation-sources"; id: string; sources: OrchestratorCitationSource[] }
   | { type: "done" };
 
 export type OrchestratorState =
@@ -44,8 +47,8 @@ export class OrchestratorError extends Error {
       | "DEADLINE"
       | "CANCELLED"
       | "CONTRACT_ERROR"
-      /** The trusted routing decision (P02-F05) could not be produced or was malformed; failed closed before any tool was exposed. Retryable -- never a policy violation by the model. */
-      | "ROUTING_FAILED",
+      /** Consecutive steps came back with neither a tool call nor any user-visible text. Retryable. */
+      | "EMPTY_RESPONSE",
     message: string,
   ) {
     super(message);

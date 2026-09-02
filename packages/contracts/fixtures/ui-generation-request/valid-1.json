@@ -2,144 +2,27 @@
   "schemaVersion": 1,
   "promptVersion": "ui-prompt-v1",
   "promptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "canonicalUserTask": "Compare the available items",
-  "brief": {
+  "plan": {
     "schemaVersion": 1,
-    "observationId": "obs-1",
-    "canonicalUserGoal": "Compare the available items",
-    "implementationPrompt": "Present the observed items as a comparison view. Keep the source site's calm, list-led character without copying its styling. Show each item's title and provenance next to the values it qualifies. Sorting and filtering stay internal to the component; there are no external actions on this page.",
-    "metadata": {
-      "schemaVersion": 1,
-      "observationId": "obs-1",
-      "observationDigest": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
-      "page": {
-        "title": "Available items",
-        "language": "en",
-        "description": "A list of comparable items.",
-        "author": null,
-        "publishedTime": null,
-        "updatedTime": null,
-        "siteName": "Example",
-        "pageType": "website"
-      },
-      "provenance": {
-        "sourceUrl": "https://example.com/items",
-        "origin": "https://example.com",
-        "retrievedAt": "2026-08-25T00:00:00Z",
-        "observationStatus": "complete"
-      },
-      "freshness": "live",
-      "coverage": {
-        "observedControlCount": 0,
-        "safelyExploredControlCount": 0,
-        "prohibitedControlCount": 0,
-        "unknownControlCount": 0,
-        "inaccessibleRegionCount": 0,
-        "unobservedLazyStateCount": 0,
-        "notes": []
-      },
-      "warnings": [],
-      "recordIds": [],
-      "mediaIds": [],
-      "internalInteractions": [],
-      "externalCapabilities": [],
-      "untrusted": true
-    },
-    "metadataDigest": "2de326c3ed6291a2b488948846c8a8774582405fc949704bea8366b9f1980843",
-    "prioritizedCollectionHandles": [],
-    "detailRegionHandles": [],
-    "importantFields": [],
-    "comparisonRequirements": [],
-    "freshness": "live",
-    "warnings": []
+    "canonicalGoal": "Compare the available items",
+    "sources": [{ "sourceId": "source-one", "requestedUrl": "https://example.com/items", "finalUrl": "https://example.com/items", "origin": "example.com", "title": "Available items", "retrievedAt": "2026-08-25T00:00:00Z", "captureStatus": "complete" }],
+    "facts": [], "collections": [], "records": [], "media": [],
+    "components": [{ "componentId": "root", "role": "root", "label": "Available items", "description": "Comparison view", "childIds": [], "collectionId": null, "recordIds": [], "factIds": [], "mediaIds": [] }],
+    "informationArchitecture": { "primaryEntity": "Items", "grouping": "none", "ordering": "source_order", "orderingFieldRole": null, "sectionIds": ["root"] },
+    "layout": { "structure": "single_column", "density": "comfortable", "maxColumns": 1 },
+    "visualDirection": { "tone": "neutral", "accentToken": "accent", "surfaceTokens": ["surface"], "emphasis": "Clear comparison" },
+    "typography": { "headingLevels": 2, "bodySizePx": 16, "auxiliarySizePx": 12, "monospaceFor": ["none"] },
+    "spacing": { "baseUnitPx": 4, "sectionGapPx": 24, "itemGapPx": 12 },
+    "responsive": { "breakpoints": [{ "name": "compact", "minWidthPx": 320, "columns": 1, "collapse": [] }], "minimumViewport": { "width": 800, "height": 600 } },
+    "accessibility": { "landmarks": ["main"], "headingOutline": [{ "level": 1, "componentId": "root" }], "features": ["heading_order", "landmarks"], "notes": [] },
+    "localInteractions": [],
+    "states": { "empty": { "headline": "No items", "body": "No comparable items were captured." }, "loading": { "headline": "Loading", "body": "Preparing the comparison." }, "error": { "headline": "Unavailable", "body": "The comparison could not be prepared." }, "partial": { "headline": "Partial results", "body": "Some requested information is unavailable." } },
+    "coverage": { "requestedSources": 1, "capturedSources": 1, "omissions": [], "unsupportedRequests": [], "confidence": "high" },
+    "constraints": { "maxRecordsRendered": 1, "maxComponentsRendered": 1, "requireSourceAttribution": true, "allowExternalActions": false, "allowNetworkAccess": false }
   },
-  "implementationPrompt": "Present the observed items as a comparison view. Keep the source site's calm, list-led character without copying its styling. Show each item's title and provenance next to the values it qualifies. Sorting and filtering stay internal to the component; there are no external actions on this page.",
-  "websiteUiMetadata": {
-    "schemaVersion": 1,
-    "observationId": "obs-1",
-    "observationDigest": "sha256-0000000000000000000000000000000000000000000000000000000000000000",
-    "page": {
-      "title": "Available items",
-      "language": "en",
-      "description": "A list of comparable items.",
-      "author": null,
-      "publishedTime": null,
-      "updatedTime": null,
-      "siteName": "Example",
-      "pageType": "website"
-    },
-    "provenance": {
-      "sourceUrl": "https://example.com/items",
-      "origin": "https://example.com",
-      "retrievedAt": "2026-08-25T00:00:00Z",
-      "observationStatus": "complete"
-    },
-    "freshness": "live",
-    "coverage": {
-      "observedControlCount": 0,
-      "safelyExploredControlCount": 0,
-      "prohibitedControlCount": 0,
-      "unknownControlCount": 0,
-      "inaccessibleRegionCount": 0,
-      "unobservedLazyStateCount": 0,
-      "notes": []
-    },
-    "warnings": [],
-    "recordIds": [],
-    "mediaIds": [],
-    "internalInteractions": [],
-    "externalCapabilities": [],
-    "untrusted": true
-  },
-  "websiteUiMetadataDigest": "2de326c3ed6291a2b488948846c8a8774582405fc949704bea8366b9f1980843",
-  "graph": {
-    "nodes": [],
-    "relationships": [],
-    "regions": [],
-    "collections": []
-  },
-  "sourceBindings": [],
-  "recordBindings": [],
-  "mediaBindings": [],
-  "capabilityBindings": [],
-  "coverage": {
-    "observedControlCount": 0,
-    "safelyExploredControlCount": 0,
-    "prohibitedControlCount": 0,
-    "unknownControlCount": 0,
-    "inaccessibleRegionCount": 0,
-    "unobservedLazyStateCount": 0,
-    "notes": []
-  },
-  "freshness": "live",
-  "warnings": [],
-  "runtimeApiVersion": "1.0.0",
-  "theme": {
-    "allowedTokens": [
-      "canvas",
-      "surface"
-    ],
-    "minimumTargetSize": 44,
-    "supportedThemes": [
-      "light",
-      "dark"
-    ],
-    "supportsReducedMotion": true,
-    "minimumViewport": {
-      "width": 800,
-      "height": 600
-    },
-    "maximumZoomPercent": 200
-  },
-  "limits": {
-    "maxSourceBytes": 65536,
-    "maxAstNodes": 10000,
-    "maxComplexity": 100,
-    "maxRenderNodes": 2000,
-    "maxLocalStateEntries": 16
-  },
-  "correlation": {
-    "requestId": "req-1",
-    "userId": "user-1"
-  }
+  "planDigest": "fb1d87fdb3825292f23544d192fe88a92f414c88a80de816e397111b78a222ab",
+  "runtime": { "module": "@ai-browser/generated-ui-runtime", "apiVersion": "1.0.0", "exports": ["Stack"] },
+  "theme": { "allowedTokens": ["accent", "surface"], "minimumTargetSize": 44, "supportedThemes": ["light", "dark"], "supportsReducedMotion": true, "minimumViewport": { "width": 800, "height": 600 }, "maximumZoomPercent": 200 },
+  "limits": { "maxSourceBytes": 65536, "maxAstNodes": 10000, "maxComplexity": 100, "maxRenderNodes": 2000, "maxLocalStateEntries": 16 },
+  "correlation": { "requestId": "req-1", "userId": "user-1" }
 }

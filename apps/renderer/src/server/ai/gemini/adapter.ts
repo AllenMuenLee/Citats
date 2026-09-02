@@ -7,7 +7,9 @@ import {
   assertRequestWithinLimits,
   createStreamingAdapter,
   iterateSseData,
+  mapHttpStatus,
   parseSseJson,
+  readProviderErrorDetail,
   type HttpCall,
   type StreamingProvider,
 } from "../streaming";
@@ -39,6 +41,11 @@ import {
 const PartSchema = z.object({
   text: z.string().optional(),
   thought: z.boolean().optional(),
+  /**
+   * Sibling of `functionCall`, not a field inside it. Opaque to this app --
+   * it is only ever read here and written back unchanged by `toContents`.
+   */
+  thoughtSignature: z.string().optional(),
   functionCall: z.object({
     id: z.string().optional(),
     name: z.string(),
@@ -73,6 +80,21 @@ const ChunkSchema = z.object({
 });
 
 const BLOCKED_FINISH_REASONS = new Set(["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "IMAGE_SAFETY"]);
+
+/**
+ * Gemini reports a function call the model emitted but the API could not
+ * parse as `MALFORMED_FUNCTION_CALL`, and returns *no* content with it --
+ * neither text nor a usable `functionCall` part. Left unmapped this reaches
+ * the tool loop as a well-formed, entirely empty turn, which is
+ * indistinguishable from a model that simply said nothing: the loop appends
+ * its "you produced no answer and no tool call" nudge and asks again, and a
+ * model that cannot emit a parseable call (a Gemma-family model, or one
+ * given no tools while being told to call one) reproduces it on every step
+ * until the step cap ends the turn minutes later with nothing to show.
+ * Reporting it as the malformed response it is turns that silent spin into
+ * one typed failure on the first step.
+ */
+const MALFORMED_FUNCTION_CALL_FINISH_REASON = "MALFORMED_FUNCTION_CALL";
 
 const SAFE_INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
@@ -129,7 +151,13 @@ export function toContents(turns: readonly ConversationTurn[]): unknown[] {
     const parts: unknown[] = [];
     if (turn.content.length > 0) parts.push({ text: turn.content });
     for (const call of turn.toolCalls ?? []) {
-      parts.push({ functionCall: { name: call.name, args: parseArguments(call.arguments) } });
+      // The signature belongs to the part, alongside `functionCall`. Omitted
+      // entirely when absent: an empty string is not a valid signature and is
+      // rejected the same way a missing one is.
+      parts.push({
+        functionCall: { name: call.name, args: parseArguments(call.arguments) },
+        ...(call.signature ? { thoughtSignature: call.signature } : {}),
+      });
     }
     if (parts.length === 0) continue;
     contents.push({ role: turn.role === "assistant" ? "model" : "user", parts });
@@ -189,6 +217,7 @@ const gemini: StreamingProvider = {
   async *parseStream(response): AsyncGenerator<ModelStreamEvent> {
     let toolCallIndex = 0;
     let searchAnnounced = false;
+    let emittedContent = false;
     const seenSources = new Set<string>();
     for await (const data of iterateSseData(response)) {
       const parsed = ChunkSchema.safeParse(parseSseJson(data));
@@ -198,14 +227,19 @@ const gemini: StreamingProvider = {
       for (const candidate of chunk.candidates ?? []) {
         for (const part of candidate.content?.parts ?? []) {
           // `thought` parts are the model's own reasoning summary, never the answer.
-          if (part.text && !part.thought) yield { type: "text-delta", text: part.text };
+          if (part.text && !part.thought) {
+            emittedContent = true;
+            yield { type: "text-delta", text: part.text };
+          }
           if (part.functionCall) {
+            emittedContent = true;
             yield {
               type: "tool-call-delta",
               index: toolCallIndex,
               id: part.functionCall.id,
               name: part.functionCall.name,
               argumentsDelta: JSON.stringify(part.functionCall.args ?? {}),
+              ...(part.thoughtSignature ? { signature: part.thoughtSignature } : {}),
             };
             toolCallIndex += 1;
           }
@@ -234,6 +268,12 @@ const gemini: StreamingProvider = {
         }
         if (candidate.finishReason && BLOCKED_FINISH_REASONS.has(candidate.finishReason)) {
           throw providerError("AI_SAFETY_REFUSAL");
+        }
+        // Only when the candidate carried nothing else: a stream that already
+        // produced text or a parseable call is a usable turn, and the caller
+        // is better served by that content than by a failure.
+        if (candidate.finishReason === MALFORMED_FUNCTION_CALL_FINISH_REASON && !emittedContent) {
+          throw providerError("AI_MALFORMED_RESPONSE");
         }
         if (candidate.finishReason) yield { type: "finish", reason: candidate.finishReason.toLowerCase() };
       }
@@ -295,7 +335,14 @@ export function createGeminiCompletion(
         },
       }),
     });
-    if (!response.ok) throw providerError(response.status === 429 ? "AI_RATE_LIMITED" : "AI_PROVIDER_UNAVAILABLE");
+    if (!response.ok) {
+      // Same status mapping and same verbatim reason as the streaming path:
+      // a 400 here is a rejected request, not an unavailable service, and
+      // Gemini's own sentence names the field or capability at fault.
+      const detail = readProviderErrorDetail(response.status, (await response.text()).slice(0, 2_000));
+      console.error("[ai] Gemini completion rejected request", { provider: config.provider, model: config.model, ...detail });
+      throw mapHttpStatus(response.status, detail);
+    }
     const parsed = CompletionSchema.safeParse(await response.json());
     if (!parsed.success) throw providerError("AI_MALFORMED_RESPONSE", parsed.error);
     const candidate = parsed.data.candidates[0]!;

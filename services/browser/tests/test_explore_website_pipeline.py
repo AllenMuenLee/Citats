@@ -59,33 +59,31 @@ class FakePage:
         self.handlers: list[tuple[Any, Any]] = []
         self.removed: list[tuple[Any, Any]] = []
 
-    def add_handler(self, event_type: Any, handler: Any) -> None:
-        self.handlers.append((event_type, handler))
+    def on(self, event: str, handler: Any) -> None:
+        self.handlers.append((event, handler))
 
-    def remove_handler(self, event_type: Any, handler: Any) -> None:
-        self.removed.append((event_type, handler))
+    def remove_listener(self, event: str, handler: Any) -> None:
+        self.removed.append((event, handler))
 
-    async def send(self, command: Any) -> Any:
-        request = command.send(None)
-        method = str(request["method"])
-        params = dict(request.get("params", {}))
+    async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
+        given = dict(params or {})
         self.methods.append(method)
         if method in self.stall:
             await asyncio.sleep(3_600)
         if method == "DOM.getDocument":
-            return self.document
+            return {"root": self.document}
         if method == "DOM.describeNode":
-            return self.expansions.get(int(params["backendNodeId"]), element(0, "div"))
+            return {
+                "node": self.expansions.get(int(given["backendNodeId"]), element(0, "div"))
+            }
         if method == "Accessibility.getFullAXTree":
-            return self.ax_nodes
+            return {"nodes": self.ax_nodes}
         if method == "Accessibility.getPartialAXTree":
-            return []
+            return {"nodes": []}
         if method == "DOM.getBoxModel":
-            from types import SimpleNamespace
-
-            return SimpleNamespace(content=[0, 0, 320, 0, 320, 240, 0, 240])
+            return {"model": {"content": [0, 0, 320, 0, 320, 240, 0, 240]}}
         if method in {"DOM.enable", "DOM.disable"}:
-            return None
+            return {}
         raise AssertionError(f"unexpected command: {method}")
 
 
@@ -95,6 +93,12 @@ class FakeContext:
 
     async def open_page(self) -> FakePage:
         return self._page
+
+    async def open_cdp_session(self, page: FakePage) -> FakePage:
+        # One object plays both roles here: the fake answers page calls and
+        # CDP calls alike, so the pipeline's split between them stays visible
+        # in the assertions without a second double.
+        return page
 
 
 class FakeManager:
@@ -377,7 +381,7 @@ async def test_evidence_quotes_only_text_the_observation_retained(
 ) -> None:
     document = build_results_document()
     # Text that exists in the page but sits below the node budget cut.
-    document.children[1].children[1].children.append(
+    document["children"][1]["children"][1]["children"].append(
         element(90_000, "p", children=[text(90_001, "SECRET-BELOW-THE-BUDGET")])
     )
     page = FakePage(document=document, ax_nodes=ax_nodes_for_results())

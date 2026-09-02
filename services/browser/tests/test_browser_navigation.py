@@ -1,29 +1,15 @@
-"""Real-Chrome navigation-service tests.
+"""Real-browser tests for NavigationService against headless Chromium
+(Playwright) and a local HTTP fixture server.
 
-Exercises NavigationService against real headless Chrome (via nodriver)
-and this package's own local fixture HTTP server (never the public
-internet): successful NAVIGATE + GET_CONTENT, blocked targets, redirect
-revalidation (including a later hop in an otherwise-allowed chain), the
-redirect-count cap, and the response-size cap.
+Covers successful navigation, URL-policy enforcement on the initial URL and
+on every redirect hop, the redirect cap, and the response-size cap. The
+redirect cases matter most: Playwright follows a server-side 3xx inside the
+driver and reports the chain only afterwards, so ``NavigationService`` walks
+the chain itself and validates each ``Location`` *before* requesting it --
+these tests are what prove a disallowed hop is never contacted.
 
-Idle/total timeout and explicit-cancellation behavior is covered in
-``test_browser_navigation_timeouts.py`` instead, against a fake page
-rather than real Chrome -- see that file's module docstring for why:
-exercising a real nodriver browser through several navigations that each
-abort the underlying request (a blocked redirect, an oversized response,
-too many redirects, a timeout, or an explicit cancellation -- anything
-that keeps ``page.get()`` from completing as Chrome originally intended)
-can, empirically on this host, corrupt nodriver's own shared
-per-connection CDP listener such that a *later*, otherwise-unrelated
-navigation on the SAME browser process spins a CPU core forever. This
-reproduced across several different specific triggers and did not go
-away when only the explicit-cancellation tests were isolated, so instead
-of chasing the exact upstream mechanism further, **every test in this
-file gets its own fresh, disposable browser process and event loop**
-(plain ``asyncio.run()`` per test) rather than sharing one across the
-module -- this is the one pattern that reliably avoids the corruption
-regardless of which specific navigation in this file happens to trigger
-it, at the cost of a real Chrome launch (a few seconds) per test.
+Timeout and cancellation control flow is covered separately, against a fake
+page, in ``test_browser_navigation_timeouts.py``.
 """
 
 from __future__ import annotations
@@ -69,7 +55,7 @@ fixture_http_server = _fixture_server_module.fixture_http_server
 
 @pytest.fixture(scope="module")
 def http_port() -> Iterator[int]:
-    # Plain stdlib HTTP server, unrelated to nodriver -- safe to share
+    # Plain stdlib HTTP server, unrelated to the browser -- safe to share
     # across the whole module.
     with fixture_http_server() as port:
         yield port

@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "category": "validation_failed",
+  "message": "The generated interface did not pass validation."
+}

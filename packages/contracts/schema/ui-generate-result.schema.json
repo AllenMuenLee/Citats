@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "coverage": {
+          "enum": [
+            "validated",
+            "partial"
+          ],
+          "type": "string"
+        },
+        "sourceCount": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "const": "ready",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "viewRef": {
+          "maxLength": 128,
+          "minLength": 8,
+          "pattern": "^uiv_[A-Za-z0-9_-]{4,124}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "viewRef",
+        "title",
+        "sourceCount",
+        "coverage"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "not_configured",
+            "no_sources",
+            "capture_failed",
+            "planning_failed",
+            "generation_failed",
+            "validation_failed",
+            "render_failed",
+            "cancelled",
+            "deadline_exceeded",
+            "internal"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "failed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "category",
+        "message"
+      ],
+      "type": "object"
+    }
+  ]
+}

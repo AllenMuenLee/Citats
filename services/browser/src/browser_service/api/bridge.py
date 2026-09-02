@@ -93,13 +93,25 @@ async def invoke_tool(request: Request) -> dict[str, Any]:
 
     try:
         registration.success_model.model_validate(response)
-    except ValidationError:
+    except ValidationError as exc:
         # A handler's payload drifted from its own declared contract --
         # fail safely rather than return a response the caller's own
         # schema would reject anyway.
+        #
+        # The offending *locations* and error types are logged, never the
+        # offending values: a page-derived string is exactly the kind of
+        # untrusted content that must not reach a log. Without them this
+        # failure is unactionable -- "the tool produced an invalid result"
+        # names neither the field nor the rule.
         logger.error(
             "browser_service.tool_result_contract_violation",
-            extra={"toolName": invocation.toolName},
+            extra={
+                "toolName": invocation.toolName,
+                "violations": [
+                    {"loc": ".".join(str(part) for part in error["loc"]), "type": error["type"]}
+                    for error in exc.errors()[:10]
+                ],
+            },
         )
         return _error(body, "INTERNAL", "The tool produced an invalid result.", False)
 

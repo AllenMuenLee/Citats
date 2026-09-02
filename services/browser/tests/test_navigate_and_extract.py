@@ -22,11 +22,8 @@ loopback-blocking rule that (correctly) applies in production. The
 exercises the real `/v1/tools/invoke` dispatch/envelope/validation path
 end-to-end rather than bypassing it.
 
-Every test uses its own fresh, disposable browser/event loop (see
-`test_browser_navigation.py`'s module docstring for why: sharing one
-real-Chrome browser/event loop across many navigations that abort an
-in-flight request can trigger an unrelated nodriver/`websockets`
-concurrency bug on this host).
+Every test uses its own fresh, disposable browser/event loop, so a test that
+tears its browser down badly cannot make a later, unrelated test fail.
 """
 
 from __future__ import annotations

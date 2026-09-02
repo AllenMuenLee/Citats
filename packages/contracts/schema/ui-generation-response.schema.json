@@ -49,28 +49,24 @@
           "maxItems": 16,
           "type": "array"
         },
-        "capabilityIds": {
+        "componentIds": {
           "items": {
-            "maxLength": 128,
+            "maxLength": 64,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9._:-]+$",
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
             "type": "string"
           },
           "maxItems": 256,
           "type": "array"
         },
-        "emittedCommandKinds": {
+        "factIds": {
           "items": {
-            "enum": [
-              "activate",
-              "select",
-              "set_value",
-              "open_detail",
-              "media_control"
-            ],
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
             "type": "string"
           },
-          "maxItems": 16,
+          "maxItems": 256,
           "type": "array"
         },
         "fallback": {
@@ -116,30 +112,23 @@
         },
         "mediaIds": {
           "items": {
-            "maxLength": 128,
+            "maxLength": 64,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9._:-]+$",
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
             "type": "string"
           },
           "maxItems": 256,
           "type": "array"
         },
-        "observationIds": {
-          "items": {
-            "maxLength": 128,
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9._:-]+$",
-            "type": "string"
-          },
-          "maxItems": 256,
-          "minItems": 1,
-          "type": "array"
+        "planDigest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
         },
         "recordIds": {
           "items": {
-            "maxLength": 128,
+            "maxLength": 64,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9._:-]+$",
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
             "type": "string"
           },
           "maxItems": 256,
@@ -166,9 +155,9 @@
         },
         "sourceIds": {
           "items": {
-            "maxLength": 128,
+            "maxLength": 64,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9._:-]+$",
+            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
             "type": "string"
           },
           "maxItems": 256,
@@ -176,12 +165,12 @@
         }
       },
       "required": [
-        "observationIds",
+        "planDigest",
         "sourceIds",
         "recordIds",
+        "factIds",
         "mediaIds",
-        "capabilityIds",
-        "emittedCommandKinds",
+        "componentIds",
         "localInteractions",
         "accessibilityFeatures",
         "responsiveRegions",

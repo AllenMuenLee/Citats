@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createGroqAdapter, createGroqCompletion, type ModelRoleConfig, type ModelStreamEvent } from "../src/server/ai";
+import { UI_PLAN_RESPONSE_JSON_SCHEMA } from "../src/server/ui-generate/planning/plan-schema";
+
+const UI_PLAN_RESPONSE_FORMAT = { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA } as const;
 
 const config: ModelRoleConfig = {
   provider: "groq",
@@ -147,6 +150,39 @@ describe("Groq adapter", () => {
       type: "json_schema",
       json_schema: { name: "routing_decision", strict: true, schema: { type: "object" } },
     });
+  });
+
+  /**
+   * P02-R05: the UI planner's own canonical schema, not a stand-in,
+   * has to reach Groq's native structured-output field -- and the
+   * planning request must advertise no tool, hosted or local.
+   */
+  it("forwards the canonical UI-plan schema with no tool advertised", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ choices: [{ delta: { content: "{}" } }] }));
+    await collect(createGroqAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: UI_PLAN_RESPONSE_FORMAT }));
+    const body = bodyOf(fetchImpl);
+    expect(body.response_format).toEqual({
+      type: "json_schema",
+      json_schema: { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA },
+    });
+    expect(body.tools).toBeUndefined();
+  });
+
+  /**
+   * The one supported compatibility exception: the compound models accept
+   * JSON-object mode only. The schema is still not weakened anywhere else,
+   * and the server-side decoder plus strict Zod validation in
+   * `ui-generate/planning/plan-adapter.ts` remains what actually trusts the output.
+   */
+  it("falls back to JSON-object mode for a compound model that rejects json_schema", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ choices: [{ delta: { content: "{}" } }] }));
+    await collect(createGroqAdapter({ ...config, model: "groq/compound-mini" }, { fetchImpl }).stream({
+      ...request,
+      responseFormat: UI_PLAN_RESPONSE_FORMAT,
+    }));
+    const body = bodyOf(fetchImpl);
+    expect(body.response_format).toEqual({ type: "json_object" });
+    expect(body.tools).toBeUndefined();
   });
 
   it("maps a content filter finish reason to a safety refusal", async () => {

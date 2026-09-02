@@ -24,7 +24,7 @@ export function ChatWorkspace() {
   const [dragging, setDragging] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const act = (action: () => void) => { action(); setFocusSignal((value) => value + 1); };
-  const openPart = chat.parts.find((part) => part.type === "generated-ui" && part.instanceId === openGeneratedUiId);
+  const openPart = chat.parts.find((part) => part.type === "generated-ui" && part.view.instanceId === openGeneratedUiId);
   const generatedUi = openPart?.type === "generated-ui" ? openPart : null;
 
   // A ready artifact opens its pane on its own (P04-F04 step 7): the view is
@@ -32,10 +32,10 @@ export function ChatWorkspace() {
   const latestGeneratedUi = [...chat.parts].reverse().find((part) => part.type === "generated-ui");
   useEffect(() => {
     if (latestGeneratedUi?.type !== "generated-ui") return;
-    if (autoOpened.current.has(latestGeneratedUi.instanceId)) return;
-    autoOpened.current.add(latestGeneratedUi.instanceId);
+    if (autoOpened.current.has(latestGeneratedUi.view.instanceId)) return;
+    autoOpened.current.add(latestGeneratedUi.view.instanceId);
     setPanePercent(DEFAULT_PANE_PERCENT);
-    setOpenGeneratedUiId(latestGeneratedUi.instanceId);
+    setOpenGeneratedUiId(latestGeneratedUi.view.instanceId);
   }, [latestGeneratedUi]);
 
   const onResizeKey = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -88,14 +88,16 @@ export function ChatWorkspace() {
           </header>
           <div className={styles.contextPaneBody}>
             <GeneratedUiSurface
-              instanceId={generatedUi.instanceId} artifactId={generatedUi.artifactId} inputDigest={generatedUi.inputDigest}
-              observationDigest={generatedUi.observationDigest} revision={generatedUi.revision} expiresAt={generatedUi.expiresAt}
-              sourceCount={generatedUi.sourceCount} coverageLabel={generatedUi.coverageLabel}
-              fallback={<p>{generatedUi.fallbackText}</p>}
-              onCommand={async (command) => {
-                const response = await fetch("/api/generative-ui/command", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instanceId: generatedUi.instanceId, revision: generatedUi.revision, ...command }) });
-                if (!response.ok) throw new Error("Generated UI command was rejected");
-              }}
+              instanceId={generatedUi.view.instanceId}
+              artifactId={generatedUi.view.artifactId}
+              planDigest={generatedUi.view.planDigest}
+              inputDigest={generatedUi.view.inputDigest}
+              revision={generatedUi.view.revision}
+              expiresAt={generatedUi.view.expiresAt}
+              title={generatedUi.view.title}
+              sourceCount={generatedUi.view.sourceCount}
+              coverage={generatedUi.view.coverage}
+              fallback={<p>{generatedUi.view.fallbackText}</p>}
             />
           </div>
         </section>

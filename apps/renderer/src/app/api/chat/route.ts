@@ -1,36 +1,33 @@
-import { createModelAdapter, createTextCompletion, createTranscriptLogger, readAiConfig, withTranscriptLog, type ModelMetrics, type ModelRoleConfig } from "../../../server/ai";
-import { BrowserServiceClient } from "../../../server/browser-service/client";
-import { readBrowserServiceConfig } from "../../../server/browser-service/config";
-import { InMemoryConversationRepository } from "../../../server/conversation";
-import { ChatOrchestrator, compressObservation, createToolRegistry, OrchestratorError, readOrchestratorConfig, type OrchestratorEvent } from "../../../server/orchestrator";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
 import {
-  buildImplementationPlan,
-  buildUiGenerationRequest,
-  createAdaptiveGeneratedUi,
-  createUiGenerationAdapter,
-  generatedUiInstances,
-} from "../../../server/generative-ui";
-import { registerGeneratedUiArtifact } from "../../../server/generative-ui/bridge/artifact-store";
-import { GENERATED_UI_TOOLCHAIN_VERSION, validateGeneratedUiSource } from "../../../server/generative-ui/compiler";
+  createModelAdapter,
+  createTranscriptLogger,
+  readAiConfig,
+  withTranscriptLog,
+  type ModelMetrics,
+  type ModelRoleConfig,
+} from "../../../server/ai";
+import { InMemoryConversationRepository } from "../../../server/conversation";
+import {
+  ChatOrchestrator,
+  createToolRegistry,
+  OrchestratorError,
+  readOrchestratorConfig,
+  type OrchestratorEvent,
+} from "../../../server/orchestrator";
+import { createUiGenerateFromConfig } from "../../../server/ui-generate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const RequestSchema = z.object({
-  sessionId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
-  text: z.string().trim().min(1).max(32_000),
-}).strict();
+const RequestSchema = z
+  .object({
+    sessionId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
+    text: z.string().trim().min(1).max(32_000),
+  })
+  .strict();
 
 const conversations = new InMemoryConversationRepository();
-
-const GENERATED_UI_RUNTIME_EXPORTS = [
-  "GeneratedViewProps", "Stack", "Inline", "Grid", "Card", "Text", "Heading", "Badge", "List", "ListItem",
-  "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell", "Label", "Select", "Option",
-  "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal", "CommandButton", "useBoundedState", "useLocalCollection",
-  "formatNumber", "formatCurrency", "formatDate",
-];
 
 function eventFrame(event: OrchestratorEvent): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
@@ -38,77 +35,53 @@ function eventFrame(event: OrchestratorEvent): Uint8Array {
 
 async function createDefaultOrchestrator(): Promise<ChatOrchestrator> {
   const ai = readAiConfig();
-  const browserServiceConfig = readBrowserServiceConfig();
   const orchestratorConfig = readOrchestratorConfig();
   const emitMetrics = orchestratorConfig.logTokenUsage
     ? (role: ModelRoleConfig, label: string) => (metrics: ModelMetrics) =>
-        console.info(`[ai] usage ${label}`, { provider: role.provider, model: role.model, correlationId: metrics.correlationId, promptTokens: metrics.promptTokens, completionTokens: metrics.completionTokens, durationMs: metrics.durationMs })
+        console.info(`[ai] usage ${label}`, {
+          provider: role.provider,
+          model: role.model,
+          correlationId: metrics.correlationId,
+          promptTokens: metrics.promptTokens,
+          completionTokens: metrics.completionTokens,
+          durationMs: metrics.durationMs,
+        })
     : undefined;
   // Opt-in, developer-only. `CHAT_LOG_CONVERSATION=1` writes every model
-  // request and response -- routing, discovery, each tool-loop step, and the
-  // extraction pass -- plus the orchestrator's own decisions to one JSONL
-  // file, which is what makes "the model stopped calling tools" diagnosable.
+  // request and response to one JSONL file, which is what makes "the model
+  // stopped calling the tool" diagnosable.
   const transcript = createTranscriptLogger();
-  const adapterFor = (role: ModelRoleConfig, label: string) =>
-    withTranscriptLog(
-      createModelAdapter(role, emitMetrics ? { emitMetrics: emitMetrics(role, label) } : {}),
-      label,
-      transcript,
+  const chatAdapter = withTranscriptLog(
+    createModelAdapter(ai.chat, emitMetrics ? { emitMetrics: emitMetrics(ai.chat, "chat") } : {}),
+    "chat",
+    transcript,
+  );
+
+  // The three internal `ui.generate` stages. All three must be configured;
+  // otherwise the tool is not offered at all rather than being offered and
+  // failing every call.
+  const uiGenerate = createUiGenerateFromConfig({ ai });
+  if (!uiGenerate) {
+    console.warn(
+      "[chat] ui.generate is disabled: SOURCE_FINDING_MODEL, UI_PLANNING_MODEL and UI_MODEL (with their *_MODEL_PROVIDER"
+        + " variables) must all be set. The assistant will answer in text only.",
     );
-  // The extraction model reads one rendered-page observation and returns a
-  // closed-schema digest of it. It is never given a local tool, never given a
-  // hosted tool, and never answers the user -- see
-  // server/orchestrator/observation-digest.ts.
-  const extractionAdapter = ai.extraction ? adapterFor(ai.extraction, "extraction") : undefined;
-  const browserServiceClient = browserServiceConfig
-    ? new BrowserServiceClient({
-        baseUrl: browserServiceConfig.baseUrl,
-        serviceToken: browserServiceConfig.serviceToken,
-      })
-    : undefined;
-  const uiRole = ai.ui;
+  }
+
   return new ChatOrchestrator({
-    model: adapterFor(ai.chat, "chat"),
+    model: chatAdapter,
     conversations,
     ...(transcript.enabled
-      ? { trace: (event: string, detail: Record<string, unknown>) => transcript.record({ kind: "orchestrator", correlationId: String(detail.requestId ?? ""), event, detail }) }
-      : {}),
-    ...(extractionAdapter
-      ? { compressObservation: (input) => compressObservation(extractionAdapter, input) }
+      ? {
+          trace: (event: string, detail: Record<string, unknown>) =>
+            transcript.record({ kind: "orchestrator", correlationId: String(detail.requestId ?? ""), event, detail }),
+        }
       : {}),
     maxSteps: orchestratorConfig.maxSteps,
     maxEstimatedTokens: orchestratorConfig.maxContextTokens,
-    maxRunTokens: orchestratorConfig.maxRunTokens,
     // No deadlineMs: a turn runs until it finishes, hits maxSteps, or the
     // user stops it themselves -- see server/orchestrator/config.ts.
-    // The browser service is optional at the chat-endpoint level: when it
-    // isn't configured (e.g. local dev without services/browser running),
-    // browser.navigate_and_extract is simply omitted rather than failing
-    // the whole endpoint.
-    tools: createToolRegistry({
-      navigateAndExtractExecutor: browserServiceClient,
-      phaseThreeExecutor: browserServiceClient,
-    }),
-    generateUi: uiRole ? async ({ ownerId, task, result, signal }) => {
-      const requestId = randomUUID();
-      // Two separate models, in order: the extraction model turns the
-      // capture plus the user's prompt into a free-form implementation
-      // prompt and a validated metadata artifact, and only then does the UI
-      // model write React from them. Without EXTRACTION_MODEL the plan
-      // degrades to a deterministic one rather than disappearing.
-      const brief = await buildImplementationPlan(extractionAdapter, { correlationId: requestId, task, result, signal });
-      const pageUnderstanding = result.payload.pageUnderstanding;
-      const request = buildUiGenerationRequest({ task, brief, page: pageUnderstanding, requestId, userId: ownerId });
-      const adapter = createUiGenerationAdapter({
-        model: uiRole.model, compilerVersion: GENERATED_UI_TOOLCHAIN_VERSION,
-        maxTokens: uiRole.provider === "groq" ? 3_000 : 16_000, deadlineMs: 90_000,
-        runtimeExports: GENERATED_UI_RUNTIME_EXPORTS,
-        transport: createTextCompletion(uiRole),
-        validate: async (response) => response.tsxSource ? validateGeneratedUiSource({ source: response.tsxSource, manifest: response.manifest, limits: request.limits, allowedTokens: request.theme.allowedTokens }).issues : [],
-      });
-      const generated = await createAdaptiveGeneratedUi({ generate: adapter.generate, registerArtifact: registerGeneratedUiArtifact, instances: generatedUiInstances }, { ownerId, request, observationDigest: pageUnderstanding.observationDigest, signal });
-      return generated.reference;
-    } : undefined,
+    tools: createToolRegistry(uiGenerate ? { uiGenerate } : {}),
   });
 }
 
@@ -133,18 +106,18 @@ export function createChatPost(orchestrator: ChatOrchestrator) {
           }
         } catch (error) {
           if (!request.signal.aborted) {
-            // Safety net for any failure reaching this boundary, not just the
-            // model provider's -- the client only ever gets the safe, generic
-            // message below, so this is the one place the real cause
-            // (including the OrchestratorError code and any provider cause
-            // chain) is visible at all.
+            // The client only ever gets the safe, generic message below, so
+            // this is the one place the real cause is visible at all.
             console.error("[chat] request failed", error);
-            const policyFailure = error instanceof OrchestratorError && ["UNKNOWN_TOOL", "REPEATED_TOOL_CALL", "CONTRACT_ERROR"].includes(error.code);
-            controller.enqueue(eventFrame({
-              type: "error",
-              message: error instanceof Error ? error.message : "The assistant request failed safely.",
-              retryable: !policyFailure,
-            }));
+            const policyFailure =
+              error instanceof OrchestratorError && ["UNKNOWN_TOOL", "REPEATED_TOOL_CALL", "CONTRACT_ERROR"].includes(error.code);
+            controller.enqueue(
+              eventFrame({
+                type: "error",
+                message: error instanceof Error ? error.message : "The assistant request failed safely.",
+                retryable: !policyFailure,
+              }),
+            );
           }
         } finally {
           controller.close();

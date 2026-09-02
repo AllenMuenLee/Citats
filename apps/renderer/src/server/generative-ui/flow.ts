@@ -2,18 +2,30 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import type { CompiledGeneratedUiArtifact, UiGenerationRequest, UiGenerationResponse } from "@ai-browser/contracts";
 import { compileGeneratedUi, GeneratedUiCompilationError } from "./compiler";
-import { capabilitySchemasForRequest, GeneratedUiInstanceStore } from "./instance-store";
+import { displayPropsForPlan, type GeneratedUiInstanceStore, type GeneratedViewDisplayProps } from "./instance-store";
+
+/**
+ * Generation -> validation/compilation -> content-addressed artifact ->
+ * registration (P04-F01 step 3, P04-F05 step 1).
+ *
+ * Raw model output is never registered and never served. What is stored is
+ * the compiled bytes plus the digests that pin them to one plan, one
+ * prompt, one model, and one toolchain -- so an artifact can only ever be
+ * served back for the exact inputs that produced it.
+ */
 
 export type GeneratedUiReference = Readonly<{
   instanceId: string;
+  viewRef: string;
   artifactId: string;
+  planDigest: string;
   inputDigest: string;
-  observationDigest: string;
   revision: number;
   expiresAt: string;
-  displayProps: Readonly<Record<string, unknown>>;
+  displayProps: GeneratedViewDisplayProps;
+  title: string;
   sourceCount: number;
-  coverageLabel: string;
+  coverage: "validated" | "partial";
   fallbackText: string;
 }>;
 
@@ -25,42 +37,57 @@ export interface AdaptiveUiFlowDependencies {
   ttlMs?: number;
 }
 
+/**
+ * The trusted fallback shown when the generated component cannot render.
+ * It is authored from the plan, not by the model, so it stays truthful even
+ * when generation was the thing that failed.
+ */
 function trustedFallback(request: UiGenerationRequest): string {
-  const notes = request.coverage.notes.slice(0, 3).join(" ");
-  return notes || `Generated view unavailable. ${request.sourceBindings.length} validated source${request.sourceBindings.length === 1 ? " is" : "s are"} available.`;
+  const { plan } = request;
+  const notes = [...plan.coverage.omissions, ...plan.coverage.unsupportedRequests].slice(0, 3).join(" ");
+  const sources = `${plan.sources.length} validated source${plan.sources.length === 1 ? "" : "s"}`;
+  return notes ? `Generated view unavailable. ${sources}. ${notes}` : `Generated view unavailable. ${sources}.`;
 }
 
-function displayProps(request: UiGenerationRequest): Readonly<Record<string, unknown>> {
-  return Object.freeze({
-    records: request.recordBindings.map((record) => ({ id: record.recordId, collectionId: record.collectionId })),
-    sources: request.sourceBindings.map((source) => ({ id: source.sourceId, provider: source.provider, label: source.displayLabel })),
-    media: request.mediaBindings.map((media) => ({ id: media.mediaId, kind: media.kind, altText: media.altText, safeReference: media.safeReference })),
-    capabilities: request.capabilityBindings.map((capability) => ({
-      id: capability.capabilityId,
-      allowedCommandKinds: capability.allowedCommandKinds,
-      execution: capability.interactionExecution,
-      promptTemplateId: capability.promptTemplateId,
-    })),
-  });
+/** A short, display-safe title for the pane and for the chat model's confirmation. */
+function viewTitle(request: UiGenerationRequest): string {
+  const root = request.plan.components.find((component) => component.role === "root");
+  const candidate = (root?.label ?? request.plan.informationArchitecture.primaryEntity ?? "Generated view").trim();
+  return candidate.slice(0, 120) || "Generated view";
 }
 
 export async function createAdaptiveGeneratedUi(
   dependencies: AdaptiveUiFlowDependencies,
-  input: { ownerId: string; request: UiGenerationRequest; observationDigest: string; signal?: AbortSignal },
+  input: { ownerId: string; request: UiGenerationRequest; signal?: AbortSignal },
 ): Promise<{ reference: GeneratedUiReference | null; fallbackText: string; fallbackReason: string | null }> {
   const fallbackText = trustedFallback(input.request);
   try {
     const response = await dependencies.generate(input.request, input.signal);
     if (!response.tsxSource || response.fallbackReason) {
-      console.error("[generative-ui] UI generation returned no usable source", { fallbackReason: response.fallbackReason, hasSource: Boolean(response.tsxSource) });
+      console.error("[generative-ui] UI generation returned no usable source", {
+        fallbackReason: response.fallbackReason,
+        hasSource: Boolean(response.tsxSource),
+      });
       return { reference: null, fallbackText, fallbackReason: response.fallbackReason ?? "generation_failed" };
     }
-    const compiled = compileGeneratedUi({ source: response.tsxSource, manifest: response.manifest, limits: input.request.limits, allowedTokens: input.request.theme.allowedTokens });
+    const compiled = compileGeneratedUi({
+      source: response.tsxSource,
+      manifest: response.manifest,
+      limits: input.request.limits,
+      allowedTokens: input.request.theme.allowedTokens,
+    });
     const modelDigest = createHash("sha256").update(response.modelIdentifier).digest("hex");
     const toolchainDigest = createHash("sha256").update(compiled.toolchainVersion).digest("hex");
-    const artifactHash = createHash("sha256").update(compiled.bytes).update(response.inputDigest).update(response.promptDigest).update(modelDigest).update(toolchainDigest).digest("hex");
+    const artifactHash = createHash("sha256")
+      .update(compiled.bytes)
+      .update(response.inputDigest)
+      .update(response.promptDigest)
+      .update(modelDigest)
+      .update(toolchainDigest)
+      .digest("hex");
     const now = dependencies.now?.() ?? Date.now();
-    const expiresAt = new Date(now + (dependencies.ttlMs ?? 15 * 60_000)).toISOString();
+    const expiresAtMs = now + (dependencies.ttlMs ?? 15 * 60_000);
+    const expiresAt = new Date(expiresAtMs).toISOString();
     const artifact: CompiledGeneratedUiArtifact = {
       schemaVersion: 1,
       artifactId: `gui_${artifactHash}`,
@@ -68,6 +95,7 @@ export async function createAdaptiveGeneratedUi(
       manifest: response.manifest,
       validation: { valid: true, issues: compiled.validation.issues.map(({ code, severity, location }) => ({ code, severity, location })) },
       sourceMapPolicy: "omitted",
+      planDigest: input.request.planDigest,
       inputDigest: response.inputDigest,
       promptDigest: response.promptDigest,
       modelDigest,
@@ -76,16 +104,48 @@ export async function createAdaptiveGeneratedUi(
       fallbackText,
     };
     dependencies.registerArtifact(artifact);
-    const props = displayProps(input.request);
-    const instance = dependencies.instances.register({ ownerId: input.ownerId, artifact, request: input.request, observationDigest: input.observationDigest, expiresAt: Date.parse(expiresAt), capabilities: capabilitySchemasForRequest(input.request), preservedStateKeys: response.manifest.localInteractions.map((item) => item.stateKey), displayProps: props });
-    return { reference: { instanceId: instance.instanceId, artifactId: artifact.artifactId, inputDigest: artifact.inputDigest, observationDigest: input.observationDigest, revision: instance.revision, expiresAt, displayProps: props, sourceCount: input.request.sourceBindings.length, coverageLabel: input.request.coverage.unknownControlCount > 0 || input.request.coverage.inaccessibleRegionCount > 0 ? "Partial coverage" : "Validated coverage", fallbackText }, fallbackText, fallbackReason: null };
+    const displayProps = displayPropsForPlan(input.request.plan);
+    const instance = dependencies.instances.register({
+      ownerId: input.ownerId,
+      artifact,
+      planDigest: input.request.planDigest,
+      inputDigest: artifact.inputDigest,
+      expiresAt: expiresAtMs,
+      displayProps,
+      preservedStateKeys: response.manifest.localInteractions.map((item) => item.stateKey),
+    });
+    const coverage: "validated" | "partial" =
+      input.request.plan.coverage.capturedSources < input.request.plan.coverage.requestedSources ||
+      input.request.plan.coverage.omissions.length > 0 ||
+      input.request.plan.coverage.unsupportedRequests.length > 0
+        ? "partial"
+        : "validated";
+    return {
+      reference: {
+        instanceId: instance.instanceId,
+        viewRef: instance.viewRef,
+        artifactId: artifact.artifactId,
+        planDigest: artifact.planDigest,
+        inputDigest: artifact.inputDigest,
+        revision: instance.revision,
+        expiresAt,
+        displayProps,
+        title: viewTitle(input.request),
+        sourceCount: input.request.plan.sources.length,
+        coverage,
+        fallbackText,
+      },
+      fallbackText,
+      fallbackReason: null,
+    };
   } catch (error) {
-    // Never surfaced to the model or the client beyond a generic fallback
-    // (the whole point of `reference: null` is a safe, silent degrade) --
-    // but that means this is the only place the real cause is observable
-    // at all, so it must be logged here rather than only carried in the
-    // return value.
+    // `reference: null` is a deliberately silent degrade for the client, so
+    // this is the only place the real cause is observable at all.
     console.error("[generative-ui] UI generation failed", error);
-    return { reference: null, fallbackText, fallbackReason: error instanceof GeneratedUiCompilationError ? "compilation_failed" : "generation_failed" };
+    return {
+      reference: null,
+      fallbackText,
+      fallbackReason: error instanceof GeneratedUiCompilationError ? "compilation_failed" : "generation_failed",
+    };
   }
 }

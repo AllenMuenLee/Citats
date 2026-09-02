@@ -485,7 +485,18 @@ def build_graph(  # noqa: C901 -- classification pass is inherently branchy; see
     page_url: str,
     page_origin: str,
     max_nodes: int,
+    record_reserve: int = 0,
 ) -> GraphBuildResult:
+    """``record_reserve`` is the share of ``max_nodes`` the DOM traversal may
+    not spend, held back for the repeated records built afterwards.
+
+    Without it the traversal is free to consume the whole budget, and on a
+    large page it does -- depth-first from the root, it exhausts the cap on
+    site chrome long before the repeated content is grouped, so a search page
+    yielded four hundred nodes and *zero* collections. The records are the
+    part a caller comparing listings actually needs, so they get a floor
+    rather than the leftovers.
+    """
     result = GraphBuildResult()
     handles = HandleMinter("node")
     region_handles = HandleMinter("region")
@@ -495,8 +506,10 @@ def build_graph(  # noqa: C901 -- classification pass is inherently branchy; see
     emitted_by_backend_id: dict[int, EmittedNode] = {}
     node_limit_hit = [False]
 
+    traversal_limit = max(1, max_nodes - max(0, record_reserve))
+
     def visit(node: RawNode, parent: EmittedNode | None) -> None:
-        if len(emitted) >= max_nodes:
+        if len(emitted) >= traversal_limit:
             node_limit_hit[0] = True
             return
         ax = ax_by_backend_id.get(node.backend_node_id)
@@ -559,7 +572,7 @@ def build_graph(  # noqa: C901 -- classification pass is inherently branchy; see
             current_parent = emitted_node
 
         for child in node.children:
-            if len(emitted) >= max_nodes:
+            if len(emitted) >= traversal_limit:
                 node_limit_hit[0] = True
                 break
             visit(child, current_parent)
@@ -571,7 +584,8 @@ def build_graph(  # noqa: C901 -- classification pass is inherently branchy; see
             {
                 "code": "node_limit_reached",
                 "message": (
-                    f"The page-understanding graph reached its {max_nodes}-node bound; "
+                    f"The page-understanding graph reached its {traversal_limit}-node "
+                    "traversal bound; "
                     "remaining content was omitted."
                 ),
                 "nodeHandle": None,
@@ -592,7 +606,12 @@ def build_graph(  # noqa: C901 -- classification pass is inherently branchy; see
         )
 
     _build_regions(emitted, result, region_handles)
-    _build_collections(emitted, result, collection_handles)
+    # Records are appended to `result.nodes` here, but the traversal's own
+    # nodes are appended *after* this call -- so the budget records may spend
+    # is what the traversal leaves over, not the whole cap.
+    _build_collections(
+        emitted, result, collection_handles, max(0, max_nodes - len(emitted))
+    )
 
     for node in emitted:
         payload = dict(node.payload)
@@ -658,16 +677,30 @@ def _collection_role_hint(sibling: EmittedNode | RawNode) -> str:
 
 
 def _build_collections(
-    emitted: list[EmittedNode], result: GraphBuildResult, collection_handles: HandleMinter
+    emitted: list[EmittedNode],
+    result: GraphBuildResult,
+    collection_handles: HandleMinter,
+    record_budget: int,
 ) -> None:
     """Groups raw DOM siblings (not only emitted nodes) sharing a tag +
     class signature, repeated at least `REPEATED_GROUP_MIN_SIZE` times, and
     each containing at least one already-emitted node, into a
     `RepeatedCollection`. Each group member becomes a `repeated_record`
     node whose children are re-parented under it (mission item 4).
+
+    ``record_budget`` is how many nodes are left for records once the
+    traversal's own nodes are counted. The node cap bounds ``result.nodes``
+    as a whole, not just the traversal that fills it: each record emitted
+    here is a node too, and there is no bound on how many collections a page
+    has. A real search page produced a full traversal plus fifteen
+    collections of records, and the combined list ran several times past the
+    contract's node cap, so the whole observation was rejected downstream as
+    a contract violation. Records are therefore emitted only while this
+    budget lasts, and whatever did not fit is declared in ``truncations``.
     """
     by_backend_id = {n.raw.backend_node_id: n for n in emitted}
     seen_parents: set[int] = set()
+    dropped = [0]
 
     def signature(node: RawNode) -> tuple[str, str]:
         return node.tag, node.attributes.get("class", "")
@@ -684,7 +717,12 @@ def _build_collections(
             qualifying = [m for m in members if _subtree_has_emitted(m, by_backend_id)]
             if len(qualifying) >= REPEATED_GROUP_MIN_SIZE and id(node) not in seen_parents:
                 seen_parents.add(id(node))
-                _emit_collection(qualifying, result, collection_handles, by_backend_id)
+                if len(result.nodes) >= record_budget:
+                    dropped[0] += len(qualifying)
+                    break
+                _emit_collection(
+                    qualifying, result, collection_handles, by_backend_id, record_budget, dropped
+                )
                 break
         for child in node.children:
             collect_parents(child)
@@ -695,6 +733,16 @@ def _build_collections(
     root_candidates = [n.raw for n in emitted if n.parent_handle is None]
     for candidate in root_candidates:
         collect_parents(candidate)
+
+    if dropped[0]:
+        result.truncations.append(
+            {
+                "reason": "The graph reached its node bound before every repeated record "
+                "could be emitted.",
+                "category": "collections",
+                "removedCount": dropped[0],
+            }
+        )
 
 
 def _subtree_has_emitted(node: RawNode, by_backend_id: dict[int, EmittedNode]) -> bool:
@@ -708,6 +756,8 @@ def _emit_collection(
     result: GraphBuildResult,
     collection_handles: HandleMinter,
     by_backend_id: dict[int, EmittedNode],
+    record_budget: int,
+    dropped: list[int],
 ) -> None:
     role_hint = (
         _collection_role_hint(
@@ -727,6 +777,12 @@ def _emit_collection(
     collection_handle = collection_handles.mint()
     record_handles: list[str] = []
     for index, member in enumerate(members[:200]):
+        if len(result.nodes) >= record_budget:
+            # A record that cannot be emitted must not be referenced either,
+            # so this stops before minting the handle rather than leaving a
+            # dangling `recordHandles` entry.
+            dropped[0] += len(members[:200]) - index
+            break
         record_handle = f"{collection_handle}-r{index}"
         member_emitted_children = [
             n.handle for n in by_backend_id.values() if _is_descendant(member, n.raw)

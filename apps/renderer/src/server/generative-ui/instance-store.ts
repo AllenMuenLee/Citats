@@ -1,54 +1,131 @@
-import { randomUUID } from "node:crypto";
-import { z, type ZodType } from "zod";
-import type { CapabilityArgument, CompiledGeneratedUiArtifact, UiGenerationRequest, WebsiteUiExternalCapability } from "@ai-browser/contracts";
+import { randomBytes, randomUUID } from "node:crypto";
+import type { CompiledGeneratedUiArtifact, UiPlan } from "@ai-browser/contracts";
 
-export type UiInstanceCapability = Readonly<{
-  kinds: readonly string[];
-  argumentSchema: ZodType;
-  /** `internal_react` capabilities never reach the host; a command for one is a policy violation. */
-  interactionExecution: "internal_react" | "external_ai_action";
-  promptTemplateId: string | null;
-  external: WebsiteUiExternalCapability | null;
+/**
+ * Server-held state for one mounted generated view.
+ *
+ * There is no command channel and no capability table any more: a generated
+ * view is display-only, so the only things worth holding are the artifact
+ * it runs, the display-safe props it is handed, and whether it has actually
+ * sent its ready handshake. That last one is what `ui.generate` waits on
+ * before it is allowed to answer `ready`.
+ */
+
+/** Display-safe, plan-derived props. Contains no URL the sandbox could fetch and no server identifier. */
+export type GeneratedViewDisplayProps = Readonly<{
+  goal: string;
+  sources: readonly Readonly<Record<string, unknown>>[];
+  collections: readonly Readonly<Record<string, unknown>>[];
+  records: readonly Readonly<Record<string, unknown>>[];
+  facts: readonly Readonly<Record<string, unknown>>[];
+  media: readonly Readonly<Record<string, unknown>>[];
+  coverage: Readonly<Record<string, unknown>>;
 }>;
 
 export type GeneratedUiInstance = Readonly<{
   instanceId: string;
+  /** The opaque reference the conversation model is given. Never an artifact id or a URL. */
+  viewRef: string;
   ownerId: string;
   artifact: CompiledGeneratedUiArtifact;
-  request: UiGenerationRequest;
-  observationDigest: string;
+  planDigest: string;
+  inputDigest: string;
   revision: number;
   expiresAt: number;
-  capabilities: ReadonlyMap<string, UiInstanceCapability>;
+  displayProps: GeneratedViewDisplayProps;
   preservedStateKeys: readonly string[];
-  displayProps: Readonly<Record<string, unknown>>;
 }>;
 
 /**
- * The reconstructed AI action prompt for one external command (P04-F05
- * step 3). Built server-side from the capability's validated template plus
- * schema-checked arguments -- never from a prompt the generated component
- * supplied, and never carrying a selector, URL, credential, or payment
- * detail. Phase 5 owns whether it is ever executed.
+ * Derives the props the sandbox is handed from the plan. This is a
+ * projection, not a pass-through: only display fields survive, and the
+ * generated component receives no plan section describing policy, limits,
+ * or constraints -- there is nothing there for it to reinterpret.
  */
-export type ReconstructedAction = Readonly<{
-  capabilityId: string;
-  promptTemplateId: string;
-  prompt: string;
-  requiresConfirmation: boolean;
-  confirmationFields: readonly string[];
-  destinationOrigin: string | null;
-  paymentProfileHandle: string | null;
-}>;
+export function displayPropsForPlan(plan: UiPlan): GeneratedViewDisplayProps {
+  return Object.freeze({
+    goal: plan.canonicalGoal,
+    sources: plan.sources.map((source) =>
+      Object.freeze({
+        id: source.sourceId,
+        title: source.title,
+        origin: source.origin,
+        finalUrl: source.finalUrl,
+        retrievedAt: source.retrievedAt,
+        captureStatus: source.captureStatus,
+      }),
+    ),
+    collections: plan.collections.map((collection) =>
+      Object.freeze({
+        id: collection.collectionId,
+        label: collection.label,
+        description: collection.description,
+        comparableFieldRoles: collection.comparableFieldRoles,
+      }),
+    ),
+    records: plan.records.map((record) =>
+      Object.freeze({
+        id: record.recordId,
+        collectionId: record.collectionId,
+        title: record.title,
+        sourceId: record.sourceId,
+        fields: record.fields.map((field) =>
+          Object.freeze({ id: field.fieldId, label: field.label, value: field.value, role: field.role, numericValue: field.numericValue }),
+        ),
+        mediaIds: record.mediaIds,
+        factIds: record.factIds,
+      }),
+    ),
+    facts: plan.facts.map((fact) =>
+      Object.freeze({
+        id: fact.factId,
+        label: fact.label,
+        value: fact.value,
+        kind: fact.kind,
+        unit: fact.unit,
+        numericValue: fact.numericValue,
+        sourceId: fact.sourceId,
+        note: fact.note,
+      }),
+    ),
+    media: plan.media.map((media) =>
+      Object.freeze({
+        id: media.mediaId,
+        kind: media.kind,
+        alternativeText: media.alternativeText,
+        caption: media.caption,
+        sourceId: media.sourceId,
+      }),
+    ),
+    coverage: Object.freeze({
+      requestedSources: plan.coverage.requestedSources,
+      capturedSources: plan.coverage.capturedSources,
+      omissions: plan.coverage.omissions,
+      unsupportedRequests: plan.coverage.unsupportedRequests,
+      confidence: plan.coverage.confidence,
+    }),
+  });
+}
+
+function mintViewRef(): string {
+  return `uiv_${randomBytes(24).toString("base64url")}`;
+}
 
 export class GeneratedUiInstanceStore {
   private readonly instances = new Map<string, GeneratedUiInstance>();
+  /** Pending ready handshakes, keyed by instance id. */
+  private readonly readiness = new Map<string, { resolve: () => void; promise: Promise<void>; settled: boolean }>();
 
   constructor(private readonly now: () => number = Date.now, private readonly createId: () => string = randomUUID) {}
 
-  register(input: Omit<GeneratedUiInstance, "instanceId" | "revision">): GeneratedUiInstance {
-    const instance = Object.freeze({ ...input, instanceId: this.createId(), revision: 0 });
+  register(input: Omit<GeneratedUiInstance, "instanceId" | "revision" | "viewRef">): GeneratedUiInstance {
+    const instance = Object.freeze({ ...input, instanceId: this.createId(), viewRef: mintViewRef(), revision: 0 });
     this.instances.set(instance.instanceId, instance);
+    let resolve!: () => void;
+    const promise = new Promise<void>((settle) => {
+      resolve = settle;
+    });
+    this.readiness.set(instance.instanceId, { resolve, promise, settled: false });
     return instance;
   }
 
@@ -56,105 +133,75 @@ export class GeneratedUiInstanceStore {
     const instance = this.instances.get(instanceId);
     if (!instance || instance.ownerId !== ownerId) return undefined;
     if (instance.expiresAt <= this.now()) {
-      this.instances.delete(instanceId);
+      this.destroy(instanceId, ownerId);
       return undefined;
     }
     return instance;
   }
 
-  updateBindings(instanceId: string, ownerId: string, observationDigest: string, displayProps: Readonly<Record<string, unknown>>): GeneratedUiInstance {
-    const current = this.get(instanceId, ownerId);
-    if (!current) throw new Error("generated UI instance is missing or expired");
-    const next = Object.freeze({ ...current, observationDigest, displayProps, revision: current.revision + 1 });
-    this.instances.set(instanceId, next);
-    return next;
+  /**
+   * Records a valid, instance-bound ready handshake. Every field the
+   * surface reported is checked against server-held state first -- a
+   * forged or stale handshake for another instance, another owner, another
+   * artifact, or another plan resolves nothing.
+   */
+  markReady(input: { instanceId: string; ownerId: string; artifactId: string; planDigest: string; revision: number }): boolean {
+    const instance = this.get(input.instanceId, input.ownerId);
+    if (!instance) return false;
+    if (
+      instance.artifact.artifactId !== input.artifactId ||
+      instance.planDigest !== input.planDigest ||
+      instance.revision !== input.revision
+    ) {
+      return false;
+    }
+    const pending = this.readiness.get(input.instanceId);
+    if (!pending) return false;
+    if (pending.settled) return true;
+    pending.settled = true;
+    pending.resolve();
+    return true;
   }
 
   /**
-   * Validates one command and reconstructs the action it stands for.
-   *
-   * Everything the generated component sent is treated as a claim: the
-   * instance, revision, capability, execution class, prompt-template id,
-   * and every argument are checked against server-held state before the
-   * prompt is rebuilt from the trusted template.
+   * Waits for that handshake. Registration, artifact load start, and model
+   * success are explicitly *not* readiness -- only this resolves.
    */
-  validateCommand(input: { instanceId: string; ownerId: string; revision: number; capabilityId: string; promptTemplateId?: string | null; kind: string; arguments: unknown }): { instance: GeneratedUiInstance; action: ReconstructedAction } {
-    const instance = this.get(input.instanceId, input.ownerId);
-    if (!instance) throw new Error("generated UI instance is missing or expired");
-    if (input.revision !== instance.revision) throw new Error("generated UI command revision is stale");
-    const capability = instance.capabilities.get(input.capabilityId);
-    if (!capability || !capability.kinds.includes(input.kind)) throw new Error("generated UI command is not allowed");
-    if (capability.interactionExecution !== "external_ai_action" || capability.external === null) {
-      throw new Error("internal interactions must stay inside the generated component");
+  async waitForReady(input: { instanceId: string; timeoutMs: number; signal: AbortSignal }): Promise<boolean> {
+    const pending = this.readiness.get(input.instanceId);
+    if (!pending) return false;
+    if (pending.settled) return true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    try {
+      const raced = await Promise.race([
+        // `destroy` also resolves this promise, so readiness is read from the
+        // flag rather than from the promise settling: a torn-down surface
+        // returns promptly *and* reports not-ready.
+        pending.promise.then(() => pending.settled),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), input.timeoutMs);
+          onAbort = () => resolve(false);
+          input.signal.addEventListener("abort", onAbort, { once: true });
+        }),
+      ]);
+      return raced;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      if (onAbort) input.signal.removeEventListener("abort", onAbort);
     }
-    if ((input.promptTemplateId ?? null) !== capability.promptTemplateId) {
-      throw new Error("generated UI command prompt template does not match its capability");
-    }
-    const parsed = capability.argumentSchema.parse(input.arguments) as Record<string, string | number | boolean>;
-    return { instance, action: reconstructAction(capability.external, parsed) };
   }
 
   destroy(instanceId: string, ownerId: string): void {
     const instance = this.instances.get(instanceId);
-    if (instance?.ownerId === ownerId) this.instances.delete(instanceId);
+    if (instance && instance.ownerId !== ownerId) return;
+    this.instances.delete(instanceId);
+    const pending = this.readiness.get(instanceId);
+    // Resolving a destroyed instance's waiter is what turns a hung surface
+    // into a prompt `render_failed` instead of a stalled turn.
+    pending?.resolve();
+    this.readiness.delete(instanceId);
   }
 }
 
 export const generatedUiInstances = new GeneratedUiInstanceStore();
-
-/** One `CapabilityArgument` as the Zod type the host validates a command's arguments against. */
-function argumentType(argument: CapabilityArgument): ZodType {
-  switch (argument.type) {
-    case "number": return z.number().finite();
-    case "boolean": return z.boolean();
-    case "enum": return z.enum(argument.values as [string, ...string[]]);
-    default: return z.string().max(2_000);
-  }
-}
-
-function argumentsSchema(declared: readonly CapabilityArgument[]): ZodType {
-  if (declared.length === 0) return z.object({}).strict();
-  return z.object(Object.fromEntries(declared.map((argument) => [
-    argument.name,
-    argument.required ? argumentType(argument) : argumentType(argument).optional(),
-  ]))).strict();
-}
-
-/**
- * Fills the capability's validated template from schema-checked arguments.
- * A placeholder with no supplied argument becomes an explicit
- * `(unspecified)` rather than being dropped, so the later action agent can
- * see that the user left it open instead of silently inferring one.
- */
-export function reconstructAction(
-  external: WebsiteUiExternalCapability,
-  args: Readonly<Record<string, string | number | boolean>>,
-): ReconstructedAction {
-  const prompt = external.promptTemplate.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, name: string) => {
-    const value = args[name];
-    return value === undefined ? "(unspecified)" : String(value).slice(0, 200);
-  });
-  return {
-    capabilityId: external.capabilityId,
-    promptTemplateId: external.promptTemplateId,
-    prompt,
-    requiresConfirmation: external.requiresConfirmation,
-    confirmationFields: external.confirmationFields,
-    destinationOrigin: external.destinationOrigin,
-    paymentProfileHandle: external.paymentProfileHandle,
-  };
-}
-
-export function capabilitySchemasForRequest(request: UiGenerationRequest): ReadonlyMap<string, UiInstanceCapability> {
-  const externalById = new Map(request.websiteUiMetadata.externalCapabilities.map((item) => [item.capabilityId, item]));
-  return new Map(request.capabilityBindings.map((binding) => {
-    const external = externalById.get(binding.capabilityId) ?? null;
-    return [binding.capabilityId, {
-      kinds: binding.allowedCommandKinds,
-      argumentSchema: argumentsSchema(external?.argumentSchema ?? []),
-      interactionExecution: binding.interactionExecution,
-      promptTemplateId: binding.promptTemplateId,
-      external,
-    }];
-  }));
-}

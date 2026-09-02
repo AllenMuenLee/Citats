@@ -38,12 +38,16 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from nodriver.cdp import accessibility as cdp_ax
-from nodriver.cdp import dom as cdp_dom
-from nodriver.core.tab import Tab  # type: ignore[import-untyped]
-
 from browser_service.extraction.accessibility import RawAxNode, raw_ax_node
-from browser_service.page_observation.cdp import CdpTimeoutError, send_bounded
+from browser_service.page_observation.cdp import (
+    CdpAxNode,
+    CdpAxValue,
+    CdpNode,
+    CdpSession,
+    CdpTimeoutError,
+    send_bounded,
+    wrap_ax_nodes,
+)
 
 DEFAULT_MAX_RAW_NODES = 20_000
 DEFAULT_MAX_DEPTH = 60
@@ -302,7 +306,7 @@ def _reduce_node(node: Any, *, depth: int, state: _Traversal) -> RawNode:
     return raw
 
 
-async def _expand_frontier(page: Tab, state: _Traversal) -> None:
+async def _expand_frontier(session: CdpSession, state: _Traversal) -> None:
     """Fetches the children of frontier nodes incrementally, one bounded
     `DOM.describeNode` at a time, only while every budget still allows it
     (P03-R02 step 2)."""
@@ -321,16 +325,18 @@ async def _expand_frontier(page: Tab, state: _Traversal) -> None:
         raw, backend_id, depth = state.frontier.popleft()
         request_budget = min(limits.request_timeout_seconds, state.remaining())
         try:
-            described = await send_bounded(
-                page,
-                cdp_dom.describe_node(
-                    backend_node_id=cdp_dom.BackendNodeId(backend_id),
-                    depth=limits.expansion_depth,
-                    pierce=True,
-                ),
+            response = await send_bounded(
+                session,
+                "DOM.describeNode",
+                {
+                    "backendNodeId": backend_id,
+                    "depth": limits.expansion_depth,
+                    "pierce": True,
+                },
                 timeout_seconds=request_budget,
                 phase="dom.describe_node",
             )
+            described = CdpNode(response["node"])
         except CdpTimeoutError:
             # A stalled connection stalls again; stop expanding rather than
             # spend the rest of the budget re-confirming that. The node goes
@@ -387,13 +393,13 @@ _STATE_PROPERTY_NAMES = frozenset(
 )
 
 
-def _ax_value_scalar(value: cdp_ax.AXValue | None) -> object:
+def _ax_value_scalar(value: CdpAxValue | None) -> object:
     if value is None:
         return None
     return value.value
 
 
-def _parse_ax_node(node: cdp_ax.AXNode) -> AxState | None:
+def _parse_ax_node(node: CdpAxNode) -> AxState | None:
     if node.backend_dom_node_id is None:
         return None
     properties: dict[str, object] = {}
@@ -444,7 +450,7 @@ def _scope_candidates(root: RawNode, budget: int) -> list[int]:
 
 
 async def _capture_accessibility(
-    page: Tab, root: RawNode, limits: CaptureLimits, deadline: float
+    session: CdpSession, root: RawNode, limits: CaptureLimits, deadline: float
 ) -> tuple[list[Any], str]:
     """Bounded accessibility capture, independent of the DOM budget
     (P03-R02 step 3).
@@ -458,13 +464,14 @@ async def _capture_accessibility(
     if remaining <= 0:
         return [], "timeout"
     try:
-        nodes = await send_bounded(
-            page,
-            cdp_ax.get_full_ax_tree(depth=limits.ax_max_depth),
+        response = await send_bounded(
+            session,
+            "Accessibility.getFullAXTree",
+            {"depth": limits.ax_max_depth},
             timeout_seconds=min(limits.ax_timeout_seconds, remaining),
             phase="ax.get_full_ax_tree",
         )
-        return list(nodes or []), "complete"
+        return list(wrap_ax_nodes(response)), "complete"
     except CdpTimeoutError:
         pass
     except Exception:  # noqa: BLE001 -- accessibility is enrichment, never the observation
@@ -475,17 +482,17 @@ async def _capture_accessibility(
         if time.monotonic() >= deadline:
             break
         try:
-            partial = await send_bounded(
-                page,
-                cdp_ax.get_partial_ax_tree(
-                    backend_node_id=cdp_dom.BackendNodeId(backend_id), fetch_relatives=False
-                ),
+            partial_response = await send_bounded(
+                session,
+                "Accessibility.getPartialAXTree",
+                {"backendNodeId": backend_id, "fetchRelatives": False},
                 timeout_seconds=min(
                     limits.ax_scoped_request_timeout_seconds,
                     max(0.0, deadline - time.monotonic()),
                 ),
                 phase="ax.get_partial_ax_tree",
             )
+            partial = wrap_ax_nodes(partial_response)
         except CdpTimeoutError:
             break
         except Exception:  # noqa: BLE001 -- one unreachable node, not a failure
@@ -494,7 +501,9 @@ async def _capture_accessibility(
     return scoped, ("partial" if scoped else "timeout")
 
 
-async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> CaptureResult:
+async def capture_page(
+    session: CdpSession, limits: CaptureLimits | None = None
+) -> CaptureResult:
     """Captures one bounded DOM snapshot plus bounded accessibility state.
 
     Every awaited CDP request carries its own wall-clock bound, and the
@@ -512,9 +521,10 @@ async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> Captur
     state = _Traversal(limits=cfg, deadline=deadline)
 
     try:
-        document = await send_bounded(
-            page,
-            cdp_dom.get_document(depth=cfg.initial_depth, pierce=True),
+        response = await send_bounded(
+            session,
+            "DOM.getDocument",
+            {"depth": cfg.initial_depth, "pierce": True},
             timeout_seconds=min(cfg.request_timeout_seconds, cfg.timeout_seconds),
             phase="dom.get_document",
         )
@@ -523,13 +533,13 @@ async def capture_page(page: Tab, limits: CaptureLimits | None = None) -> Captur
             "The page document could not be read within its budget."
         ) from exc
 
-    root = _reduce_node(document, depth=0, state=state)
-    await _expand_frontier(page, state)
+    root = _reduce_node(CdpNode(response["root"]), depth=0, state=state)
+    await _expand_frontier(session, state)
 
     dom_tag_by_backend_id: dict[int, str] = {}
     _collect_dom_tags(root, dom_tag_by_backend_id)
 
-    ax_nodes, ax_status = await _capture_accessibility(page, root, cfg, deadline)
+    ax_nodes, ax_status = await _capture_accessibility(session, root, cfg, deadline)
 
     ax_by_backend_id: dict[int, AxState] = {}
     for ax_node in ax_nodes:

@@ -11,7 +11,7 @@ dependencies = [
     "beautifulsoup4>=4.15.0",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
-    "nodriver>=0.50.3",
+    "playwright>=1.49",
     "uvicorn[standard]>=0.52.4",
 ]
 
@@ -31,6 +31,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Test modules that import shared fixtures as `tests.fixtures.*` need this
+# directory importable; without it those modules fail collection outright
+# with `ModuleNotFoundError: No module named 'tests'`.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

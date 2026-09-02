@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createElement,
   useCallback,
   useMemo,
@@ -8,111 +9,219 @@ import {
   type ReactNode,
 } from "react";
 
+/**
+ * The frozen runtime a generated view is allowed to import from -- and the
+ * only module it may name at all (P04-F03 step 1).
+ *
+ * Everything here is either a presentational primitive over data the host
+ * already supplied, a bounded local-state hook, or a pure formatter. There
+ * is deliberately no command channel, no dispatch, no host call, no fetch,
+ * no storage, and no navigation: a generated view reads its props and
+ * renders. Whatever it wants to do beyond that, it cannot.
+ */
+
 export type OpaqueId = string & { readonly __opaqueGeneratedUiId: unique symbol };
-export type CommandKind = "activate" | "select" | "set_value" | "open_detail" | "media_control";
-export type CommandArgument = string | number | boolean | null;
-export type CommandArguments = Readonly<Record<string, CommandArgument>>;
-export interface UiCommand {
-  readonly kind: CommandKind;
-  readonly capabilityId: OpaqueId;
-  /**
-   * The trusted prompt template this command resolves to. Supplied by the
-   * host as part of the capability binding -- generated code references it
-   * and never authors it, and the host rebuilds the actual action prompt
-   * from its own copy.
-   */
-  readonly promptTemplateId: OpaqueId;
-  readonly revision: number;
-  readonly arguments: CommandArguments;
+
+export interface DisplaySource {
+  readonly id: OpaqueId;
+  readonly title: string;
+  readonly origin: string;
+  readonly finalUrl: string;
+  readonly retrievedAt: string;
+  readonly captureStatus: "complete" | "truncated" | "partial";
 }
 
-export interface DisplayRecord { readonly id: OpaqueId; readonly fields: Readonly<Record<string, string | number | boolean | null>> }
-export interface DisplaySource { readonly id: OpaqueId; readonly label: string; readonly provider: string }
-export interface DisplayMedia { readonly id: OpaqueId; readonly kind: "image" | "audio" | "video" | "chart"; readonly altText: string; readonly safeReference: string }
-/**
- * One capability the generated component may reference.
- *
- * `execution` decides how it may run at all: an `internal_react` capability
- * has no `promptTemplateId` and must be handled with component-local state
- * only, while an `external_ai_action` capability is the only kind
- * `dispatchCommand` will carry.
- */
-export interface DisplayCapability {
+export interface DisplayFact {
   readonly id: OpaqueId;
-  readonly allowedCommandKinds: readonly CommandKind[];
-  readonly execution: "internal_react" | "external_ai_action";
-  readonly promptTemplateId: OpaqueId | null;
+  readonly label: string;
+  readonly value: string;
+  readonly kind: string;
+  readonly unit: string | null;
+  readonly numericValue: number | null;
+  readonly sourceId: OpaqueId;
+  readonly note: string | null;
+}
+
+export interface DisplayRecordField {
+  readonly id: OpaqueId;
+  readonly label: string;
+  readonly value: string;
+  readonly role: string;
+  readonly numericValue: number | null;
+}
+
+export interface DisplayRecord {
+  readonly id: OpaqueId;
+  readonly collectionId: OpaqueId;
+  readonly title: string;
+  readonly sourceId: OpaqueId;
+  readonly fields: readonly DisplayRecordField[];
+  readonly mediaIds: readonly OpaqueId[];
+  readonly factIds: readonly OpaqueId[];
+}
+
+export interface DisplayCollection {
+  readonly id: OpaqueId;
+  readonly label: string;
+  readonly description: string;
+  readonly comparableFieldRoles: readonly string[];
+}
+
+/**
+ * Media is described, never fetched. The sandbox has no network, so a
+ * generated view renders the accessible alternative rather than an image.
+ */
+export interface DisplayMedia {
+  readonly id: OpaqueId;
+  readonly kind: "image" | "illustration" | "chart" | "video" | "audio" | "icon";
+  readonly alternativeText: string;
+  readonly caption: string | null;
+  readonly sourceId: OpaqueId;
+}
+
+export interface DisplayCoverage {
+  readonly requestedSources: number;
+  readonly capturedSources: number;
+  readonly omissions: readonly string[];
+  readonly unsupportedRequests: readonly string[];
+  readonly confidence: "high" | "medium" | "low";
 }
 
 export interface GeneratedViewProps {
   readonly instanceRevision: number;
-  readonly records: readonly DisplayRecord[];
+  readonly goal: string;
   readonly sources: readonly DisplaySource[];
+  readonly collections: readonly DisplayCollection[];
+  readonly records: readonly DisplayRecord[];
+  readonly facts: readonly DisplayFact[];
   readonly media: readonly DisplayMedia[];
-  readonly capabilities: readonly DisplayCapability[];
-  readonly getRecord: (id: OpaqueId) => DisplayRecord | undefined;
+  readonly coverage: DisplayCoverage;
   readonly getSource: (id: OpaqueId) => DisplaySource | undefined;
+  readonly getCollection: (id: OpaqueId) => DisplayCollection | undefined;
+  readonly getRecord: (id: OpaqueId) => DisplayRecord | undefined;
+  readonly getFact: (id: OpaqueId) => DisplayFact | undefined;
   readonly getMedia: (id: OpaqueId) => DisplayMedia | undefined;
-  readonly getCapability: (id: OpaqueId) => DisplayCapability | undefined;
-  readonly dispatchCommand: (command: UiCommand) => void;
 }
 
 export const semanticTokens = Object.freeze({
-  canvas: "var(--color-bg-canvas)", surface: "var(--color-bg-surface)", elevated: "var(--color-bg-elevated)",
-  textPrimary: "var(--color-text-primary)", textSecondary: "var(--color-text-secondary)", border: "var(--color-border)",
-  accent: "var(--color-accent)", accentHover: "var(--color-accent-hover)", success: "var(--color-success)",
-  warning: "var(--color-warning)", danger: "var(--color-danger)", focus: "var(--color-focus)",
-  space4: "var(--space-4)", space8: "var(--space-8)", space12: "var(--space-12)", space16: "var(--space-16)",
-  space24: "var(--space-24)", space32: "var(--space-32)", radiusControl: "var(--radius-control)",
-  radiusPanel: "var(--radius-panel)", radiusOverlay: "var(--radius-overlay)",
+  canvas: "var(--color-bg-canvas)",
+  surface: "var(--color-bg-surface)",
+  elevated: "var(--color-bg-elevated)",
+  textPrimary: "var(--color-text-primary)",
+  textSecondary: "var(--color-text-secondary)",
+  border: "var(--color-border)",
+  accent: "var(--color-accent)",
+  accentHover: "var(--color-accent-hover)",
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  focus: "var(--color-focus)",
+  space4: "var(--space-4)",
+  space8: "var(--space-8)",
+  space12: "var(--space-12)",
+  space16: "var(--space-16)",
+  space24: "var(--space-24)",
+  space32: "var(--space-32)",
+  radiusControl: "var(--radius-control)",
+  radiusPanel: "var(--radius-panel)",
+  radiusOverlay: "var(--radius-overlay)",
 } as const);
 
 type BoxProps = ComponentPropsWithoutRef<"div"> & { readonly children?: ReactNode };
 const base: CSSProperties = { color: semanticTokens.textPrimary };
-export function Stack({ style, ...props }: BoxProps) { return <div {...props} style={{ ...base, display: "flex", flexDirection: "column", gap: semanticTokens.space12, ...style }} />; }
-export function Inline({ style, ...props }: BoxProps) { return <div {...props} style={{ ...base, display: "flex", flexWrap: "wrap", alignItems: "center", gap: semanticTokens.space8, ...style }} />; }
-export function Grid({ style, ...props }: BoxProps) { return <div {...props} style={{ ...base, display: "grid", gap: semanticTokens.space12, gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", ...style }} />; }
-export function Card({ style, ...props }: BoxProps) { return <section {...props} style={{ ...base, background: semanticTokens.surface, border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusPanel, padding: semanticTokens.space16, ...style }} />; }
+
+export function Stack({ style, ...props }: BoxProps) {
+  return <div {...props} style={{ ...base, display: "flex", flexDirection: "column", gap: semanticTokens.space12, ...style }} />;
+}
+export function Inline({ style, ...props }: BoxProps) {
+  return <div {...props} style={{ ...base, display: "flex", flexWrap: "wrap", alignItems: "center", gap: semanticTokens.space8, ...style }} />;
+}
+export function Grid({ style, ...props }: BoxProps) {
+  return <div {...props} style={{ ...base, display: "grid", gap: semanticTokens.space12, gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", ...style }} />;
+}
+export function Card({ style, ...props }: BoxProps) {
+  return <section {...props} style={{ ...base, background: semanticTokens.surface, border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusPanel, padding: semanticTokens.space16, ...style }} />;
+}
+
+/**
+ * One planned component, rendered as a landmark-capable region. The
+ * `componentId` ties the rendered tree back to the plan's component tree,
+ * and the compiler checks that every id used here was planned.
+ */
+export function Region({ componentId, label, as = "section", style, children }: {
+  readonly componentId: OpaqueId;
+  readonly label: string;
+  readonly as?: "section" | "header" | "footer" | "nav" | "main" | "article" | "div";
+  readonly style?: CSSProperties;
+  readonly children?: ReactNode;
+}) {
+  return createElement(as, { "aria-label": label, "data-component-id": componentId, style: { ...base, ...style } }, children);
+}
+
 export function Text(props: ComponentPropsWithoutRef<"p">) { return <p {...props} />; }
-export function Heading(props: ComponentPropsWithoutRef<"h2">) { return <h2 {...props} />; }
-export function Badge({ style, ...props }: ComponentPropsWithoutRef<"span">) { return <span {...props} style={{ border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusControl, padding: `${semanticTokens.space4} ${semanticTokens.space8}`, ...style }} />; }
+export function Heading({ level = 2, ...props }: ComponentPropsWithoutRef<"h2"> & { readonly level?: 1 | 2 | 3 | 4 }) {
+  return createElement(`h${level}`, props);
+}
+export function Badge({ style, ...props }: ComponentPropsWithoutRef<"span">) {
+  return <span {...props} style={{ border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusControl, padding: `${semanticTokens.space4} ${semanticTokens.space8}`, ...style }} />;
+}
 export const List = (props: ComponentPropsWithoutRef<"ul">) => <ul {...props} />;
 export const ListItem = (props: ComponentPropsWithoutRef<"li">) => <li {...props} />;
 export const Table = (props: ComponentPropsWithoutRef<"table">) => <table {...props} />;
 export const TableHead = (props: ComponentPropsWithoutRef<"thead">) => <thead {...props} />;
 export const TableBody = (props: ComponentPropsWithoutRef<"tbody">) => <tbody {...props} />;
 export const TableRow = (props: ComponentPropsWithoutRef<"tr">) => <tr {...props} />;
-export const TableHeader = (props: ComponentPropsWithoutRef<"th">) => <th {...props} />;
+export const TableHeader = (props: ComponentPropsWithoutRef<"th">) => <th scope="col" {...props} />;
 export const TableCell = (props: ComponentPropsWithoutRef<"td">) => <td {...props} />;
 export const Label = (props: ComponentPropsWithoutRef<"label">) => <label {...props} />;
 export const Select = (props: ComponentPropsWithoutRef<"select">) => <select {...props} />;
 export const Option = (props: ComponentPropsWithoutRef<"option">) => <option {...props} />;
 export const Status = (props: ComponentPropsWithoutRef<"div">) => <div role="status" aria-live="polite" {...props} />;
 export const Warning = (props: ComponentPropsWithoutRef<"div">) => <div role="status" {...props} />;
-export const Source = ({ source }: { readonly source: DisplaySource }) => <span>{source.provider}: {source.label}</span>;
-export const Freshness = ({ label }: { readonly label: string }) => <span>{label}</span>;
-export const Icon = ({ name, label }: { readonly name: "search" | "filter" | "sort" | "info" | "warning" | "close"; readonly label: string }) => <span role="img" aria-label={label} data-icon={name} />;
-export const Media = ({ media }: { readonly media: DisplayMedia }) => media.kind === "image" ? <img src={media.safeReference} alt={media.altText} /> : <div role="img" aria-label={media.altText}>{media.altText}</div>;
-export function Modal({ open, title, onClose, children }: { readonly open: boolean; readonly title: string; readonly onClose: () => void; readonly children: ReactNode }) { return open ? <div role="dialog" aria-modal="true" aria-label={title}><button type="button" onClick={onClose}>Close</button>{children}</div> : null; }
 
-/**
- * The only path from generated code to an external action. It refuses to
- * dispatch for anything but an `external_ai_action` capability, so an
- * internal interaction cannot reach the host even if the generated
- * component tries -- the host rejects it a second time regardless.
- */
-export function CommandButton({ capabilityId, kind, arguments: args = {}, runtime, children, disabled }: { readonly capabilityId: OpaqueId; readonly kind: CommandKind; readonly arguments?: CommandArguments; readonly runtime: GeneratedViewProps; readonly children: ReactNode; readonly disabled?: boolean }) {
-  const capability = runtime.getCapability(capabilityId);
-  const permitted = capability?.execution === "external_ai_action"
-    && capability.promptTemplateId !== null
-    && capability.allowedCommandKinds.includes(kind);
-  return <button type="button" disabled={disabled || !permitted} onClick={() => permitted && runtime.dispatchCommand(Object.freeze({ kind, capabilityId, promptTemplateId: capability.promptTemplateId!, revision: runtime.instanceRevision, arguments: Object.freeze({ ...args }) }))}>{children}</button>;
+/** Provenance, rendered as text. The URL is identity, never a link the reader can follow. */
+export const Source = ({ source }: { readonly source: DisplaySource }) => (
+  <span>
+    {source.title} — {source.origin}
+    {source.captureStatus === "complete" ? "" : ` (${source.captureStatus} capture)`}
+  </span>
+);
+
+export const Freshness = ({ label }: { readonly label: string }) => <span>{label}</span>;
+
+export const Icon = ({ name, label }: {
+  readonly name: "search" | "filter" | "sort" | "info" | "warning" | "close" | "expand";
+  readonly label: string;
+}) => <span role="img" aria-label={label} data-icon={name} />;
+
+/** The accessible alternative, always. There is no image loading path in the sandbox. */
+export const Media = ({ media }: { readonly media: DisplayMedia }) => (
+  <figure style={{ margin: 0 }}>
+    <div role="img" aria-label={media.alternativeText} style={{ background: semanticTokens.elevated, border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusControl, padding: semanticTokens.space12, color: semanticTokens.textSecondary }}>
+      {media.alternativeText}
+    </div>
+    {media.caption === null ? null : <figcaption style={{ color: semanticTokens.textSecondary }}>{media.caption}</figcaption>}
+  </figure>
+);
+
+export function Modal({ open, title, onClose, children }: {
+  readonly open: boolean;
+  readonly title: string;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
+}) {
+  return open ? (
+    <div role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}>
+      <button type="button" onClick={onClose}>Close</button>
+      {children}
+    </div>
+  ) : null;
 }
 
 /**
- * Component-local state for an internal interaction, bounded to an
- * allowlist of values. Nothing here contacts the host, the server, or the
- * model: an internal interaction is a React state change and nothing more.
+ * Component-local state, bounded to an allowlist of values. This is the
+ * whole of what a generated view can "do": a React state change over data
+ * it already holds.
  */
 export function useBoundedState<T>(initial: T, allowed: readonly T[]): readonly [T, (next: T) => void] {
   const [value, setValue] = useState(initial);
@@ -120,19 +229,20 @@ export function useBoundedState<T>(initial: T, allowed: readonly T[]): readonly 
   return useMemo(() => [value, setBounded] as const, [value, setBounded]);
 }
 
-/**
- * Ordering and filtering over already-supplied records, as pure local
- * derivation. Provided so a generated component never has a reason to
- * reach outward for data it already holds.
- */
-export function useLocalCollection<T>(items: readonly T[], options: { readonly filter?: (item: T) => boolean; readonly compare?: (a: T, b: T) => number }): readonly T[] {
+/** Ordering and filtering over already-supplied records, as pure local derivation. */
+export function useLocalCollection<T>(items: readonly T[], options: {
+  readonly filter?: (item: T) => boolean;
+  readonly compare?: (a: T, b: T) => number;
+}): readonly T[] {
   const { filter, compare } = options;
   return useMemo(() => {
     const selected = filter ? items.filter(filter) : [...items];
     return compare ? selected.sort(compare) : selected;
   }, [items, filter, compare]);
 }
+
 export function formatNumber(value: number, locale = "en-US") { return new Intl.NumberFormat(locale).format(value); }
 export function formatCurrency(value: number, currency: string, locale = "en-US") { return new Intl.NumberFormat(locale, { style: "currency", currency }).format(value); }
 export function formatDate(value: string, locale = "en-US") { return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(value)); }
-export { createElement };
+
+export { Fragment, createElement };

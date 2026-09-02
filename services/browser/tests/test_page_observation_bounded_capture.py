@@ -12,11 +12,9 @@ CDP calls, malformed nodes -- without depending on any live site.
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from nodriver.cdp import dom as cdp_dom
 
 from browser_service.page_observation.capture import (
     BOUNDARY_CAPTURE_BUDGET,
@@ -51,22 +49,25 @@ def node(
     content_document: Any = None,
     shadow_roots: list[Any] | None = None,
     attributes: list[str] | None = None,
-) -> Any:
-    """One CDP `DOM.Node`. `child_node_count` deliberately defaults to the
+) -> dict[str, Any]:
+    """One CDP `DOM.Node`, exactly as it arrives on the wire.
+    `child_node_count` deliberately defaults to the
     number of *included* children, so a fixture opts in to a depth frontier
     by declaring more children than it carries."""
     kids = children or []
-    return SimpleNamespace(
-        backend_node_id=backend_id,
-        node_type=node_type,
-        node_name=name,
-        node_value=value,
-        attributes=attributes or [],
-        children=kids,
-        child_node_count=len(kids) if child_node_count is None else child_node_count,
-        content_document=content_document,
-        shadow_roots=shadow_roots or [],
-    )
+    built: dict[str, Any] = {
+        "backendNodeId": backend_id,
+        "nodeType": node_type,
+        "nodeName": name,
+        "nodeValue": value,
+        "attributes": attributes or [],
+        "children": kids,
+        "childNodeCount": len(kids) if child_node_count is None else child_node_count,
+        "shadowRoots": shadow_roots or [],
+    }
+    if content_document is not None:
+        built["contentDocument"] = content_document
+    return built
 
 
 def deep_chain(depth: int, *, start: int = 1) -> Any:
@@ -91,22 +92,22 @@ def wide_cards(count: int, *, start: int = 100) -> Any:
     return node(1, "HTML", children=[node(2, "MAIN", children=cards)])
 
 
-def ax_node(backend_id: int, role: str = "article", name: str = "Listing") -> Any:
-    return SimpleNamespace(
-        backend_dom_node_id=backend_id,
-        role=SimpleNamespace(value=role),
-        name=SimpleNamespace(value=name),
-        description=None,
-        ignored=False,
-        ignored_reasons=[],
-        properties=[],
-        node_id=f"ax-{backend_id}",
-        child_ids=[],
-    )
+def ax_node(backend_id: int, role: str = "article", name: str = "Listing") -> dict[str, Any]:
+    """One CDP `Accessibility.AXNode`, exactly as it arrives on the wire."""
+    return {
+        "backendDOMNodeId": backend_id,
+        "role": {"value": role},
+        "name": {"value": name},
+        "ignored": False,
+        "ignoredReasons": [],
+        "properties": [],
+        "nodeId": f"ax-{backend_id}",
+        "childIds": [],
+    }
 
 
-class FakeTab:
-    """A CDP tab whose individual methods can stall, fail, or answer.
+class FakeSession:
+    """A CDP session whose individual methods can stall, fail, or answer.
 
     `stall` names methods that never return, which is the behaviour that
     made the real capture path hang: the await itself is the stall, so a
@@ -131,26 +132,30 @@ class FakeTab:
         self.fail = fail
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    async def send(self, command: Any) -> Any:
-        request = command.send(None)
-        method = str(request["method"])
-        params = dict(request.get("params", {}))
-        self.calls.append((method, params))
+    async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
+        given = dict(params or {})
+        self.calls.append((method, given))
         if method in self.stall:
             await asyncio.sleep(3_600)
         if method in self.fail:
             raise RuntimeError("cdp domain refused")
         if method == "DOM.getDocument":
-            return self.document
+            return {"root": self.document}
         if method == "DOM.describeNode":
-            return self.expansions.get(int(params["backendNodeId"]), node(0, "DIV"))
+            return {"node": self.expansions.get(int(given["backendNodeId"]), node(0, "DIV"))}
         if method == "Accessibility.getFullAXTree":
-            return self.ax_nodes
+            return {"nodes": self.ax_nodes}
         if method == "Accessibility.getPartialAXTree":
-            return self.partial_ax
+            return {"nodes": self.partial_ax}
         if method == "DOM.getBoxModel":
-            return SimpleNamespace(content=[0, 0, 10, 0, 10, 5, 0, 5])
+            return {"model": {"content": [0, 0, 10, 0, 10, 5, 0, 5]}}
         raise AssertionError(f"unexpected command: {method}")
+
+    def on(self, event: str, handler: Any) -> None:
+        raise AssertionError("the capture path must not subscribe to events")
+
+    def remove_listener(self, event: str, handler: Any) -> None:
+        raise AssertionError("the capture path must not subscribe to events")
 
     def methods(self) -> list[str]:
         return [method for method, _ in self.calls]
@@ -166,17 +171,17 @@ class FakeTab:
 
 @pytest.mark.asyncio
 async def test_large_page_path_never_issues_an_unbounded_pierced_snapshot() -> None:
-    tab = FakeTab(document=wide_cards(200), ax_nodes=[ax_node(100)])
+    session = FakeSession(document=wide_cards(200), ax_nodes=[ax_node(100)])
 
-    await capture_page(tab, CaptureLimits(timeout_seconds=5))
+    await capture_page(session, CaptureLimits(timeout_seconds=5))
 
-    requests = tab.params_for("DOM.getDocument")
+    requests = session.params_for("DOM.getDocument")
     assert requests, "the document must still be fetched"
     for params in requests:
         # `depth=-1` is the unlimited pierced snapshot P03-R02 removes.
         assert params["depth"] != -1
         assert 0 < int(params["depth"]) <= CaptureLimits().initial_depth
-    for params in tab.params_for("Accessibility.getFullAXTree"):
+    for params in session.params_for("Accessibility.getFullAXTree"):
         assert int(params["depth"]) == CaptureLimits().ax_max_depth
 
 
@@ -191,11 +196,11 @@ async def test_frontier_children_are_fetched_incrementally_and_spliced_in() -> N
         "SECTION",
         children=[node(51, "ARTICLE"), node(52, "ARTICLE"), node(53, "ARTICLE")],
     )
-    tab = FakeTab(document=root, expansions={50: expansion})
+    session = FakeSession(document=root, expansions={50: expansion})
 
-    result = await capture_page(tab, CaptureLimits(timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(timeout_seconds=5))
 
-    assert tab.params_for("DOM.describeNode") == [
+    assert session.params_for("DOM.describeNode") == [
         {"backendNodeId": 50, "depth": CaptureLimits().expansion_depth, "pierce": True}
     ]
     assert [child.backend_node_id for child in result.root.children[0].children] == [51, 52, 53]
@@ -207,14 +212,14 @@ async def test_frontier_children_are_fetched_incrementally_and_spliced_in() -> N
 @pytest.mark.asyncio
 async def test_expansion_round_trips_are_capped_independently_of_the_clock() -> None:
     containers = [node(200 + i, "SECTION", children=[], child_node_count=2) for i in range(10)]
-    tab = FakeTab(
+    session = FakeSession(
         document=node(1, "HTML", children=containers),
         expansions={
             200 + i: node(200 + i, "SECTION", children=[node(300 + i, "P")]) for i in range(10)
         },
     )
 
-    result = await capture_page(tab, CaptureLimits(timeout_seconds=30, max_expansions=3))
+    result = await capture_page(session, CaptureLimits(timeout_seconds=30, max_expansions=3))
 
     assert result.expansion_count == 3
     assert result.truncated_by_expansion_limit is True
@@ -234,22 +239,26 @@ async def test_expansion_round_trips_are_capped_independently_of_the_clock() -> 
 
 @pytest.mark.asyncio
 async def test_a_stalled_document_request_fails_fast_instead_of_hanging() -> None:
-    tab = FakeTab(document=wide_cards(5), stall=frozenset({"DOM.getDocument"}))
+    session = FakeSession(document=wide_cards(5), stall=frozenset({"DOM.getDocument"}))
 
     async with asyncio.timeout(3):
         with pytest.raises(CaptureUnavailableError):
-            await capture_page(tab, CaptureLimits(timeout_seconds=1, request_timeout_seconds=0.2))
+            await capture_page(
+                session, CaptureLimits(timeout_seconds=1, request_timeout_seconds=0.2)
+            )
 
 
 @pytest.mark.asyncio
 async def test_a_stalled_expansion_yields_a_useful_partial_observation() -> None:
     container = node(50, "SECTION", children=[], child_node_count=6)
     root = node(1, "HTML", children=[node(2, "ARTICLE"), node(3, "ARTICLE"), container])
-    tab = FakeTab(document=root, stall=frozenset({"DOM.describeNode"}), ax_nodes=[ax_node(2)])
+    session = FakeSession(
+        document=root, stall=frozenset({"DOM.describeNode"}), ax_nodes=[ax_node(2)]
+    )
 
     async with asyncio.timeout(5):
         result = await capture_page(
-            tab, CaptureLimits(timeout_seconds=2, request_timeout_seconds=0.2)
+            session, CaptureLimits(timeout_seconds=2, request_timeout_seconds=0.2)
         )
 
     # The already-captured records survive -- a partial observation that
@@ -264,7 +273,7 @@ async def test_a_stalled_expansion_yields_a_useful_partial_observation() -> None
 
 @pytest.mark.asyncio
 async def test_a_stalled_accessibility_tree_degrades_to_a_scoped_fallback() -> None:
-    tab = FakeTab(
+    session = FakeSession(
         document=wide_cards(4),
         stall=frozenset({"Accessibility.getFullAXTree"}),
         partial_ax=[ax_node(100)],
@@ -272,12 +281,13 @@ async def test_a_stalled_accessibility_tree_degrades_to_a_scoped_fallback() -> N
 
     async with asyncio.timeout(5):
         result = await capture_page(
-            tab, CaptureLimits(timeout_seconds=3, ax_timeout_seconds=0.2, ax_scoped_node_budget=3)
+            session,
+            CaptureLimits(timeout_seconds=3, ax_timeout_seconds=0.2, ax_scoped_node_budget=3),
         )
 
     assert result.ax_status == "partial"
     assert result.ax_available is True
-    scoped_requests = tab.params_for("Accessibility.getPartialAXTree")
+    scoped_requests = session.params_for("Accessibility.getPartialAXTree")
     assert len(scoped_requests) == 3
     # Scoped requests never fetch relatives -- that is what makes them bounded.
     assert all(params["fetchRelatives"] is False for params in scoped_requests)
@@ -285,7 +295,7 @@ async def test_a_stalled_accessibility_tree_degrades_to_a_scoped_fallback() -> N
 
 @pytest.mark.asyncio
 async def test_accessibility_failure_never_fails_the_whole_observation() -> None:
-    stalled_everything = FakeTab(
+    stalled_everything = FakeSession(
         document=wide_cards(3),
         stall=frozenset({"Accessibility.getFullAXTree", "Accessibility.getPartialAXTree"}),
     )
@@ -303,7 +313,7 @@ async def test_accessibility_failure_never_fails_the_whole_observation() -> None
     assert timed_out.ax_available is False
     assert timed_out.node_count > 0
 
-    refused = FakeTab(document=wide_cards(3), fail=frozenset({"Accessibility.getFullAXTree"}))
+    refused = FakeSession(document=wide_cards(3), fail=frozenset({"Accessibility.getFullAXTree"}))
     unavailable = await capture_page(refused, CaptureLimits(timeout_seconds=3))
     assert unavailable.ax_status == "unavailable"
     assert unavailable.node_count > 0
@@ -311,11 +321,11 @@ async def test_accessibility_failure_never_fails_the_whole_observation() -> None
 
 @pytest.mark.asyncio
 async def test_layout_lookup_is_bounded_per_request_and_per_stage() -> None:
-    tab = FakeTab(document=node(1, "HTML"), stall=frozenset({"DOM.getBoxModel"}))
+    session = FakeSession(document=node(1, "HTML"), stall=frozenset({"DOM.getBoxModel"}))
 
     async with asyncio.timeout(5):
         captured = await capture_bounding_boxes(
-            tab, [1, 2, 3], budget_seconds=0.6, request_timeout_seconds=0.2
+            session, [1, 2, 3], budget_seconds=0.6, request_timeout_seconds=0.2
         )
 
     assert captured.timed_out is True
@@ -327,13 +337,11 @@ async def test_layout_lookup_is_bounded_per_request_and_per_stage() -> None:
 
 @pytest.mark.asyncio
 async def test_send_bounded_refuses_a_vanishing_budget_without_issuing_a_request() -> None:
-    tab = FakeTab(document=node(1, "HTML"))
+    session = FakeSession(document=node(1, "HTML"))
     with pytest.raises(CdpTimeoutError) as excinfo:
-        await send_bounded(
-            tab, cdp_dom.enable(), timeout_seconds=0.0, phase="dom.enable"
-        )
+        await send_bounded(session, "DOM.enable", timeout_seconds=0.0, phase="dom.enable")
     assert excinfo.value.phase == "dom.enable"
-    assert tab.calls == []
+    assert session.calls == []
 
 
 # --------------------------------------------------------------------------
@@ -343,9 +351,9 @@ async def test_send_bounded_refuses_a_vanishing_budget_without_issuing_a_request
 
 @pytest.mark.asyncio
 async def test_very_deep_dom_stops_at_the_depth_limit() -> None:
-    tab = FakeTab(document=deep_chain(80))
+    session = FakeSession(document=deep_chain(80))
 
-    result = await capture_page(tab, CaptureLimits(max_depth=10, timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(max_depth=10, timeout_seconds=5))
 
     assert result.truncated_by_depth is True
     assert result.partial is True
@@ -359,9 +367,9 @@ async def test_very_deep_dom_stops_at_the_depth_limit() -> None:
 
 @pytest.mark.asyncio
 async def test_very_wide_dom_stops_at_the_node_limit_and_preserves_order() -> None:
-    tab = FakeTab(document=wide_cards(500))
+    session = FakeSession(document=wide_cards(500))
 
-    result = await capture_page(tab, CaptureLimits(max_raw_nodes=25, timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(max_raw_nodes=25, timeout_seconds=5))
 
     assert result.truncated_by_node_limit is True
     assert result.node_count <= 25
@@ -385,9 +393,9 @@ async def test_frames_and_shadow_roots_are_counted_and_capped() -> None:
     ]
     cross_origin = node(700, "IFRAME", attributes=["src", "https://other.test/widget"])
     host = node(800, "DIV", shadow_roots=[node(801, "#document-fragment", node_type=11)])
-    tab = FakeTab(document=node(1, "HTML", children=[*same_origin, cross_origin, host]))
+    session = FakeSession(document=node(1, "HTML", children=[*same_origin, cross_origin, host]))
 
-    result = await capture_page(tab, CaptureLimits(max_frames=2, timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(max_frames=2, timeout_seconds=5))
 
     assert result.frame_count == 2
     assert result.truncated_by_frame_limit is True
@@ -406,9 +414,9 @@ async def test_shadow_root_budget_is_reported_explicitly() -> None:
         "DIV",
         shadow_roots=[node(810 + i, "#document-fragment", node_type=11) for i in range(5)],
     )
-    tab = FakeTab(document=node(1, "HTML", children=[host]))
+    session = FakeSession(document=node(1, "HTML", children=[host]))
 
-    result = await capture_page(tab, CaptureLimits(max_shadow_roots=2, timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(max_shadow_roots=2, timeout_seconds=5))
 
     assert result.shadow_root_count == 2
     assert result.truncated_by_shadow_limit is True
@@ -417,10 +425,11 @@ async def test_shadow_root_budget_is_reported_explicitly() -> None:
 
 @pytest.mark.asyncio
 async def test_one_oversized_cdp_response_is_truncated_and_reported() -> None:
-    tab = FakeTab(document=wide_cards(100))
+    session = FakeSession(document=wide_cards(100))
 
     result = await capture_page(
-        tab, CaptureLimits(max_nodes_per_response=10, max_raw_nodes=10_000, timeout_seconds=5)
+        session,
+        CaptureLimits(max_nodes_per_response=10, max_raw_nodes=10_000, timeout_seconds=5),
     )
 
     assert result.truncated_by_response_limit is True
@@ -429,20 +438,19 @@ async def test_one_oversized_cdp_response_is_truncated_and_reported() -> None:
 
 @pytest.mark.asyncio
 async def test_malformed_nodes_do_not_abort_the_capture() -> None:
-    malformed = SimpleNamespace(
-        backend_node_id=9,
-        node_type=1,
-        node_name=None,
-        node_value=None,
-        attributes=["only-a-key"],
-        children=None,
-        child_node_count=None,
-        content_document=None,
-        shadow_roots=None,
-    )
-    tab = FakeTab(document=node(1, "HTML", children=[malformed, node(2, "ARTICLE")]))
+    malformed = {
+        "backendNodeId": 9,
+        "nodeType": 1,
+        "nodeName": None,
+        "nodeValue": None,
+        "attributes": ["only-a-key"],
+        "children": None,
+        "childNodeCount": None,
+        "shadowRoots": None,
+    }
+    session = FakeSession(document=node(1, "HTML", children=[malformed, node(2, "ARTICLE")]))
 
-    result = await capture_page(tab, CaptureLimits(timeout_seconds=5))
+    result = await capture_page(session, CaptureLimits(timeout_seconds=5))
 
     assert result.node_count == 3
     assert result.root.children[0].tag == ""
@@ -462,12 +470,12 @@ async def test_malformed_nodes_do_not_abort_the_capture() -> None:
 @pytest.mark.asyncio
 async def test_cancellation_during_any_capture_phase_propagates_promptly(phase: str) -> None:
     container = node(50, "SECTION", children=[], child_node_count=4)
-    tab = FakeTab(
+    session = FakeSession(
         document=node(1, "HTML", children=[container]),
         expansions={50: node(50, "SECTION", children=[node(51, "P")])},
         stall=frozenset({phase}),
     )
-    task = asyncio.create_task(capture_page(tab, CaptureLimits(timeout_seconds=30)))
+    task = asyncio.create_task(capture_page(session, CaptureLimits(timeout_seconds=30)))
     await asyncio.sleep(0.05)
     task.cancel()
     async with asyncio.timeout(2):

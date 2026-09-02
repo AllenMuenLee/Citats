@@ -12,7 +12,6 @@ that motivated this repair can be asserted deterministically.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 
 LISTING_COUNT = 6
@@ -49,31 +48,32 @@ def element(
     flat: list[str] = []
     for name, value in (attributes or {}).items():
         flat.extend([name, value])
-    return SimpleNamespace(
-        backend_node_id=backend_id,
-        node_type=1,
-        node_name=tag.upper(),
-        node_value="",
-        attributes=flat,
-        children=kids,
-        child_node_count=len(kids) if child_node_count is None else child_node_count,
-        content_document=content_document,
-        shadow_roots=shadow_roots or [],
-    )
+    node: dict[str, Any] = {
+        "backendNodeId": backend_id,
+        "nodeType": 1,
+        "nodeName": tag.upper(),
+        "nodeValue": "",
+        "attributes": flat,
+        "children": kids,
+        "childNodeCount": len(kids) if child_node_count is None else child_node_count,
+        "shadowRoots": shadow_roots or [],
+    }
+    if content_document is not None:
+        node["contentDocument"] = content_document
+    return node
 
 
 def text(backend_id: int, value: str) -> Any:
-    return SimpleNamespace(
-        backend_node_id=backend_id,
-        node_type=3,
-        node_name="#text",
-        node_value=value,
-        attributes=[],
-        children=[],
-        child_node_count=0,
-        content_document=None,
-        shadow_roots=[],
-    )
+    return {
+        "backendNodeId": backend_id,
+        "nodeType": 3,
+        "nodeName": "#text",
+        "nodeValue": value,
+        "attributes": [],
+        "children": [],
+        "childNodeCount": 0,
+        "shadowRoots": [],
+    }
 
 
 def _listing_card(index: int, base: int) -> Any:
@@ -207,17 +207,16 @@ def ax_nodes_for_results() -> list[Any]:
         base = 1_000 + index * 100
         name = _LISTINGS[index][0]
         nodes.append(
-            SimpleNamespace(
-                backend_dom_node_id=base,
-                role=SimpleNamespace(value="article"),
-                name=SimpleNamespace(value=name),
-                description=None,
-                ignored=False,
-                ignored_reasons=[],
-                properties=[],
-                node_id=f"ax-{base}",
-                child_ids=[],
-            )
+            {
+                "backendDOMNodeId": base,
+                "role": {"value": "article"},
+                "name": {"value": name},
+                "ignored": False,
+                "ignoredReasons": [],
+                "properties": [],
+                "nodeId": f"ax-{base}",
+                "childIds": [],
+            }
         )
     return nodes
 

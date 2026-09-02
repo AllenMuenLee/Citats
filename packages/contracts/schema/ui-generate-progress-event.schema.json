@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "sequence": {
+      "exclusiveMinimum": 0,
+      "maximum": 6,
+      "type": "integer"
+    },
+    "state": {
+      "enum": [
+        "source_finding",
+        "page_capture",
+        "ui_planning",
+        "ui_generation",
+        "validation",
+        "rendering"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "state",
+    "sequence"
+  ],
+  "type": "object"
+}

@@ -21,6 +21,7 @@ from browser_service.api.bridge import router as bridge_router
 from browser_service.auth import require_service_token
 from browser_service.config import get_postgres_target, get_redis_target
 from browser_service.health import check_tcp_reachable
+from browser_service.logging_setup import configure_logging
 
 app = FastAPI(
     title="AI-Native Browser - Browser Service",
@@ -33,6 +34,9 @@ app = FastAPI(
 )
 
 app.include_router(bridge_router)
+# Without this every extra={...} this service logs is silently dropped by
+# the default formatter -- see browser_service.logging_setup.
+configure_logging()
 logger = logging.getLogger("browser_service.http")
 
 

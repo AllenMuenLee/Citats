@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -23,59 +22,69 @@ def _node(
     children: list[Any] | None = None,
     content_document: Any = None,
     shadow_roots: list[Any] | None = None,
-) -> Any:
-    return SimpleNamespace(
-        backend_node_id=backend_id,
-        node_type=1,
-        node_name=name,
-        node_value="",
-        attributes=[],
-        children=children or [],
-        content_document=content_document,
-        shadow_roots=shadow_roots or [],
-    )
+) -> dict[str, Any]:
+    """One ``DOM.Node`` exactly as CDP puts it on the wire."""
+    node: dict[str, Any] = {
+        "backendNodeId": backend_id,
+        "nodeType": 1,
+        "nodeName": name,
+        "nodeValue": "",
+        "attributes": [],
+        "children": children or [],
+        "shadowRoots": shadow_roots or [],
+    }
+    if content_document is not None:
+        node["contentDocument"] = content_document
+    return node
 
 
-class CaptureTab:
+class CaptureSession:
+    """Fake CDP session: answers by method name, records what was asked."""
+
     def __init__(self, document: Any) -> None:
         self.document = document
         self.commands: list[str] = []
 
-    async def send(self, command: Any) -> Any:
-        method = str(command.gi_code.co_name)
+    async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
         self.commands.append(method)
-        if method == "get_document":
-            return self.document
-        if method == "get_full_ax_tree":
-            return []
+        if method == "DOM.getDocument":
+            return {"root": self.document}
+        if method == "Accessibility.getFullAXTree":
+            return {"nodes": []}
         raise AssertionError(f"unexpected command: {method}")
+
+    def on(self, event: str, handler: Any) -> None:
+        raise AssertionError("capture must not subscribe to events")
+
+    def remove_listener(self, event: str, handler: Any) -> None:
+        raise AssertionError("capture must not subscribe to events")
 
 
 @pytest.mark.asyncio
 async def test_capture_is_bounded_cycle_safe_and_uses_no_network_domain() -> None:
     repeated = _node(2, "DIV")
     root = _node(1, "HTML", children=[repeated, repeated, _node(3, "SPAN")])
-    tab = CaptureTab(root)
+    session = CaptureSession(root)
 
     result = await capture_page(
-        tab, CaptureLimits(max_raw_nodes=2, max_depth=10, timeout_seconds=1)
+        session, CaptureLimits(max_raw_nodes=2, max_depth=10, timeout_seconds=1)
     )
 
     assert result.node_count == 2
     assert result.truncated_by_node_limit is True
     assert result.timed_out is False
-    assert all("Network" not in name and "Fetch" not in name for name in tab.commands)
+    assert all("Network" not in name and "Fetch" not in name for name in session.commands)
 
 
 @pytest.mark.asyncio
 async def test_capture_marks_inaccessible_boundaries_and_duplicate_references() -> None:
     frame = _node(2, "IFRAME")
-    frame.attributes = ["src", "https://other.test/frame"]
+    frame["attributes"] = ["src", "https://other.test/frame"]
     plugin = _node(3, "OBJECT")
     shared = _node(4, "BUTTON")
     root = _node(1, "HTML", children=[frame, plugin, shared, shared])
 
-    result = await capture_page(CaptureTab(root))
+    result = await capture_page(CaptureSession(root))
 
     assert result.root.children[0].frame_boundary_reason == "cross_origin_frame"
     assert result.root.children[1].inaccessible_boundary_reason == "plugin_or_embedded_content"
@@ -83,57 +92,62 @@ async def test_capture_marks_inaccessible_boundaries_and_duplicate_references() 
     assert result.duplicate_or_cycle_count == 1
 
 
-class SettleTab:
+class SettleSession:
     def __init__(self) -> None:
         self.handlers: list[tuple[Any, Any]] = []
         self.removed: list[tuple[Any, Any]] = []
 
-    def add_handler(self, event_type: Any, handler: Any) -> None:
-        self.handlers.append((event_type, handler))
+    def on(self, event: str, handler: Any) -> None:
+        self.handlers.append((event, handler))
 
-    def remove_handler(self, event_type: Any, handler: Any) -> None:
-        self.removed.append((event_type, handler))
+    def remove_listener(self, event: str, handler: Any) -> None:
+        self.removed.append((event, handler))
 
-    async def send(self, _command: Any) -> None:
-        return None
+    async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
+        return {}
 
 
 @pytest.mark.asyncio
 async def test_settle_is_deterministically_bounded_and_cleans_up_handlers() -> None:
-    tab = SettleTab()
+    session = SettleSession()
     result = await wait_for_settle(
-        tab, SettleConfig(quiet_window_seconds=0.001, max_settle_seconds=0.1)
+        session, SettleConfig(quiet_window_seconds=0.001, max_settle_seconds=0.1)
     )
 
     assert result.status == "complete"
-    assert len(tab.removed) == len(tab.handlers) > 0
+    assert len(session.removed) == len(session.handlers) > 0
 
 
 @pytest.mark.asyncio
 async def test_settle_cancellation_cleans_up_handlers() -> None:
-    tab = SettleTab()
+    session = SettleSession()
     task = asyncio.create_task(
-        wait_for_settle(tab, SettleConfig(quiet_window_seconds=10, max_settle_seconds=20))
+        wait_for_settle(session, SettleConfig(quiet_window_seconds=10, max_settle_seconds=20))
     )
     await asyncio.sleep(0)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert len(tab.removed) == len(tab.handlers) > 0
+    assert len(session.removed) == len(session.handlers) > 0
 
 
 @pytest.mark.asyncio
 async def test_layout_deduplicates_requests_and_preserves_order() -> None:
     calls: list[int] = []
 
-    class LayoutTab:
-        async def send(self, command: Any) -> Any:
-            request = command.send(None)
-            backend_id = int(request["params"]["backendNodeId"])
-            calls.append(backend_id)
-            return SimpleNamespace(content=[0, 0, 10, 0, 10, 5, 0, 5])
+    class LayoutSession:
+        async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
+            assert method == "DOM.getBoxModel"
+            calls.append(int((params or {})["backendNodeId"]))
+            return {"model": {"content": [0, 0, 10, 0, 10, 5, 0, 5]}}
 
-    boxes = await fetch_bounding_boxes(LayoutTab(), [2, 1, 2])
+        def on(self, event: str, handler: Any) -> None:
+            raise AssertionError("layout must not subscribe to events")
+
+        def remove_listener(self, event: str, handler: Any) -> None:
+            raise AssertionError("layout must not subscribe to events")
+
+    boxes = await fetch_bounding_boxes(LayoutSession(), [2, 1, 2])
     assert list(boxes) == [2, 1]
     assert sorted(calls) == [1, 2]
     assert boxes[2] == {"x": 0, "y": 0, "width": 10, "height": 5}

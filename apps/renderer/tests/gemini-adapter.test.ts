@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createGeminiAdapter, createGeminiCompletion, type ModelRoleConfig, type ModelStreamEvent } from "../src/server/ai";
+import { UI_PLAN_RESPONSE_JSON_SCHEMA } from "../src/server/ui-generate/planning/plan-schema";
+
+const UI_PLAN_RESPONSE_FORMAT = { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA } as const;
 
 const config: ModelRoleConfig = {
   provider: "gemini",
@@ -39,6 +42,29 @@ function bodyOf(fetchImpl: ReturnType<typeof vi.fn>): Record<string, unknown> {
 }
 
 describe("Gemini adapter", () => {
+  it("reports an empty MALFORMED_FUNCTION_CALL candidate as a malformed response instead of an empty turn", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(
+      { candidates: [{ content: { parts: [] }, finishReason: "MALFORMED_FUNCTION_CALL" }] },
+    ));
+    const adapter = createGeminiAdapter(config, { fetchImpl });
+
+    await expect(collect(adapter.stream(request))).rejects.toMatchObject({ code: "AI_MALFORMED_RESPONSE" });
+  });
+
+  it("keeps a MALFORMED_FUNCTION_CALL turn that did produce text, since the content is usable", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(
+      { candidates: [{ content: { parts: [{ text: "Partial answer" }] } }] },
+      { candidates: [{ content: { parts: [] }, finishReason: "MALFORMED_FUNCTION_CALL" }] },
+    ));
+    const adapter = createGeminiAdapter(config, { fetchImpl });
+
+    await expect(collect(adapter.stream(request))).resolves.toEqual([
+      { type: "request-metadata", providerRequestId: "provider-123" },
+      { type: "text-delta", text: "Partial answer" },
+      { type: "finish", reason: "malformed_function_call" },
+    ]);
+  });
+
   it("streams normalized text, usage, finish, and request metadata", async () => {
     const metrics = vi.fn();
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(
@@ -148,6 +174,22 @@ describe("Gemini adapter", () => {
       responseMimeType: "application/json",
       responseJsonSchema: { type: "object" },
     });
+  });
+
+  /**
+   * P02-R05: the UI planner's own canonical schema, not a stand-in,
+   * has to reach Gemini's native structured-output fields -- and the
+   * planning request must advertise no tool, hosted or local.
+   */
+  it("forwards the canonical UI-plan schema with no tool advertised", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ candidates: [{ content: { parts: [{ text: "{}" }] } }] }));
+    await collect(createGeminiAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: UI_PLAN_RESPONSE_FORMAT }));
+    const body = bodyOf(fetchImpl);
+    expect(body.generationConfig).toEqual({
+      responseMimeType: "application/json",
+      responseJsonSchema: UI_PLAN_RESPONSE_JSON_SCHEMA,
+    });
+    expect(body.tools).toBeUndefined();
   });
 
   it.each([

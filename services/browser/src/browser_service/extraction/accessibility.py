@@ -122,7 +122,7 @@ def _property_name(prop: Any) -> str:
 
 
 def raw_ax_node(node: Any) -> RawAxNode:
-    """Converts one ``nodriver.cdp.accessibility.AXNode`` into a
+    """Converts one CDP ``Accessibility.AXNode`` view into a
     :class:`RawAxNode`, so the reduction logic never depends on the CDP
     object model."""
     properties: dict[str, Any] = {}

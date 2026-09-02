@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from nodriver.cdp import dom as cdp_dom
+from playwright.async_api import Browser
 from tests.fixtures.accommodation_dom import (
     LISTING_COUNT,
     ax_nodes_for_results,
@@ -27,7 +27,7 @@ from browser_service.browser.lifecycle import (
     LifecycleConfig,
     _bounded_cleanup,
 )
-from browser_service.page_observation.cdp import CdpTimeoutError, send_bounded
+from browser_service.page_observation.cdp import CdpSession, CdpTimeoutError, send_bounded
 from browser_service.tool_outcome import ToolExecutionError
 from browser_service.tools import explore_website as module
 
@@ -51,6 +51,9 @@ class RecordingContext:
     async def open_page(self) -> FakePage:
         self.pages_opened += 1
         return self._page
+
+    async def open_cdp_session(self, page: FakePage) -> FakePage:
+        return page
 
 
 class RecordingManager:
@@ -184,17 +187,29 @@ async def test_an_unhealthy_context_probes_the_browser_and_replaces_it_only_if_i
     from browser_service.browser.lifecycle import BrowserLifecycleManager
 
     class FakeBrowser:
+        """Stands in for a Playwright ``Browser`` for the health probe only.
+
+        The probe opens and closes one throwaway context: that is the single
+        bounded round trip that decides whether the process still answers.
+        """
+
         def __init__(self, *, answers: bool) -> None:
             self.answers = answers
-            self.stopped = False
             self.probes = 0
 
-        async def send(self, command: Any) -> Any:
-            command.send(None)
+        def is_connected(self) -> bool:
+            return True
+
+        async def new_context(self) -> Any:
             self.probes += 1
             if not self.answers:
                 await asyncio.sleep(3_600)
-            return []
+
+            class _Context:
+                async def close(self) -> None:
+                    return None
+
+            return _Context()
 
     manager = BrowserLifecycleManager(
         LifecycleConfig(health_probe_timeout_seconds=0.2, cleanup_timeout_seconds=0.2)
@@ -207,14 +222,14 @@ async def test_an_unhealthy_context_probes_the_browser_and_replaces_it_only_if_i
     manager.restart = fake_restart  # type: ignore[method-assign]
 
     healthy = FakeBrowser(answers=True)
-    manager._browser = healthy
+    manager._browser = cast(Browser, healthy)
     assert await manager._retire_if_unhealthy("cdp_request_deadline") is False
     assert healthy.probes == 1
     assert restarts == []
 
     # One bounded probe decides it -- never a retry loop.
     broken = FakeBrowser(answers=False)
-    manager._browser = broken
+    manager._browser = cast(Browser, broken)
     started = asyncio.get_running_loop().time()
     assert await manager._retire_if_unhealthy("cdp_request_deadline") is True
     assert asyncio.get_running_loop().time() - started < 2
@@ -332,17 +347,16 @@ async def test_send_bounded_leaves_no_pending_state_behind_after_a_deadline() ->
     task that gave up on it (P03-R05 step 2)."""
     late_deliveries: list[str] = []
 
-    class LatePage:
-        async def send(self, command: Any) -> Any:
-            command.send(None)
+    class LateSession:
+        async def send(self, method: str, params: dict[str, Any] | None = None) -> Any:
             await asyncio.sleep(0.3)
             late_deliveries.append("delivered")
-            return "late result"
+            return {"late": True}
 
-    page = LatePage()
+    session = cast(CdpSession, LateSession())
     with pytest.raises(CdpTimeoutError):
         await send_bounded(
-            page, cdp_dom.enable(), timeout_seconds=0.05, phase="dom.enable"
+            session, "DOM.enable", timeout_seconds=0.05, phase="dom.enable"
         )
 
     await asyncio.sleep(0.5)

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1, "artifactId": "gui_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "module": { "kind": "bundle_reference", "reference": "bundle-1", "byteLength": 1024 },
-  "manifest": { "observationIds": ["obs-1"], "sourceIds": [], "recordIds": [], "mediaIds": [], "capabilityIds": [], "emittedCommandKinds": [], "localInteractions": [], "accessibilityFeatures": ["keyboard"], "responsiveRegions": ["main"], "runtimeImports": ["Stack"], "fallback": false },
+  "manifest": { "planDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "sourceIds": [], "recordIds": [], "factIds": [], "mediaIds": [], "componentIds": [], "localInteractions": [], "accessibilityFeatures": ["keyboard"], "responsiveRegions": ["main"], "runtimeImports": ["Stack"], "fallback": false },
   "validation": { "valid": true, "issues": [] }, "sourceMapPolicy": "omitted",
-  "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "promptDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "modelDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "toolchainDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "planDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "inputDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "promptDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "modelDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "toolchainDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "expiresAt": "2026-08-26T00:00:00Z", "fallbackText": null
 }

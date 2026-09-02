@@ -1,71 +1,30 @@
 import "server-only";
 
 import {
-  CONTRACT_MAJOR_VERSION,
-  EXPLORE_WEBSITE_TOOL_NAME,
-  ExploreWebsiteArgsSchema,
-  ExploreWebsiteInvocationSchema,
-  ExploreWebsiteSuccessResultSchema,
-  GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME,
-  GetPageUnderstandingSliceArgsSchema,
-  GetPageUnderstandingSliceInvocationSchema,
-  GetPageUnderstandingSliceSuccessResultSchema,
-  MAX_URL_LENGTH,
-  NAVIGATE_AND_EXTRACT_TOOL_NAME,
-  NavigateAndExtractArgsSchema,
-  NavigateAndExtractInvocationSchema,
-  NavigateAndExtractSuccessResultSchema,
-  SYSTEM_ECHO_TOOL_NAME,
-  SystemEchoArgsSchema,
-  SystemEchoInvocationSchema,
-  SystemEchoSuccessResultSchema,
-  ToolErrorResultSchema,
-  type ExploreWebsiteInvocation,
-  type GetPageUnderstandingSliceInvocation,
-  type NavigateAndExtractInvocation,
-  type SystemEchoInvocation,
+  UI_GENERATE_ARGS_JSON_SCHEMA,
+  UI_GENERATE_TOOL_NAME,
+  UiGenerateArgsSchema,
+  UiGenerateResultSchema,
+  UiGenerateToolDefinition,
+  uiGenerateFailure,
+  type UiGenerateResult,
 } from "@ai-browser/contracts";
 import type { ModelToolDefinition } from "../ai";
 
 /**
- * `format: "uri"` is deliberately absent. Groq validates tool schemas against
- * the structured-output format allowlist (date-time, time, date, duration,
- * email, hostname, ipv4, ipv6, uuid) and rejects anything else outright, so
- * declaring it made every tool-carrying request fail before the model saw it.
- * `pattern` is supported by both providers and already carries the same
- * constraint, so nothing is lost by expressing it that way alone.
+ * The conversation model's entire tool surface (P02-F02 step 1).
+ *
+ * There is one entry, `ui.generate`, and there is no path by which another
+ * one can be added at runtime: the registry takes a pipeline, not a list.
+ * The browsing, exploration, and page-slice tools that used to live here
+ * are gone -- every stage they served is now fixed trusted code behind this
+ * one call.
  */
-const HTTP_URL_JSON_SCHEMA = {
-  type: "string", pattern: "^https?://", maxLength: MAX_URL_LENGTH,
-} as const;
-
-/**
- * Groq's strict tool schemas require every declared property to be listed in
- * `required`, so a genuinely optional argument is declared nullable rather
- * than left out. A `null` the model then sends for one is the absence of a
- * value, not a value, and is dropped here so the contract schema -- which
- * models absence as `undefined` -- never sees it.
- */
-function withoutNull(value: unknown, key: string): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const record = value as Record<string, unknown>;
-  if (record[key] !== null) return value;
-  return Object.fromEntries(Object.entries(record).filter(([name]) => name !== key));
-}
-
-const OPAQUE_HANDLE_JSON_SCHEMA = {
-  type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$",
-} as const;
-
-export interface EchoToolExecutor {
-  invoke(invocation: SystemEchoInvocation, signal?: AbortSignal): Promise<unknown>;
-}
-
 export interface RegisteredTool {
   readonly definition: ModelToolDefinition;
   readonly sensitive: false;
   parseArguments(value: unknown): unknown;
-  execute(args: unknown, context: ToolExecutionContext): Promise<unknown>;
+  execute(args: unknown, context: ToolExecutionContext): Promise<UiGenerateResult>;
 }
 
 export interface ToolExecutionContext {
@@ -74,149 +33,74 @@ export interface ToolExecutionContext {
   sessionId: string;
   invocationId: string;
   signal: AbortSignal;
+  /** The verbatim text of the turn being answered. `ui.generate` is executed against this, not against what the model typed. */
+  requestText: string;
+  emitProgress(state: string): void;
+  emitView(view: unknown): void;
+  trace?(event: string, detail: Record<string, unknown>): void;
 }
 
-export function createPhaseOneToolRegistry(executor: EchoToolExecutor): ReadonlyMap<string, RegisteredTool> {
-  const echo: RegisteredTool = {
-    definition: {
-      name: SYSTEM_ECHO_TOOL_NAME,
-      description: "Echo a message through the local stub bridge.",
-      strict: true,
-      parameters: {
-        type: "object",
-        additionalProperties: false,
-        required: ["message"],
-        properties: {
-          message: { type: "string", minLength: 1, maxLength: 2000 },
-          context: { type: "object", maxProperties: 20, additionalProperties: true },
-          credentialHandle: { type: "string", minLength: 1, maxLength: 200, pattern: "^[A-Za-z0-9._:-]+$" },
-        },
-      },
-    },
-    sensitive: false,
-    parseArguments: (value) => SystemEchoArgsSchema.parse(value),
-    async execute(args, context) {
-      const invocation = SystemEchoInvocationSchema.parse({
-        contractVersion: CONTRACT_MAJOR_VERSION,
-        correlation: {
-          requestId: context.requestId,
-          userId: context.userId,
-          sessionId: context.sessionId,
-        },
-        toolCallId: context.invocationId,
-        toolName: SYSTEM_ECHO_TOOL_NAME,
-        arguments: args,
-      });
-      const result = await executor.invoke(invocation, context.signal);
-      return SystemEchoSuccessResultSchema.or(ToolErrorResultSchema).parse(result);
-    },
-  };
-  return new Map([[SYSTEM_ECHO_TOOL_NAME, echo]]);
-}
-
-export interface NavigateAndExtractToolExecutor {
-  invoke(invocation: NavigateAndExtractInvocation, signal?: AbortSignal): Promise<unknown>;
-}
-
-export interface PhaseThreeToolExecutor {
-  invoke(invocation: ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation, signal?: AbortSignal): Promise<unknown>;
-}
-
-function createPhaseThreeTool(
-  name: string,
-  argsSchema: { parse(value: unknown): unknown },
-  invocationSchema: { parse(value: unknown): ExploreWebsiteInvocation | GetPageUnderstandingSliceInvocation },
-  resultSchema: { or(other: typeof ToolErrorResultSchema): { parse(value: unknown): unknown } },
-  executor: PhaseThreeToolExecutor,
-  description: string,
-  parameters: Record<string, unknown>,
-): RegisteredTool {
-  return {
-    definition: { name, description, strict: true, parameters },
-    sensitive: false,
-    parseArguments: (value) => argsSchema.parse(value),
-    async execute(args, context) {
-      const invocation = invocationSchema.parse({ contractVersion: CONTRACT_MAJOR_VERSION,
-        correlation: { requestId: context.requestId, userId: context.userId, sessionId: context.sessionId },
-        toolCallId: context.invocationId, toolName: name, arguments: args });
-      return resultSchema.or(ToolErrorResultSchema).parse(await executor.invoke(invocation, context.signal));
-    },
-  };
-}
+/** What the registry needs from the pipeline, without importing its whole module graph. */
+export type UiGenerateExecutor = (
+  request: string,
+  context: {
+    correlationId: string;
+    ownerId: string;
+    sessionId: string;
+    invocationId: string;
+    signal: AbortSignal;
+    emitProgress(state: never): void;
+    emitView(view: never): void;
+    trace?(event: string, detail: Record<string, unknown>): void;
+  },
+) => Promise<UiGenerateResult>;
 
 /**
- * Registers the read-only `browser.navigate_and_extract` tool (P02-F04).
- * URL-only input, never sensitive, and its arguments/result are validated
- * against the exact same contract schemas the browser service itself
- * validates against -- see `services/browser/src/browser_service/tools/navigate_and_extract.py`.
+ * Builds the single-tool registry. Passing no executor yields an empty
+ * registry: the turn then has no tools at all and the model simply answers,
+ * which is the correct behaviour for an installation without the internal
+ * models configured.
  */
-export function createNavigateAndExtractTool(executor: NavigateAndExtractToolExecutor): RegisteredTool {
-  return {
-    definition: {
-      name: NAVIGATE_AND_EXTRACT_TOOL_NAME,
-      description:
-        "Navigates to a public http(s) URL and returns bounded, structured, citable page content. " +
-        "Read-only: never fills forms, clicks, submits, or uses authenticated sessions.",
-      strict: true,
-      parameters: {
-        type: "object",
-        additionalProperties: false,
-        required: ["url"],
-        properties: {
-          url: HTTP_URL_JSON_SCHEMA,
-        },
-      },
-    },
-    sensitive: false,
-    parseArguments: (value) => NavigateAndExtractArgsSchema.parse(value),
-    async execute(args, context) {
-      const invocation = NavigateAndExtractInvocationSchema.parse({
-        contractVersion: CONTRACT_MAJOR_VERSION,
-        correlation: {
-          requestId: context.requestId,
-          userId: context.userId,
-          sessionId: context.sessionId,
-        },
-        toolCallId: context.invocationId,
-        toolName: NAVIGATE_AND_EXTRACT_TOOL_NAME,
-        arguments: args,
-      });
-      const result = await executor.invoke(invocation, context.signal);
-      return NavigateAndExtractSuccessResultSchema.or(ToolErrorResultSchema).parse(result);
-    },
-  };
-}
-
-/**
- * Builds the full tool registry from whichever executors are actually
- * available -- e.g. a `.env`/desktop-launch environment without the
- * browser service configured simply omits `browser.navigate_and_extract`
- * rather than failing the whole chat endpoint.
- */
-export function createToolRegistry(options: {
-  echoExecutor?: EchoToolExecutor;
-  navigateAndExtractExecutor?: NavigateAndExtractToolExecutor;
-  phaseThreeExecutor?: PhaseThreeToolExecutor;
-}): ReadonlyMap<string, RegisteredTool> {
+export function createToolRegistry(options: { uiGenerate?: UiGenerateExecutor }): ReadonlyMap<string, RegisteredTool> {
   const tools = new Map<string, RegisteredTool>();
-  if (options.echoExecutor) {
-    for (const [name, tool] of createPhaseOneToolRegistry(options.echoExecutor)) {
-      tools.set(name, tool);
-    }
-  }
-  if (options.navigateAndExtractExecutor) {
-    tools.set(NAVIGATE_AND_EXTRACT_TOOL_NAME, createNavigateAndExtractTool(options.navigateAndExtractExecutor));
-  }
-  if (options.phaseThreeExecutor) {
-    tools.set(EXPLORE_WEBSITE_TOOL_NAME, createPhaseThreeTool(EXPLORE_WEBSITE_TOOL_NAME, {
-      parse: (value) => ExploreWebsiteArgsSchema.parse(withoutNull(value, "goal")),
-    }, ExploreWebsiteInvocationSchema, ExploreWebsiteSuccessResultSchema, options.phaseThreeExecutor, "Observe a public rendered website as bounded, untrusted evidence and capabilities.", {
-      type: "object", additionalProperties: false, required: ["url", "goal"],
-      properties: { url: HTTP_URL_JSON_SCHEMA, goal: { anyOf: [{ type: "string", maxLength: 500 }, { type: "null" }] } },
-    }));
-    tools.set(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, createPhaseThreeTool(GET_PAGE_UNDERSTANDING_SLICE_TOOL_NAME, GetPageUnderstandingSliceArgsSchema, GetPageUnderstandingSliceInvocationSchema, GetPageUnderstandingSliceSuccessResultSchema, options.phaseThreeExecutor, "Retrieve an owned bounded page-understanding slice.", {
-      type: "object", additionalProperties: false, required: ["observationId", "handle"], properties: { observationId: OPAQUE_HANDLE_JSON_SCHEMA, handle: OPAQUE_HANDLE_JSON_SCHEMA },
-    }));
-  }
+  if (!options.uiGenerate) return tools;
+  const uiGenerate = options.uiGenerate;
+  tools.set(UI_GENERATE_TOOL_NAME, {
+    definition: {
+      name: UI_GENERATE_TOOL_NAME,
+      description: UiGenerateToolDefinition.description,
+      strict: true,
+      parameters: UI_GENERATE_ARGS_JSON_SCHEMA as unknown as Record<string, unknown>,
+    },
+    sensitive: false,
+    parseArguments: (value) => UiGenerateArgsSchema.parse(value),
+    async execute(args, context) {
+      const parsed = UiGenerateArgsSchema.parse(args);
+      if (parsed.request !== context.requestText) {
+        throw new Error("ui.generate request must exactly match the current user request.");
+      }
+      // The pipeline runs against the turn's own text, never against the
+      // string the model produced. A model that paraphrases, appends to, or
+      // substitutes the request therefore cannot steer source finding: the
+      // argument is validated for shape, and then the trusted text is used.
+      const result = await uiGenerate(context.requestText, {
+        correlationId: context.requestId,
+        ownerId: context.userId,
+        sessionId: context.sessionId,
+        invocationId: context.invocationId,
+        signal: context.signal,
+        emitProgress: context.emitProgress as (state: never) => void,
+        emitView: context.emitView as (view: never) => void,
+        ...(context.trace ? { trace: context.trace } : {}),
+      }).catch((error: unknown) => {
+        if (context.signal.aborted) return uiGenerateFailure("cancelled");
+        console.error("[ui.generate] execution failed", error);
+        return uiGenerateFailure("internal");
+      });
+      // The result union is re-validated on the way back, so only a closed,
+      // safe shape is ever appended to model context.
+      return UiGenerateResultSchema.parse(result);
+    },
+  });
   return tools;
 }

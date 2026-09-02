@@ -6,20 +6,17 @@ talks to a live tab, and everything it returns is plain Python that
 ``browser_service.extraction.accessibility`` reduces.
 
 Both calls are plain CDP domain commands -- ``Accessibility.getFullAXTree``
-(as in ``tests/ast_scraping_test.py``) and a pierced ``DOM.getDocument``
-used solely to build the ``backendDOMNodeId -> tag name`` correlation map.
-No page-authored script is ever evaluated.
+and a pierced ``DOM.getDocument`` used solely to build the
+``backendDOMNodeId -> tag name`` correlation map. No page-authored script is
+ever evaluated.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from nodriver.cdp import accessibility as cdp_ax
-from nodriver.cdp import dom as cdp_dom
-from nodriver.core.tab import Tab  # type: ignore[import-untyped]
-
 from browser_service.extraction.accessibility import RawAxNode, raw_ax_node
+from browser_service.page_observation.cdp import CdpNode, CdpSession, wrap_ax_nodes
 
 #: Bounds the correlation walk so a hostile or pathological document cannot
 #: turn one snapshot into an unbounded traversal.
@@ -38,8 +35,8 @@ class AccessibilityCapture:
     available: bool = True
 
 
-def _collect_tags(node: cdp_dom.Node, tags: dict[int, str]) -> None:
-    stack: list[cdp_dom.Node] = [node]
+def _collect_tags(node: CdpNode, tags: dict[int, str]) -> None:
+    stack: list[CdpNode] = [node]
     while stack and len(tags) < MAX_CORRELATED_DOM_NODES:
         current = stack.pop()
         backend_id = getattr(current, "backend_node_id", None)
@@ -54,26 +51,27 @@ def _collect_tags(node: cdp_dom.Node, tags: dict[int, str]) -> None:
             stack.append(content_document)
 
 
-async def capture_accessibility(page: Tab) -> AccessibilityCapture:
+async def capture_accessibility(session: CdpSession) -> AccessibilityCapture:
     """Fetches the full accessibility tree plus the DOM tags needed to
     correlate it. Never raises: an unavailable accessibility domain
     degrades to ``available=False`` so the surrounding extraction still
     produces a document."""
     try:
-        ax_nodes = await page.send(cdp_ax.get_full_ax_tree())
+        ax_nodes = wrap_ax_nodes(await session.send("Accessibility.getFullAXTree"))
     except Exception:  # noqa: BLE001 -- accessibility capture is best-effort
         return AccessibilityCapture(available=False)
 
     tags: dict[int, str] = {}
     try:
-        document = await page.send(cdp_dom.get_document(depth=-1, pierce=True))
+        response = await session.send("DOM.getDocument", {"depth": -1, "pierce": True})
+        document = CdpNode(response["root"])
     except Exception:  # noqa: BLE001 -- correlation is enrichment, not a hard requirement
         document = None
     if document is not None:
         _collect_tags(document, tags)
 
     return AccessibilityCapture(
-        ax_nodes=[raw_ax_node(node) for node in ax_nodes or []],
+        ax_nodes=[raw_ax_node(node) for node in ax_nodes],
         dom_tag_by_backend_id=tags,
         available=True,
     )

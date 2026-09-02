@@ -1,36 +1,41 @@
-"""Nodriver browser process lifecycle and per-task isolated contexts.
+"""Playwright browser lifecycle and per-task isolated contexts.
 
-Owns exactly one controlled Chrome process (started lazily, restarted if it
-becomes unhealthy) and allocates an isolated ephemeral browser context
-(profile) per task via :meth:`BrowserLifecycleManager.isolated_context`,
-exposed as an async context manager so contexts/pages are always closed --
-even on error or cancellation -- via ``finally``.
+Owns exactly one controlled Chromium process (started lazily, restarted if it
+becomes unhealthy) and allocates an isolated ephemeral
+:class:`~playwright.async_api.BrowserContext` per task via
+:meth:`BrowserLifecycleManager.isolated_context`, exposed as an async context
+manager so contexts/pages are always closed -- even on error or cancellation --
+via ``finally``.
 
 Environment knobs (paths/flags only, never credentials):
 
 ``BROWSER_SERVICE_CHROME_EXECUTABLE``
-    Optional override for the Chrome executable path. nodriver
-    auto-detects the installed Chrome binary by default; this only exists
-    for portability to hosts where auto-detection fails.
+    Optional override for the Chromium executable path. Playwright uses its
+    own downloaded browser by default (``playwright install chromium``); this
+    only exists for hosts that must run a system browser instead.
 
-Known environment quirk (Windows + nodriver + asyncio ProactorEventLoop):
-after ``Browser.stop()`` kills the Chrome subprocess, harmless
-``ResourceWarning``/``ValueError: I/O operation on closed pipe`` noise can
-appear during interpreter/process teardown. This is a benign nodriver/
-asyncio/Windows interaction, not a bug in this module.
+``BROWSER_SERVICE_HEADED``
+    Set to ``1`` to run the browser headed. Headless is the default and is
+    what the service runs in normally; a headed run is a diagnostic escape
+    hatch for a site that behaves differently without a visible window.
 
-A hard-won operational note from empirical testing against real Chrome on
-this host: a single ``nodriver`` ``Tab`` must only ever be navigated once
-via ``Page.navigate`` (i.e. ``Tab.get()``/``NavigationService.navigate``).
-Re-navigating the same ``Tab`` a second time -- even long after the first
-navigation finished cleanly -- reliably wedges that tab's CDP session such
-that the second ``Page.navigate`` command never receives a response. This
-reproduces with or without Fetch-domain interception involved, so it is a
-nodriver/CDP session-reattachment quirk, not a bug in the navigation
-service's redirect handling. The safe pattern (used throughout this
-module) is: obtain a *new* page from :meth:`IsolatedBrowserContext.open_page`
-for every navigation; only call ``get_content`` repeatedly against a page
-that has already been successfully navigated once.
+**Why Playwright and not nodriver.** The previous driver policed the
+top-level document's redirect chain with a raw CDP ``Fetch`` interception
+bound to one tab session. A cross-origin document redirect (reproduced with
+``www.airbnb.com`` -> ``www.airbnb.ca/v2/domain_switch/handoff``) moves the
+tab to a new renderer process, and the ``Fetch`` domain enabled on the old
+session does not carry over: the ``Fetch.requestPaused`` event still arrived,
+but every disposition for it was rejected with "Fetch domain is not enabled",
+and re-enabling the domain invalidated the interception id rather than
+recovering it. The request stayed paused forever, so the renderer never
+received a document and never answered another CDP command -- ``DOM``,
+``Runtime``, anything -- which surfaced as an unexplained exploration
+timeout. Playwright's routing is driver-managed and follows the navigation
+across processes, so ``UrlPolicy`` still blocks a disallowed hop *before it
+is issued* while the page continues to load normally.
+
+Playwright also removes the "navigate a tab only once" constraint the old
+driver had, so a page here is an ordinary reusable page.
 """
 
 from __future__ import annotations
@@ -44,20 +49,24 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-import nodriver
-from nodriver.cdp import target as cdp_target
-from nodriver.cdp.browser import BrowserContextID
-from nodriver.core.browser import Browser  # type: ignore[import-untyped]
-from nodriver.core.tab import Tab  # type: ignore[import-untyped]
+from playwright.async_api import (
+    Browser,
+    BrowserContext,
+    CDPSession,
+    Page,
+    Playwright,
+    async_playwright,
+)
 
 from browser_service.browser.registry import BrowserResourceRegistry
 
 logger = logging.getLogger("browser_service.browser.lifecycle")
 
 BROWSER_EXECUTABLE_PATH_ENV_VAR = "BROWSER_SERVICE_CHROME_EXECUTABLE"
+BROWSER_HEADED_ENV_VAR = "BROWSER_SERVICE_HEADED"
 DEFAULT_MAX_CONCURRENT_CONTEXTS = 4
 DEFAULT_BROWSER_START_TIMEOUT_SECONDS = 30.0
-#: Cleanup must be bounded (P03-R05 step 1). Closing a page over a websocket
+#: Cleanup must be bounded (P03-R05 step 1). Closing a page over a connection
 #: that has already stopped answering is exactly the situation cleanup runs
 #: in, so an unbounded `await page.close()` in a `finally` turns one stalled
 #: task into a permanently stuck one.
@@ -79,9 +88,6 @@ async def _bounded_cleanup(awaitable: Any, timeout_seconds: float, operation: st
         async with asyncio.timeout(timeout_seconds):
             await awaitable
         return True
-    except (TimeoutError, asyncio.CancelledError):
-        logger.warning("browser_service.browser.cleanup_timeout", extra={"operation": operation})
-        return False
     except Exception:  # noqa: BLE001 -- a resource already gone is a fine outcome
         logger.warning("browser_service.browser.cleanup_failed", extra={"operation": operation})
         return False
@@ -91,7 +97,7 @@ async def _bounded_cleanup(awaitable: Any, timeout_seconds: float, operation: st
 class LifecycleConfig:
     """Credential-free lifecycle configuration.
 
-    ``sandbox`` defaults to ``True`` (Chrome's default OS sandbox stays
+    ``sandbox`` defaults to ``True`` (Chromium's default OS sandbox stays
     enabled) as defense in depth. Only flip it for a concrete, documented
     deployment reason (e.g. a constrained container that cannot support the
     sandbox) -- never default to disabling it, and never wire it to an
@@ -110,44 +116,49 @@ class LifecycleConfig:
     def from_env() -> LifecycleConfig:
         executable_path = os.environ.get(BROWSER_EXECUTABLE_PATH_ENV_VAR)
         return LifecycleConfig(
+            headless=os.environ.get(BROWSER_HEADED_ENV_VAR, "").strip() != "1",
             executable_path=executable_path if executable_path else None,
         )
+
+    def launch_arguments(self) -> dict[str, Any]:
+        """Playwright ``chromium.launch`` keyword arguments for this config."""
+        arguments: dict[str, Any] = {"headless": self.headless}
+        if self.executable_path:
+            arguments["executable_path"] = self.executable_path
+        if not self.sandbox:
+            arguments["chromium_sandbox"] = False
+        return arguments
 
 
 class IsolatedBrowserContext:
     """One isolated, ephemeral browser context (profile) for a single task.
 
-    Obtain fresh pages via :meth:`open_page` -- one per navigation (see the
-    module docstring for why a page must not be re-navigated). All pages
-    opened through this handle are closed when the owning
+    Obtain pages via :meth:`open_page`. Every page opened through this handle,
+    and the context itself, are closed when the owning
     :meth:`BrowserLifecycleManager.isolated_context` block exits.
     """
 
     def __init__(
         self,
-        browser: Browser,
-        context_id: BrowserContextID,
+        context: BrowserContext,
+        context_id: str,
         registry: BrowserResourceRegistry,
-        anchor_page: Tab,
     ) -> None:
-        self._browser = browser
+        self._context = context
         self.context_id = context_id
         self._registry = registry
-        self._pages: list[Tab] = []
+        self._pages: list[Page] = []
+        self._cdp_sessions: list[CDPSession] = []
         self._cleanup_timeout_seconds = DEFAULT_CLEANUP_TIMEOUT_SECONDS
         #: Set when a task saw evidence that this context's connection is no
         #: longer trustworthy -- a CDP deadline, a cancellation mid-request.
         #: The manager reads it on exit and probes the shared browser before
         #: admitting new work (P03-R05 step 3).
         self.unhealthy_reason: str | None = None
-        # Chrome requires at least one open window/tab per browser context
-        # to be able to attach further tabs to it (empirically confirmed:
-        # closing this page before calling open_page() makes every
-        # subsequent create_target() fail with "no browser is open"). This
-        # anchor is never returned to callers and never navigated -- it
-        # only keeps the context's window alive -- and is closed last, when
-        # the whole isolated context tears down.
-        self._anchor_page = anchor_page
+
+    @property
+    def context(self) -> BrowserContext:
+        return self._context
 
     @property
     def unhealthy(self) -> bool:
@@ -164,26 +175,24 @@ class IsolatedBrowserContext:
         if self.unhealthy_reason is None:
             self.unhealthy_reason = reason[:80]
 
-    async def open_page(self) -> Tab:
-        """Open and return a brand-new page/tab bound to this isolated context."""
-        target_id = await self._browser.send(
-            cdp_target.create_target(
-                url="about:blank",
-                browser_context_id=self.context_id,
-                new_window=False,
-            )
-        )
-        await self._browser.sleep(0.25)
-        page = next(
-            connection
-            for connection in self._browser.targets
-            if connection.target is not None
-            and connection.target.type_ == "page"
-            and connection.target.target_id == target_id
-        )
+    async def open_page(self) -> Page:
+        """Open and return a brand-new page bound to this isolated context."""
+        page = await self._context.new_page()
         self._pages.append(page)
-        await self._registry.add_page(str(self.context_id), str(target_id))
+        await self._registry.add_page(self.context_id, str(id(page)))
         return page
+
+    async def open_cdp_session(self, page: Page) -> CDPSession:
+        """A raw CDP session for ``page``, for the observation pipeline.
+
+        Page observation needs CDP domains Playwright does not wrap
+        (``DOM.getDocument`` with ``pierce``, ``Accessibility.getFullAXTree``,
+        ``DOM.getBoxModel``). Sessions opened here are detached alongside the
+        pages they belong to, so a task cannot leak one.
+        """
+        session = await self._context.new_cdp_session(page)
+        self._cdp_sessions.append(session)
+        return session
 
     async def close_all_pages(self) -> None:
         """Close every page opened via :meth:`open_page`.
@@ -192,46 +201,53 @@ class IsolatedBrowserContext:
         on exit; exposed publicly only so that method can call it -- task
         code should not normally need to call this directly.
         """
+        for session in self._cdp_sessions:
+            await _bounded_cleanup(
+                session.detach(), self._cleanup_timeout_seconds, "cdp_session.detach"
+            )
+        self._cdp_sessions.clear()
         for page in self._pages:
-            target_id = page.target.target_id if page.target is not None else None
-            # Bounded: this runs in a `finally`, often against a websocket
+            # Bounded: this runs in a `finally`, often against a connection
             # that has already stopped answering.
             await _bounded_cleanup(page.close(), self._cleanup_timeout_seconds, "page.close")
-            if target_id is not None:
-                with contextlib.suppress(Exception):
-                    await self._registry.remove_page(str(self.context_id), str(target_id))
+            with contextlib.suppress(Exception):
+                await self._registry.remove_page(self.context_id, str(id(page)))
         self._pages.clear()
-        await _bounded_cleanup(
-            self._anchor_page.close(), self._cleanup_timeout_seconds, "anchor_page.close"
-        )
 
 
 class BrowserLifecycleManager:
-    """Owns one Chrome process and hands out isolated per-task contexts."""
+    """Owns one Chromium process and hands out isolated per-task contexts."""
 
     def __init__(self, config: LifecycleConfig | None = None) -> None:
         self._config = config if config is not None else LifecycleConfig.from_env()
+        self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._start_lock = asyncio.Lock()
         self._context_semaphore = asyncio.Semaphore(self._config.max_concurrent_contexts)
+        self._context_sequence = 0
         self.registry = BrowserResourceRegistry()
 
     async def is_healthy(self) -> bool:
-        return self._browser is not None and not self._browser.stopped
+        return self._browser is not None and self._browser.is_connected()
 
     async def _ensure_started(self) -> Browser:
         async with self._start_lock:
-            if self._browser is None or self._browser.stopped:
+            if self._browser is None or not self._browser.is_connected():
                 if self._browser is not None:
                     logger.warning("browser_service.browser.restart_unhealthy")
-                self._browser = await asyncio.wait_for(
-                    nodriver.start(  # type: ignore[attr-defined]
-                        headless=self._config.headless,
-                        browser_executable_path=self._config.executable_path,
-                        sandbox=self._config.sandbox,
-                    ),
-                    timeout=self._config.browser_start_timeout_seconds,
-                )
+                    await self._stop_locked()
+                async with asyncio.timeout(self._config.browser_start_timeout_seconds):
+                    playwright = await async_playwright().start()
+                    try:
+                        browser = await playwright.chromium.launch(
+                            **self._config.launch_arguments()
+                        )
+                    except BaseException:
+                        with contextlib.suppress(Exception):
+                            await playwright.stop()
+                        raise
+                self._playwright = playwright
+                self._browser = browser
             return self._browser
 
     @asynccontextmanager
@@ -246,20 +262,11 @@ class BrowserLifecycleManager:
         """
         async with self._context_semaphore:
             browser = await self._ensure_started()
-            seed_page = await browser.create_context(url="about:blank")
-            context_id = seed_page.target.browser_context_id if seed_page.target else None
-            if context_id is None:
-                with contextlib.suppress(Exception):
-                    await seed_page.close()
-                raise RuntimeError("nodriver did not return a browser context id")
-
-            await self.registry.register_context(str(context_id))
-            # The seed page/tab created implicitly by create_context() is
-            # never itself navigated or returned to callers -- fresh pages
-            # are handed out via open_page() for every actual navigation --
-            # but it must stay open for the lifetime of the context (see
-            # IsolatedBrowserContext's anchor_page docstring).
-            handle = IsolatedBrowserContext(browser, context_id, self.registry, seed_page)
+            context = await browser.new_context()
+            self._context_sequence += 1
+            context_id = f"ctx-{self._context_sequence}"
+            await self.registry.register_context(context_id)
+            handle = IsolatedBrowserContext(context, context_id, self.registry)
             handle._cleanup_timeout_seconds = self._config.cleanup_timeout_seconds
             try:
                 yield handle
@@ -269,11 +276,9 @@ class BrowserLifecycleManager:
                 # deadline, or cancellation (P03-R05 steps 1-2).
                 await handle.close_all_pages()
                 with contextlib.suppress(Exception):
-                    await self.registry.unregister_context(str(context_id))
+                    await self.registry.unregister_context(context_id)
                 await _bounded_cleanup(
-                    browser.send(cdp_target.dispose_browser_context(context_id)),
-                    self._config.cleanup_timeout_seconds,
-                    "dispose_browser_context",
+                    context.close(), self._config.cleanup_timeout_seconds, "context.close"
                 )
                 if handle.unhealthy:
                     await self._retire_if_unhealthy(handle.unhealthy_reason or "unknown")
@@ -284,26 +289,32 @@ class BrowserLifecycleManager:
         A task that hit a CDP deadline may have left the connection in a
         state where the next task's first request never answers. One bounded
         round trip decides that -- never a retry loop, which is how a broken
-        websocket listener turns into a CPU spin that starves this service's
-        event loop (P03-R05 step 4).
+        connection turns into a CPU spin that starves this service's event
+        loop (P03-R05 step 4).
 
         Only this service's own browser process is ever replaced; unrelated
-        Chrome processes on the machine are never touched.
+        browsers on the machine are never touched.
         """
         browser = self._browser
         if browser is None:
             return False
         logger.warning("browser_service.browser.unhealthy_context", extra={"reason": reason})
-        healthy = await _bounded_cleanup(
-            browser.send(cdp_target.get_targets()),
+        healthy = browser.is_connected() and await _bounded_cleanup(
+            self._probe(browser),
             self._config.health_probe_timeout_seconds,
             "health_probe",
         )
-        if healthy and not browser.stopped:
+        if healthy:
             return False
         logger.warning("browser_service.browser.retiring_process", extra={"reason": reason})
         await self.restart()
         return True
+
+    @staticmethod
+    async def _probe(browser: Browser) -> None:
+        """One bounded round trip that proves the browser still answers."""
+        context = await browser.new_context()
+        await context.close()
 
     async def reap_abandoned(self, max_age_seconds: float) -> int:
         """Best-effort sweep for contexts older than ``max_age_seconds``.
@@ -327,25 +338,34 @@ class BrowserLifecycleManager:
     async def restart(self) -> None:
         """Force-restart the underlying browser process.
 
-        Kills the OS process, so no existing ``Tab``/context handle
-        survives -- a task holding a stale handle fails fast on its next
-        CDP call instead of silently continuing against a different task's
-        session. Never leaves a partially-torn-down browser referenced.
+        Kills the OS process, so no existing page/context handle survives --
+        a task holding a stale handle fails fast on its next call instead of
+        silently continuing against a different task's session. Never leaves
+        a partially-torn-down browser referenced.
         """
         await self.shutdown()
         await self._ensure_started()
 
-    async def shutdown(self) -> None:
-        async with self._start_lock:
-            browser = self._browser
-            self._browser = None
+    async def _stop_locked(self) -> None:
+        """Tear down browser and driver. Caller must hold ``_start_lock``."""
+        browser, playwright = self._browser, self._playwright
+        self._browser = None
+        self._playwright = None
         if browser is not None:
             with contextlib.suppress(Exception):
-                browser.stop()  # synchronous -- must NOT be awaited
+                await browser.close()
+        if playwright is not None:
+            with contextlib.suppress(Exception):
+                await playwright.stop()
+
+    async def shutdown(self) -> None:
+        async with self._start_lock:
+            await self._stop_locked()
 
 
 __all__ = [
     "BROWSER_EXECUTABLE_PATH_ENV_VAR",
+    "BROWSER_HEADED_ENV_VAR",
     "BrowserLifecycleManager",
     "IsolatedBrowserContext",
     "LifecycleConfig",

@@ -139,7 +139,9 @@ export function readProviderErrorDetail(status: number, body: string): ProviderE
     return {
       status,
       type: typeof record.type === "string" ? record.type : undefined,
-      code: typeof record.code === "string" ? record.code : undefined,
+      code: typeof record.code === "string"
+        ? record.code
+        : typeof record.status === "string" ? record.status : undefined,
       message: typeof record.message === "string" ? record.message.slice(0, MAX_ERROR_MESSAGE_CHARS) : undefined,
       ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     };
@@ -169,15 +171,22 @@ async function readErrorBody(response: Response): Promise<string> {
  * wrong and unactionable -- so a rejection is now reported as exactly that.
  */
 export function mapHttpStatus(status: number, detail?: ProviderErrorDetail): ModelProviderError {
-  if (status === 401 || status === 403) return providerError("AI_AUTHENTICATION_FAILED");
-  if (status === 429) return providerError("AI_RATE_LIMITED");
+  // The provider's own sentence, verbatim. A rejected request is nearly
+  // always a fact only the provider knows -- which model, which field, which
+  // capability -- and paraphrasing it here left the caller with a generic
+  // line it could not act on.
+  const reason = detail?.message;
+  if (status === 401 || status === 403) return providerError("AI_AUTHENTICATION_FAILED", undefined, reason);
+  if (status === 429) return providerError("AI_RATE_LIMITED", undefined, reason);
   // The model emitted tool-call arguments the provider could not parse. Alone
   // among the 4xxs this is transient -- the identical request commonly
   // succeeds on the next attempt -- so it is reported as a malformed response
   // and retried rather than blamed on the request.
-  if (detail?.code === "tool_use_failed") return providerError("AI_MALFORMED_RESPONSE");
-  if (status === 400 || status === 404 || status === 413 || status === 422) return providerError("AI_REQUEST_REJECTED");
-  return providerError("AI_PROVIDER_UNAVAILABLE");
+  if (detail?.code === "tool_use_failed") return providerError("AI_MALFORMED_RESPONSE", undefined, reason);
+  if (status === 400 || status === 404 || status === 413 || status === 422) {
+    return providerError("AI_REQUEST_REJECTED", undefined, reason);
+  }
+  return providerError("AI_PROVIDER_UNAVAILABLE", undefined, reason);
 }
 
 /**
@@ -311,9 +320,9 @@ export function createStreamingAdapter(
               retryDelayFromMessage(detail.message),
               detail.retryAfterMs ?? 0,
             );
-            // The user-facing message is deliberately generic, so the provider's
-            // own reason is only ever recoverable here. Server-side only, and
-            // narrowed to the four diagnosable fields by `readProviderErrorDetail`.
+            // The provider's reason now also reaches the caller, but only as
+            // the one `message` field; the status, attempt and correlation id
+            // that make it diagnosable stay server-side.
             console.error("[ai] provider rejected request", {
               provider: config.provider,
               model: config.model,

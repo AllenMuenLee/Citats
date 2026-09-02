@@ -55,10 +55,19 @@ export function useChatStream() {
         if (event.type === "text-delta") setParts((current) => current.map((part) => part.id === assistantId && part.type === "assistant" ? { ...part, text: part.text + event.delta } : part));
         if (event.type === "tool-status") {
           const id = event.id ?? localId("tool");
-          setParts((current) => { const index = current.findIndex((part) => part.id === id); const next: ChatPart = { id, type: "tool-status", label: event.label, state: event.state, url: event.url, response: event.response, reason: event.reason }; return index < 0 ? [...current, next] : current.map((part, i) => i === index ? next : part); });
+          setParts((current) => { const index = current.findIndex((part) => part.id === id); const next: ChatPart = { id, type: "tool-status", label: event.label, state: event.state, response: event.response, reason: event.reason }; return index < 0 ? [...current, next] : current.map((part, i) => i === index ? next : part); });
         }
-        if (event.type === "artifact") setParts((current) => [...current, event]);
-        if (event.type === "generated-ui") setParts((current) => [...current.filter((part) => part.type !== "generated-ui" || part.instanceId !== event.instanceId), event]);
+        // Stage progress replaces the previous stage for the same tool call
+        // rather than stacking: the pipeline is linear, so one line that
+        // advances reads better than six that accumulate.
+        if (event.type === "tool-progress") {
+          setParts((current) => {
+            const next: ChatPart = { id: event.id, type: "tool-progress", toolCallId: event.toolCallId, state: event.state, label: event.label };
+            const index = current.findIndex((part) => part.type === "tool-progress" && part.toolCallId === event.toolCallId);
+            return index < 0 ? [...current, next] : current.map((part, i) => (i === index ? next : part));
+          });
+        }
+        if (event.type === "generated-ui") setParts((current) => [...current.filter((part) => part.type !== "generated-ui" || part.view.instanceId !== event.view.instanceId), { id: event.id, type: "generated-ui", view: event.view }]);
         if (event.type === "citation-marker") {
           setParts((current) => current.map((part) => {
             if (part.id !== assistantId || part.type !== "assistant") return part;

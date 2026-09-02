@@ -1,0 +1,8 @@
+{
+  "status": "ready",
+  "viewRef": "uiv_fixture1",
+  "title": "Interactive comparison",
+  "sourceCount": 3,
+  "coverage": "validated",
+  "html": "<p>unsafe</p>"
+}

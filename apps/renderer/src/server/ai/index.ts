@@ -23,6 +23,7 @@ export function createTextCompletion(role: ModelRoleConfig, fetchImpl: typeof fe
     : createGroqCompletion(role, fetchImpl);
 }
 
+export { keepValid, splitModelJson } from "./model-json";
 export { createGeminiAdapter, createGeminiCompletion } from "./gemini/adapter";
 export { createGroqAdapter, createGroqCompletion } from "./groq/adapter";
 export {

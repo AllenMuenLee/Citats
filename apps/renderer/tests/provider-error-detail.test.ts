@@ -74,9 +74,20 @@ describe("mapHttpStatus", () => {
     expect(mapHttpStatus(500).code).toBe("AI_PROVIDER_UNAVAILABLE");
   });
 
-  it("never carries the provider message into the user-facing error", () => {
+  it("reports the provider's own message verbatim, and nothing else from the body", () => {
     const error = mapHttpStatus(400, { status: 400, message: "invalid JSON schema for tool browser.explore_website" });
-    expect(error.message).toBe("The AI service rejected this request as invalid.");
+    expect(error.message).toBe("invalid JSON schema for tool browser.explore_website");
+    // `readProviderErrorDetail` is what keeps the rest of the body out; only
+    // the fields it extracted are reachable from here.
+    expect(readProviderErrorDetail(400, JSON.stringify({
+      error: { message: "no", failed_generation: "<untrusted page content>" },
+    }))).not.toHaveProperty("failed_generation");
+  });
+
+  it("falls back to the generic text when the provider stated no reason", () => {
+    expect(mapHttpStatus(400).message).toBe("The AI service rejected this request as invalid.");
+    expect(mapHttpStatus(400, { status: 400, message: "   " }).message)
+      .toBe("The AI service rejected this request as invalid.");
   });
 });
 

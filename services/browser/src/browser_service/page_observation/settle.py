@@ -13,13 +13,20 @@ import contextlib
 import time
 from dataclasses import dataclass
 
-from nodriver.cdp import dom as cdp_dom
-from nodriver.core.tab import Tab  # type: ignore[import-untyped]
-
-from browser_service.page_observation.cdp import CdpTimeoutError, send_bounded
+from browser_service.page_observation.cdp import CdpSession, CdpTimeoutError, send_bounded
 
 DEFAULT_QUIET_WINDOW_SECONDS = 0.5
 DEFAULT_MAX_SETTLE_SECONDS = 8.0
+#: A client-rendered page is briefly, genuinely quiet between
+#: `DOMContentLoaded` and the moment its own scripts start building the DOM.
+#: Reproduced on a large accommodation search page: settle reported
+#: `complete` after ~0.7s, capture then observed zero nodes, and the whole
+#: observation returned an empty graph for a page that renders a full result
+#: list a few seconds later. A quiet window is therefore not accepted before
+#: this floor has elapsed -- it costs a fixed sub-second wait on a page that
+#: really was already done, and is the difference between an empty
+#: observation and a usable one on a page that was not.
+DEFAULT_MIN_SETTLE_SECONDS = 1.5
 DEFAULT_MAX_MUTATION_EVENTS = 4_000
 DEFAULT_ENABLE_TIMEOUT_SECONDS = 2.0
 
@@ -28,6 +35,11 @@ DEFAULT_ENABLE_TIMEOUT_SECONDS = 2.0
 class SettleConfig:
     quiet_window_seconds: float = DEFAULT_QUIET_WINDOW_SECONDS
     max_settle_seconds: float = DEFAULT_MAX_SETTLE_SECONDS
+    #: Floor before a quiet window may be accepted -- see
+    #: :data:`DEFAULT_MIN_SETTLE_SECONDS`. Clamped to half of
+    #: `max_settle_seconds` so a caller that shortens the budget can never
+    #: make the floor unreachable.
+    min_settle_seconds: float = DEFAULT_MIN_SETTLE_SECONDS
     max_mutation_events: int = DEFAULT_MAX_MUTATION_EVENTS
     #: Wall-clock bound on `DOM.enable` itself (P03-R02 step 1). Enabling the
     #: domain is an awaited CDP round trip like any other, and an unbounded
@@ -52,17 +64,21 @@ class SettleResult:
     events_enabled: bool = True
 
 
+#: CDP event names, not driver objects -- the session this subscribes on is a
+#: raw CDP transport (see `page_observation/cdp.py`).
 _MUTATION_EVENT_TYPES = (
-    cdp_dom.ChildNodeInserted,
-    cdp_dom.ChildNodeRemoved,
-    cdp_dom.AttributeModified,
-    cdp_dom.AttributeRemoved,
-    cdp_dom.CharacterDataModified,
-    cdp_dom.DocumentUpdated,
+    "DOM.childNodeInserted",
+    "DOM.childNodeRemoved",
+    "DOM.attributeModified",
+    "DOM.attributeRemoved",
+    "DOM.characterDataModified",
+    "DOM.documentUpdated",
 )
 
 
-async def wait_for_settle(page: Tab, config: SettleConfig | None = None) -> SettleResult:
+async def wait_for_settle(
+    session: CdpSession, config: SettleConfig | None = None
+) -> SettleResult:
     """Enables the DOM domain, counts mutation events, and waits for a
     quiet window -- a period with no mutation events -- of
     `quiet_window_seconds`, bounded overall by `max_settle_seconds`.
@@ -73,18 +89,18 @@ async def wait_for_settle(page: Tab, config: SettleConfig | None = None) -> Sett
     mutation_count = 0
     last_activity = start
 
-    def on_mutation(_event: object, _tab: Tab) -> None:
+    def on_mutation(_event: object = None) -> None:
         nonlocal mutation_count, last_activity
         mutation_count += 1
         last_activity = time.monotonic()
 
     for event_type in _MUTATION_EVENT_TYPES:
-        page.add_handler(event_type, on_mutation)
+        session.on(event_type, on_mutation)
     try:
         try:
             await send_bounded(
-                page,
-                cdp_dom.enable(),
+                session,
+                "DOM.enable",
                 timeout_seconds=min(cfg.enable_timeout_seconds, cfg.max_settle_seconds),
                 phase="dom.enable",
             )
@@ -100,17 +116,36 @@ async def wait_for_settle(page: Tab, config: SettleConfig | None = None) -> Sett
             if mutation_count > cfg.max_mutation_events:
                 return SettleResult("unstable", elapsed, mutation_count)
             since_activity = now - last_activity
-            if since_activity >= cfg.quiet_window_seconds:
+            # Half the budget, never the whole of it: a floor equal to
+            # `max_settle_seconds` could never be reached in time, which would
+            # turn every settle into a `timeout` on a caller that shortened
+            # the budget.
+            floor = min(cfg.min_settle_seconds, cfg.max_settle_seconds / 2)
+            if since_activity >= cfg.quiet_window_seconds and elapsed >= floor:
                 return SettleResult("complete", elapsed, mutation_count)
-            await asyncio.sleep(min(cfg.quiet_window_seconds - since_activity, 0.1))
+            # Sleep until whichever unmet condition is closest, capped so a
+            # mutation arriving mid-sleep is still noticed promptly, and
+            # floored so a satisfied quiet window cannot spin the loop while
+            # the minimum-settle floor runs down.
+            await asyncio.sleep(
+                min(
+                    max(
+                        cfg.quiet_window_seconds - since_activity,
+                        floor - elapsed,
+                        0.01,
+                    ),
+                    0.1,
+                )
+            )
     finally:
         for event_type in _MUTATION_EVENT_TYPES:
             with contextlib.suppress(Exception):
-                page.remove_handler(event_type, on_mutation)
+                session.remove_listener(event_type, on_mutation)
 
 
 __all__ = [
     "DEFAULT_MAX_SETTLE_SECONDS",
+    "DEFAULT_MIN_SETTLE_SECONDS",
     "DEFAULT_QUIET_WINDOW_SECONDS",
     "SettleConfig",
     "SettleResult",

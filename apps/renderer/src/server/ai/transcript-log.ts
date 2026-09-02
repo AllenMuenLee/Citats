@@ -58,7 +58,7 @@ export interface LoggedTurn {
   name?: string;
   toolCallId?: string;
   content: string;
-  toolCalls?: readonly { id: string; name: string; arguments: string }[];
+  toolCalls?: readonly { id: string; name: string; arguments: string; signed?: boolean }[];
 }
 
 export interface LoggedToolCall {
@@ -66,6 +66,8 @@ export interface LoggedToolCall {
   id?: string;
   name?: string;
   arguments: string;
+  /** Whether the provider issued a replay signature for this call. */
+  signed?: boolean;
 }
 
 export type TranscriptEntry =
@@ -187,7 +189,9 @@ function loggedTurns(turns: readonly ConversationTurn[]): LoggedTurn[] {
     ...(turn.name ? { name: turn.name } : {}),
     ...(turn.toolCallId ? { toolCallId: turn.toolCallId } : {}),
     content: turn.content,
-    ...(turn.toolCalls?.length ? { toolCalls: turn.toolCalls.map((call) => ({ ...call })) } : {}),
+    ...(turn.toolCalls?.length
+      ? { toolCalls: turn.toolCalls.map(({ signature, ...call }) => ({ ...call, ...(signature ? { signed: true } : {}) })) }
+      : {}),
   }));
 }
 
@@ -229,6 +233,10 @@ export function withTranscriptLog(adapter: ModelAdapter, role: string, logger: T
               const existing = toolCalls.get(event.index) ?? { index: event.index, arguments: "" };
               if (event.id) existing.id = event.id;
               if (event.name) existing.name = event.name;
+              // Recorded as a flag, never verbatim: the signature is a long
+              // opaque provider token, and whether one arrived is the whole
+              // diagnostic question.
+              if (event.signature) existing.signed = true;
               existing.arguments += event.argumentsDelta;
               toolCalls.set(event.index, existing);
               break;

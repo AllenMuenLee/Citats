@@ -132,7 +132,8 @@ async def run_navigate_and_extract(
             # accessibility tree and the serialized DOM are both taken after
             # the page reaches its bounded quiet state -- not mid-hydration,
             # where a client-rendered page still reports an empty document.
-            await wait_for_settle(page)
+            session = await context.open_cdp_session(page)
+            await wait_for_settle(session)
             content_result = await navigation_service.get_content(page, cancelled=cancelled)
         except NavigationCancelledError as exc:
             raise ToolExecutionError(
@@ -147,7 +148,7 @@ async def run_navigate_and_extract(
                 "UPSTREAM_UNAVAILABLE", "The page's content could not be read.", retryable=True
             ) from exc
 
-        accessibility = await capture_accessibility(page)
+        accessibility = await capture_accessibility(session)
 
     extraction_start = time.monotonic()
     document = extract_document(

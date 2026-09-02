@@ -2,7 +2,7 @@
 navigation tests.
 
 Not imported by any production code path -- exists purely so tests can
-drive real headless Chrome (via nodriver) against a real local HTTP
+drive real headless Chromium (via Playwright) against a real local HTTP
 server without touching the public internet. Serves static pages from
 ``pages/`` plus a few dynamic routes needed to exercise redirect,
 oversized-response, and slow-response handling:

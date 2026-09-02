@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1, "tsxSource": null,
-  "manifest": { "observationIds": ["obs-1"], "sourceIds": [], "recordIds": [], "mediaIds": [], "capabilityIds": [], "emittedCommandKinds": [], "localInteractions": [], "accessibilityFeatures": [], "responsiveRegions": [], "runtimeImports": [], "fallback": true },
+  "manifest": { "planDigest": "fb1d87fdb3825292f23544d192fe88a92f414c88a80de816e397111b78a222ab", "sourceIds": [], "recordIds": [], "factIds": [], "mediaIds": [], "componentIds": [], "localInteractions": [], "accessibilityFeatures": [], "responsiveRegions": [], "runtimeImports": [], "fallback": true },
   "modelIdentifier": "mistral-ui-pinned", "promptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "inputDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "runtimeVersion": "1.0.0", "toolchainVersion": "1.0.0", "fallbackReason": "insufficient_evidence"

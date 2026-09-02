@@ -5,6 +5,7 @@ import {
   UiGenerationResponseSchema,
   canonicalizeUiGenerationRequest,
   digestUiGenerationRequest,
+  digestUiPlan,
   validateUiGenerationResponseForRequest,
 } from "../src/index.js";
 
@@ -17,21 +18,18 @@ describe("generated UI contracts", () => {
     expect(digestUiGenerationRequest(changedCorrelation)).toBe(digestUiGenerationRequest(request));
   });
 
-  it("sorts semantically unordered bindings but preserves graph source order", () => {
-    const a = { ...request, theme: { ...request.theme, allowedTokens: ["surface", "canvas"] } };
+  it("sorts semantically unordered tokens but preserves plan meaning", () => {
+    const a = { ...request, theme: { ...request.theme, allowedTokens: [...request.theme.allowedTokens].reverse() } };
     expect(digestUiGenerationRequest(a)).toBe(digestUiGenerationRequest(request));
-    const withNodes = { ...request, graph: { ...request.graph, nodes: [
-      { kind: "text", handle: "n-1", boundingBox: null, visibility: "visible", role: "paragraph", text: "one", headingLevel: null },
-      { kind: "text", handle: "n-2", boundingBox: null, visibility: "visible", role: "paragraph", text: "two", headingLevel: null },
-    ] } };
-    const reversed = { ...withNodes, graph: { ...withNodes.graph, nodes: [...withNodes.graph.nodes].reverse() } };
-    expect(digestUiGenerationRequest(UiGenerationRequestSchema.parse(withNodes))).not.toBe(digestUiGenerationRequest(UiGenerationRequestSchema.parse(reversed)));
+    const changedPlan = { ...request.plan, canonicalGoal: `${request.plan.canonicalGoal} now` };
+    const changedGoal = { ...request, plan: changedPlan, planDigest: digestUiPlan(changedPlan) };
+    expect(digestUiGenerationRequest(request)).not.toBe(digestUiGenerationRequest(changedGoal));
   });
 
   it("rejects fallback/source disagreement and forged manifest references", () => {
     const base = {
       schemaVersion: 1, tsxSource: null,
-      manifest: { observationIds: ["forged"], sourceIds: [], recordIds: [], mediaIds: [], capabilityIds: [], emittedCommandKinds: [], localInteractions: [], accessibilityFeatures: [], responsiveRegions: [], runtimeImports: [], fallback: true },
+      manifest: { planDigest: request.planDigest, sourceIds: ["forged"], recordIds: [], factIds: [], mediaIds: [], componentIds: [], localInteractions: [], accessibilityFeatures: [], responsiveRegions: [], runtimeImports: [], fallback: true },
       modelIdentifier: "model", promptDigest: request.promptDigest, inputDigest: digestUiGenerationRequest(request), runtimeVersion: "1", toolchainVersion: "1", fallbackReason: "insufficient_evidence",
     };
     expect(UiGenerationResponseSchema.safeParse({ ...base, tsxSource: "x" }).success).toBe(false);

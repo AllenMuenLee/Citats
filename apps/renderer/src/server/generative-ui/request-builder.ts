@@ -1,104 +1,95 @@
-import type { PageUnderstanding, UiCapabilityBinding, UiGenerationBrief, UiGenerationRequest } from "@ai-browser/contracts";
-import { mediaBindingId, selectGoalRelevantBindings } from "./bindings";
+import {
+  UiGenerationRequestSchema,
+  digestUiPlan,
+  type UiGenerationRequest,
+  type UiPlan,
+} from "@ai-browser/contracts";
 import { UI_GENERATION_PROMPT_DIGEST, UI_GENERATION_PROMPT_VERSION } from "./system-prompt";
 
-export const GENERATED_UI_RUNTIME_API_VERSION = "1.0.0";
-
-const COMMAND_KINDS_BY_CAPABILITY_KIND: Readonly<Record<string, UiCapabilityBinding["allowedCommandKinds"]>> = {
-  media_control: ["media_control"],
-  local_view_change: ["select"],
-};
+export const GENERATED_UI_RUNTIME_API_VERSION = "2.0.0";
 
 /**
- * Builds the closed Phase 4 generation request from the validated Phase 3
- * brief. The brief's `WebsiteUiMetadata` is the authority on which
- * capabilities exist and how each one may run, so bindings are derived from
- * it rather than re-classified here -- `UiGenerationRequestSchema` rejects
- * any binding the metadata does not declare.
+ * The semantic tokens a generated view may name, and the same list the
+ * planning model is given. These mirror the theme table in
+ * `docs/desktop-architecture-and-ui-specification.md`; a token outside this
+ * set is rejected by the request schema, the static validator, and the
+ * plan's own visual direction check.
+ */
+export const GENERATED_UI_ALLOWED_TOKENS: readonly string[] = Object.freeze([
+  "canvas",
+  "surface",
+  "elevated",
+  "text-primary",
+  "text-secondary",
+  "border",
+  "accent",
+  "accent-hover",
+  "success",
+  "warning",
+  "danger",
+  "focus",
+  "space-4",
+  "space-8",
+  "space-12",
+  "space-16",
+  "space-24",
+  "space-32",
+  "radius-control",
+  "radius-panel",
+  "radius-overlay",
+]);
+
+/** The runtime exports offered to one generation. Server-owned; the model cannot extend it. */
+export const GENERATED_UI_RUNTIME_EXPORTS: readonly string[] = Object.freeze([
+  "GeneratedViewProps", "OpaqueId", "DisplaySource", "DisplayFact", "DisplayRecord", "DisplayRecordField",
+  "DisplayCollection", "DisplayMedia", "DisplayCoverage", "semanticTokens",
+  "Stack", "Inline", "Grid", "Card", "Region", "Text", "Heading", "Badge", "List", "ListItem",
+  "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell",
+  "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal",
+  "useBoundedState", "useLocalCollection", "formatNumber", "formatCurrency", "formatDate",
+]);
+
+export const GENERATED_UI_LIMITS = Object.freeze({
+  maxSourceBytes: 65_536,
+  maxAstNodes: 20_000,
+  maxComplexity: 200,
+  maxRenderNodes: 5_000,
+  maxLocalStateEntries: 24,
+});
+
+/**
+ * Builds the closed Phase 4 generation request from a validated `UiPlan`.
+ *
+ * The plan is the only variable input. Everything else here -- prompt
+ * identity, runtime, theme, limits -- is fixed server policy, which is what
+ * makes the request digest a usable cache key and what stops a plan from
+ * widening its own envelope.
  */
 export function buildUiGenerationRequest(input: {
-  task: string;
-  brief: UiGenerationBrief;
-  page: PageUnderstanding;
+  plan: UiPlan;
   requestId: string;
   userId: string;
 }): UiGenerationRequest {
-  const { brief, page } = input;
-  const bindings = selectGoalRelevantBindings(page, brief.prioritizedCollectionHandles);
-  const capabilityById = new Map(page.capabilities.map((capability) => [capability.capabilityId, capability]));
-  const declared = [
-    ...brief.metadata.internalInteractions.map((item) => item.capabilityId),
-    ...brief.metadata.externalCapabilities.map((item) => item.capabilityId),
-  ];
-  const capabilityBindings: UiCapabilityBinding[] = [];
-  for (const capabilityId of declared) {
-    const capability = capabilityById.get(capabilityId);
-    if (!capability) continue;
-    capabilityBindings.push({
-      capabilityId,
-      capability,
-      allowedCommandKinds: COMMAND_KINDS_BY_CAPABILITY_KIND[capability.capabilityKind] ?? ["activate"],
-      argumentSchemaId: `args-${capabilityId}`,
-      interactionExecution: capability.interactionExecution,
-      promptTemplateId: capability.promptTemplateId,
-    });
-  }
-  const controlHandles = new Set(capabilityBindings.map((binding) => binding.capability.controlHandle));
-  const origin = page.metadata.origin || new URL(page.metadata.finalUrl).origin;
-  const recordIds = new Set(brief.metadata.recordIds);
-  const mediaIds = new Set(brief.metadata.mediaIds);
-
-  return {
+  return UiGenerationRequestSchema.parse({
     schemaVersion: 1,
     promptVersion: UI_GENERATION_PROMPT_VERSION,
     promptDigest: UI_GENERATION_PROMPT_DIGEST,
-    canonicalUserTask: input.task.trim(),
-    brief,
-    implementationPrompt: brief.implementationPrompt,
-    websiteUiMetadata: brief.metadata,
-    websiteUiMetadataDigest: brief.metadataDigest,
-    graph: {
-      nodes: page.nodes.filter((node) => bindings.nodeIds.has(node.handle) || controlHandles.has(node.handle)),
-      relationships: page.relationships.filter((relationship) => bindings.nodeIds.has(relationship.from) && bindings.nodeIds.has(relationship.to)),
-      regions: page.regions.filter((region) => brief.detailRegionHandles.includes(region.handle)),
-      collections: page.collections.filter((collection) => bindings.collectionIds.has(collection.handle)),
+    plan: input.plan,
+    planDigest: digestUiPlan(input.plan),
+    runtime: {
+      module: "@ai-browser/generated-ui-runtime",
+      apiVersion: GENERATED_UI_RUNTIME_API_VERSION,
+      exports: [...GENERATED_UI_RUNTIME_EXPORTS],
     },
-    sourceBindings: bindings.candidates.map((candidate, index) => ({
-      sourceId: `source-${index + 1}`,
-      candidate,
-      provider: origin,
-      displayLabel: page.metadata.title ?? origin,
-    })),
-    recordBindings: bindings.candidates
-      .filter((candidate) => candidate.recordHandle !== null && recordIds.has(candidate.recordHandle))
-      .map((candidate) => ({
-        recordId: candidate.recordHandle!,
-        collectionId: candidate.collectionHandle,
-        fieldNodeIds: candidate.fields.map((field) => field.nodeHandle),
-      })),
-    mediaBindings: bindings.mediaNodes
-      .filter((node) => mediaIds.has(mediaBindingId(node.handle)))
-      .map((node) => ({
-        mediaId: mediaBindingId(node.handle),
-        nodeId: node.handle,
-        kind: node.kind === "svg_chart" ? "chart" : node.kind,
-        altText: ("altText" in node ? node.altText : "title" in node ? node.title : "label" in node ? node.label : null) ?? "Media",
-        safeReference: `media-ref-${node.handle}`,
-      })),
-    capabilityBindings,
-    coverage: page.coverage,
-    freshness: brief.freshness,
-    warnings: page.warnings,
-    runtimeApiVersion: GENERATED_UI_RUNTIME_API_VERSION,
     theme: {
-      allowedTokens: ["canvas", "surface", "elevated", "text-primary", "text-secondary", "border", "accent", "accent-hover", "success", "warning", "danger", "focus", "space-4", "space-8", "space-12", "space-16", "space-24", "space-32", "radius-control", "radius-panel", "radius-overlay"],
+      allowedTokens: [...GENERATED_UI_ALLOWED_TOKENS],
       minimumTargetSize: 40,
       supportedThemes: ["light", "dark"],
       supportsReducedMotion: true,
       minimumViewport: { width: 800, height: 600 },
       maximumZoomPercent: 200,
     },
-    limits: { maxSourceBytes: 65_536, maxAstNodes: 20_000, maxComplexity: 200, maxRenderNodes: 5_000, maxLocalStateEntries: 32 },
+    limits: { ...GENERATED_UI_LIMITS },
     correlation: { requestId: input.requestId, userId: input.userId },
-  };
+  });
 }

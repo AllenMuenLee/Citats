@@ -1,6 +1,6 @@
 """Bookkeeping registry for live browser-context/page resources.
 
-This module holds no browser handles itself (no ``nodriver.Browser``/``Tab``
+This module holds no browser handles itself (no ``Browser``/``Page``
 references) -- it is a pure, lock-protected accounting structure that
 ``lifecycle.py`` updates as it creates and tears down isolated contexts and
 pages. Keeping it separate lets tests assert "no resources leaked" without

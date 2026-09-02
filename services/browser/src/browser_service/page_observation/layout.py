@@ -20,10 +20,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 
-from nodriver.cdp import dom as cdp_dom
-from nodriver.core.tab import Tab  # type: ignore[import-untyped]
-
-from browser_service.page_observation.cdp import CdpTimeoutError, send_bounded
+from browser_service.page_observation.cdp import CdpSession, CdpTimeoutError, send_bounded
 
 MAX_CONCURRENT_BOX_MODEL_FETCHES = 12
 DEFAULT_LAYOUT_BUDGET_SECONDS = 5.0
@@ -56,7 +53,7 @@ def _box_from_quad(quad: list[float]) -> dict[str, float] | None:
 
 
 async def capture_bounding_boxes(
-    page: Tab,
+    session: CdpSession,
     backend_node_ids: list[int],
     *,
     budget_seconds: float = DEFAULT_LAYOUT_BUDGET_SECONDS,
@@ -85,12 +82,13 @@ async def capture_bounding_boxes(
             box: dict[str, float] | None = None
             try:
                 model = await send_bounded(
-                    page,
-                    cdp_dom.get_box_model(backend_node_id=cdp_dom.BackendNodeId(backend_node_id)),
+                    session,
+                    "DOM.getBoxModel",
+                    {"backendNodeId": backend_node_id},
                     timeout_seconds=min(request_timeout_seconds, remaining),
                     phase="dom.get_box_model",
                 )
-                box = _box_from_quad(list(model.content))
+                box = _box_from_quad(list(model["model"]["content"]))
             except CdpTimeoutError:
                 timed_out = True
                 return
@@ -110,10 +108,10 @@ async def capture_bounding_boxes(
 
 
 async def fetch_bounding_boxes(
-    page: Tab, backend_node_ids: list[int]
+    session: CdpSession, backend_node_ids: list[int]
 ) -> dict[int, dict[str, float] | None]:
     """Boxes only, for callers that do not report coverage themselves."""
-    captured = await capture_bounding_boxes(page, backend_node_ids)
+    captured = await capture_bounding_boxes(session, backend_node_ids)
     return captured.boxes
 
 

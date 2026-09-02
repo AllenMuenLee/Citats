@@ -5,15 +5,20 @@
   "type": "module",
   "main": "./src/index.tsx",
   "types": "./src/index.tsx",
-  "exports": { ".": "./src/index.tsx" },
+  "exports": {
+    ".": "./src/index.tsx"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "peerDependencies": { "react": "^19.0.0" },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
   "devDependencies": {
     "@types/react": "^19",
     "react": "19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

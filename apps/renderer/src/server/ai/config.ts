@@ -61,25 +61,31 @@ const ModelRoleSchema = CredentialsSchema.extend({
 export type ModelRoleConfig = z.infer<typeof ModelRoleSchema>;
 
 /**
- * The three model roles this app runs, each independently pointed at either
- * provider:
+ * The four model roles this app runs, each independently pointed at either
+ * provider. Only `chat` ever talks to the user or is offered a tool; the
+ * other three are internal stages of `ui.generate` and are given no tools of
+ * any kind, no conversation history, and temperature zero.
  *
- * - `chat` answers the user, runs the online search, and calls the local
- *   tools (`CHAT_MODEL_PROVIDER` / `CHAT_MODEL`).
- * - `extraction` reads one rendered-page observation and compresses it into
- *   the material a generative-UI plan is built from -- no tools, closed
- *   schema, never addresses the user (`EXTRACTION_MODEL_PROVIDER` /
- *   `EXTRACTION_MODEL`).
- * - `ui` writes the final React component (`UI_MODEL_PROVIDER` /
+ * - `chat` answers the user and may call `ui.generate`
+ *   (`CHAT_MODEL_PROVIDER` / `CHAT_MODEL`).
+ * - `sourceFinding` turns the user's request into a structured list of
+ *   candidate websites (`SOURCE_FINDING_MODEL_PROVIDER` /
+ *   `SOURCE_FINDING_MODEL`). It never decides URL safety -- trusted code
+ *   does, in `server/ui-generate/source-finding/url-policy.ts`.
+ * - `uiPlanning` reads every successful rendered-HTML capture and returns
+ *   one validated `UiPlan` (`UI_PLANNING_MODEL_PROVIDER` /
+ *   `UI_PLANNING_MODEL`).
+ * - `ui` writes the React component from that plan (`UI_MODEL_PROVIDER` /
  *   `UI_MODEL`).
  *
- * Only `chat` is required. An unset `extraction` leaves the deterministic
- * projection in `server/orchestrator/model-view.ts` to stand alone; an unset
- * `ui` disables generative UI entirely.
+ * Only `chat` is required. `ui.generate` needs all three internal roles: if
+ * any is unset the tool is not offered at all, rather than being offered and
+ * then failing every call.
  */
 export interface AiConfig {
   chat: ModelRoleConfig;
-  extraction?: ModelRoleConfig;
+  sourceFinding?: ModelRoleConfig;
+  uiPlanning?: ModelRoleConfig;
   ui?: ModelRoleConfig;
 }
 
@@ -123,7 +129,7 @@ function fieldList(error: z.ZodError): string {
  */
 function readRole(
   environment: Environment,
-  role: "CHAT" | "EXTRACTION" | "UI",
+  role: "CHAT" | "SOURCE_FINDING" | "UI_PLANNING" | "UI",
   transport: TransportConfig,
   required: boolean,
 ): ModelRoleConfig | undefined {
@@ -158,7 +164,8 @@ export function readAiConfig(environment: Environment = process.env): AiConfig {
   const transport = readTransport(environment);
   return {
     chat: readRole(environment, "CHAT", transport, true)!,
-    extraction: readRole(environment, "EXTRACTION", transport, false),
+    sourceFinding: readRole(environment, "SOURCE_FINDING", transport, false),
+    uiPlanning: readRole(environment, "UI_PLANNING", transport, false),
     ui: readRole(environment, "UI", transport, false),
   };
 }

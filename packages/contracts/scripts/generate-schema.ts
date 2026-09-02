@@ -39,6 +39,9 @@ import {
   SystemEchoSuccessResultSchema,
   ToolDefinitionSchema,
   ToolErrorResultSchema,
+  UiGenerateArgsSchema,
+  UiGenerateProgressEventSchema,
+  UiGenerateResultSchema,
   UiGenerationRequestSchema,
   UiGenerationResponseSchema,
   CompiledGeneratedUiArtifactSchema,
@@ -73,6 +76,9 @@ const REGISTRY: Record<string, z.ZodTypeAny> = {
   "ui-generation-request": UiGenerationRequestSchema,
   "ui-generation-response": UiGenerationResponseSchema,
   "compiled-generated-ui-artifact": CompiledGeneratedUiArtifactSchema,
+  "ui-generate-args": UiGenerateArgsSchema,
+  "ui-generate-progress-event": UiGenerateProgressEventSchema,
+  "ui-generate-result": UiGenerateResultSchema,
 };
 
 function sortKeysDeep(value: unknown): unknown {

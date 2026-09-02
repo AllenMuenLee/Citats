@@ -1,20 +1,13 @@
-"""Real-Chrome tests for BrowserLifecycleManager: isolated contexts, the
+"""Real-browser tests for BrowserLifecycleManager: isolated contexts, the
 concurrent-context cap, and resource cleanup after contexts close.
 
-These launch actual headless Chrome via nodriver (confirmed working on
-this host) and are the "basic leak/stability" and cap-enforcement
-validation called for by the phase spec.
+These launch actual headless Chromium via Playwright and are the "basic
+leak/stability" and cap-enforcement validation called for by the phase spec.
 
 Every test gets its own fresh, disposable browser process and event loop
-(plain ``asyncio.run()``) rather than sharing one across the module. See
-``test_browser_navigation.py``'s module docstring: empirically on this
-host, several distinct real-Chrome navigation scenarios that abort an
-in-flight request can corrupt nodriver's shared per-connection CDP
-listener when multiple such operations share one event loop/browser
-process across a pytest session, causing a later, unrelated operation to
-spin a CPU core forever. Per-test isolation is the one pattern that
-reliably avoids it, at the cost of a real Chrome launch (a few seconds)
-per test.
+(plain ``asyncio.run()``) rather than sharing one across the module, so a
+test that tears a browser down badly cannot make a later, unrelated test
+fail. The cost is a real browser launch (a few seconds) per test.
 """
 
 from __future__ import annotations
@@ -55,7 +48,11 @@ def test_two_isolated_contexts_do_not_share_pages() -> None:
                 async with manager.isolated_context() as ctx_b:
                     page_b = await ctx_b.open_page()
                     assert ctx_a.context_id != ctx_b.context_id
-                    assert page_a.target.target_id != page_b.target.target_id
+                    # Distinct page objects, each bound to its own context --
+                    # Playwright pages carry no cross-context target id to
+                    # compare, so identity plus the context split is the check.
+                    assert page_a is not page_b
+                    assert page_a.context is not page_b.context
                     assert manager.registry.context_count() == 2
                 assert manager.registry.context_count() == 1
             assert manager.registry.context_count() == 0

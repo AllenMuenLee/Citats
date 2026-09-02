@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from nodriver.cdp import accessibility as cdp_ax
-
 from browser_service.extraction import extract_document
 from browser_service.extraction.accessibility import RawAxNode, raw_ax_node, reduce_ax_tree
 from browser_service.extraction.models import ExtractionLimits, WarningCode
+from browser_service.page_observation.cdp import CdpAxNode
 
 MINIMAL_HTML = (
     "<html lang='en'><head><title>T</title></head>"
@@ -184,31 +183,24 @@ def test_flags_an_injection_attempt_in_an_accessible_name() -> None:
 
 
 def test_converts_real_cdp_ax_nodes_the_demo_script_produces() -> None:
-    """The `Accessibility.getFullAXTree` shape `tests/ast_scraping_test.py`
-    dumps with `str(...)` is the same one production reads -- but it must
-    arrive here as typed nodes, so this pins the CDP-object conversion
-    rather than the debugging repr."""
-    cdp_node = cdp_ax.AXNode(
-        node_id=cdp_ax.AXNodeId("42"),
-        ignored=False,
-        role=cdp_ax.AXValue(type_=cdp_ax.AXValueType.INTERNAL_ROLE, value="link"),
-        name=cdp_ax.AXValue(type_=cdp_ax.AXValueType.COMPUTED_STRING, value="View listing"),
-        description=cdp_ax.AXValue(type_=cdp_ax.AXValueType.COMPUTED_STRING, value="Opens it"),
-        value=cdp_ax.AXValue(type_=cdp_ax.AXValueType.STRING, value="ignored-for-links"),
-        properties=[
-            cdp_ax.AXProperty(
-                name=cdp_ax.AXPropertyName.DISABLED,
-                value=cdp_ax.AXValue(type_=cdp_ax.AXValueType.BOOLEAN, value=False),
-            ),
-            # Not in the state allowlist: dropped rather than forwarded.
-            cdp_ax.AXProperty(
-                name=cdp_ax.AXPropertyName.KEYSHORTCUTS,
-                value=cdp_ax.AXValue(type_=cdp_ax.AXValueType.STRING, value="Ctrl+K"),
-            ),
-        ],
-        child_ids=[cdp_ax.AXNodeId("43")],
-        backend_dom_node_id=None,
-        parent_id=cdp_ax.AXNodeId("41"),
+    """`Accessibility.getFullAXTree` arrives as raw CDP JSON, so this pins the
+    conversion against the wire shape the browser actually sends."""
+    cdp_node = CdpAxNode(
+        {
+            "nodeId": "42",
+            "ignored": False,
+            "role": {"type": "internalRole", "value": "link"},
+            "name": {"type": "computedString", "value": "View listing"},
+            "description": {"type": "computedString", "value": "Opens it"},
+            "value": {"type": "string", "value": "ignored-for-links"},
+            "properties": [
+                {"name": "disabled", "value": {"type": "boolean", "value": False}},
+                # Not in the state allowlist: dropped rather than forwarded.
+                {"name": "keyshortcuts", "value": {"type": "string", "value": "Ctrl+K"}},
+            ],
+            "childIds": ["43"],
+            "parentId": "41",
+        }
     )
 
     raw = raw_ax_node(cdp_node)
