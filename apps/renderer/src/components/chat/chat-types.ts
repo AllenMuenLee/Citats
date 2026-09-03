@@ -13,7 +13,7 @@ export type ErrorPart = MessagePartBase & { type: "error"; message: string; retr
 export type GeneratedView = {
   instanceId: string;
   artifactId: string;
-  planDigest: string;
+  implementationPromptDigest: string;
   inputDigest: string;
   revision: number;
   expiresAt: string;

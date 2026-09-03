@@ -6,10 +6,13 @@ import type { ModelRoleConfig } from "../config";
 import {
   assertRequestWithinLimits,
   createStreamingAdapter,
+  defaultSleep,
   iterateSseData,
   mapHttpStatus,
   parseSseJson,
   readProviderErrorDetail,
+  retryDelayFromMessage,
+  retryDelayMs,
   type HttpCall,
   type StreamingProvider,
 } from "../streaming";
@@ -308,6 +311,12 @@ const CompletionSchema = z.object({
     content: z.object({ parts: z.array(PartSchema).optional() }).optional(),
     finishReason: z.string().optional(),
   })).min(1),
+  usageMetadata: z.object({
+    promptTokenCount: z.number().int().nonnegative().optional(),
+    candidatesTokenCount: z.number().int().nonnegative().optional(),
+    thoughtsTokenCount: z.number().int().nonnegative().optional(),
+    totalTokenCount: z.number().int().nonnegative().optional(),
+  }).optional(),
 });
 
 /**
@@ -320,30 +329,60 @@ export function createGeminiCompletion(
   fetchImpl: typeof fetch = fetch,
 ): TextCompletion {
   return async (request, signal) => {
-    const response = await fetchImpl(endpoint({ ...config, model: request.model }, "generateContent"), {
-      method: "POST",
-      signal,
-      headers: { ...authHeaders(config), "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: request.systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: request.userContent }] }],
-        generationConfig: {
-          temperature: request.temperature,
-          maxOutputTokens: request.maxTokens,
-          responseMimeType: "application/json",
-          responseJsonSchema: request.responseFormat.schema,
-        },
-      }),
-    });
-    if (!response.ok) {
-      // Same status mapping and same verbatim reason as the streaming path:
-      // a 400 here is a rejected request, not an unavailable service, and
-      // Gemini's own sentence names the field or capability at fault.
-      const detail = readProviderErrorDetail(response.status, (await response.text()).slice(0, 2_000));
-      console.error("[ai] Gemini completion rejected request", { provider: config.provider, model: config.model, ...detail });
-      throw mapHttpStatus(response.status, detail);
+    const tools = toolsPayload(undefined, request.hostedTools);
+    let parsedBody: unknown;
+    // Mirrors the Groq completion path and the streaming adapter: a 429 or a
+    // 5xx/"high demand" 503 on one of the internal ui.generate stages is
+    // routinely transient, so it is backed off and retried up to
+    // `config.maxRetries` rather than failing the whole pipeline on the
+    // first spike.
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await fetchImpl(endpoint({ ...config, model: request.model }, "generateContent"), {
+        method: "POST",
+        signal,
+        headers: { ...authHeaders(config), "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: request.systemInstruction }] },
+          contents: [{ role: "user", parts: [{ text: request.userContent }] }],
+          ...(tools ? { tools } : {}),
+          generationConfig: {
+            temperature: request.temperature,
+            maxOutputTokens: request.maxTokens,
+            ...(request.responseFormat ? {
+              responseMimeType: "application/json",
+              responseJsonSchema: request.responseFormat.schema,
+            } : {}),
+          },
+        }),
+      });
+      if (!response.ok) {
+        // Same status mapping and same verbatim reason as the streaming path:
+        // a 400 here is a rejected request, not an unavailable service, and
+        // Gemini's own sentence names the field or capability at fault.
+        const detail = readProviderErrorDetail(response.status, (await response.text()).slice(0, 2_000));
+        console.error("[ai] Gemini completion rejected request", { provider: config.provider, model: config.model, attempt, ...detail });
+        const mapped = mapHttpStatus(response.status, detail);
+        const retryable = mapped.code === "AI_RATE_LIMITED" || mapped.code === "AI_PROVIDER_UNAVAILABLE";
+        if (retryable && attempt < config.maxRetries) {
+          // Gemini's "model is experiencing high demand" 503 carries no
+          // Retry-After and clears in seconds, not milliseconds -- a 100ms
+          // exponential floor just burns the budget before the spike ends.
+          const floor = mapped.code === "AI_PROVIDER_UNAVAILABLE" ? 1_500 * (2 ** attempt) : 100 * (2 ** attempt);
+          const delay = Math.max(
+            retryDelayMs(response),
+            retryDelayFromMessage(detail.message),
+            detail.retryAfterMs ?? 0,
+            floor,
+          ) + Math.floor(Math.random() * 250);
+          await defaultSleep(delay, signal);
+          continue;
+        }
+        throw mapped;
+      }
+      parsedBody = await response.json();
+      break;
     }
-    const parsed = CompletionSchema.safeParse(await response.json());
+    const parsed = CompletionSchema.safeParse(parsedBody);
     if (!parsed.success) throw providerError("AI_MALFORMED_RESPONSE", parsed.error);
     const candidate = parsed.data.candidates[0]!;
     if (candidate.finishReason && BLOCKED_FINISH_REASONS.has(candidate.finishReason)) {
@@ -353,7 +392,16 @@ export function createGeminiCompletion(
       .filter((part) => !part.thought && typeof part.text === "string")
       .map((part) => part.text)
       .join("");
-    if (!content) throw providerError("AI_MALFORMED_RESPONSE");
+    if (!content || candidate.finishReason === "MAX_TOKENS") {
+      console.error("[ai] Gemini completion truncated or empty", {
+        provider: config.provider,
+        model: request.model,
+        finishReason: candidate.finishReason,
+        contentChars: content.length,
+        usage: parsed.data.usageMetadata,
+      });
+      throw providerError("AI_MALFORMED_RESPONSE");
+    }
     return { model: parsed.data.modelVersion ?? request.model, content };
   };
 }

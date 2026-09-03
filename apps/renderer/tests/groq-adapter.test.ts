@@ -3,18 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createGroqAdapter, createGroqCompletion, type ModelRoleConfig, type ModelStreamEvent } from "../src/server/ai";
-import { UI_PLAN_RESPONSE_JSON_SCHEMA } from "../src/server/ui-generate/planning/plan-schema";
-
-const UI_PLAN_RESPONSE_FORMAT = { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA } as const;
+const TEST_RESPONSE_SCHEMA = { type: "object", properties: { ok: { type: "boolean" } } } as const;
+const TEST_RESPONSE_FORMAT = { name: "test_response", strict: true, schema: TEST_RESPONSE_SCHEMA } as const;
 
 const config: ModelRoleConfig = {
   provider: "groq",
   apiKey: "test-key",
   model: "test-model",
   baseUrl: new URL("https://groq.test/openai/v1/"),
-  timeoutMs: 1_000,
   maxRetries: 2,
-  retryMaxElapsedMs: 60_000,
 };
 
 function sse(...chunks: unknown[]): Response {
@@ -159,11 +156,11 @@ describe("Groq adapter", () => {
    */
   it("forwards the canonical UI-plan schema with no tool advertised", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ choices: [{ delta: { content: "{}" } }] }));
-    await collect(createGroqAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: UI_PLAN_RESPONSE_FORMAT }));
+    await collect(createGroqAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: TEST_RESPONSE_FORMAT }));
     const body = bodyOf(fetchImpl);
     expect(body.response_format).toEqual({
       type: "json_schema",
-      json_schema: { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA },
+      json_schema: { name: "test_response", strict: true, schema: TEST_RESPONSE_SCHEMA },
     });
     expect(body.tools).toBeUndefined();
   });
@@ -178,7 +175,7 @@ describe("Groq adapter", () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ choices: [{ delta: { content: "{}" } }] }));
     await collect(createGroqAdapter({ ...config, model: "groq/compound-mini" }, { fetchImpl }).stream({
       ...request,
-      responseFormat: UI_PLAN_RESPONSE_FORMAT,
+      responseFormat: TEST_RESPONSE_FORMAT,
     }));
     const body = bodyOf(fetchImpl);
     expect(body.response_format).toEqual({ type: "json_object" });

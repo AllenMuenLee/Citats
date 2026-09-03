@@ -9,8 +9,9 @@ import { z } from "zod";
  * there is nothing for it to ask the host to do.
  *
  * Inbound, the host sends exactly one message: `init`, carrying the
- * display-safe plan-derived props. Everything else the sandbox needs it
- * already has from its own origin.
+ * display-safe props (trusted request label, trusted source metadata,
+ * coverage numbers). Everything else the sandbox needs it already has from
+ * its own origin.
  *
  * Every message on both sides carries the full envelope, and the host
  * checks origin, channel, ownership, digests, revision, sequence, rate, and
@@ -28,7 +29,7 @@ const envelope = {
   channel: identifier,
   instanceId: identifier,
   artifactId: z.string().regex(/^gui_[a-f0-9]{64}$/),
-  planDigest: digest,
+  implementationPromptDigest: digest,
   inputDigest: digest,
   revision: z.number().int().nonnegative(),
   sequence: z.number().int().positive(),
@@ -58,7 +59,7 @@ export interface GeneratedUiInitMessage {
   readonly channel: string;
   readonly instanceId: string;
   readonly artifactId: string;
-  readonly planDigest: string;
+  readonly implementationPromptDigest: string;
   readonly inputDigest: string;
   readonly revision: number;
   readonly props: unknown;
@@ -69,7 +70,7 @@ export const GeneratedUiReadyReportSchema = z
   .object({
     instanceId: identifier,
     artifactId: z.string().regex(/^gui_[a-f0-9]{64}$/),
-    planDigest: digest,
+    implementationPromptDigest: digest,
     revision: z.number().int().nonnegative(),
   })
   .strict();

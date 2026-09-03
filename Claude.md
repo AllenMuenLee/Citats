@@ -49,3 +49,6 @@ AI agents must not create, edit, delete, rename, move, generate, or reorganize d
 ## Definition of done
 
 A phase is complete only when its implementation, tests, security checks, and non-documentation acceptance criteria pass. A skipped validation must be reported with the reason and an actionable follow-up. Never claim completion from compilation alone. Documentation is never a phase deliverable and must remain untouched.
+
+## Things to do after each task
+Commit all of the changes but don't push.

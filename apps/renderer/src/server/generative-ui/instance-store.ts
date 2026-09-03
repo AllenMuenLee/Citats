@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import type { CompiledGeneratedUiArtifact, UiPlan } from "@ai-browser/contracts";
+import type { CompiledGeneratedUiArtifact, TrustedGenerationSource } from "@ai-browser/contracts";
 
 /**
  * Server-held state for one mounted generated view.
@@ -11,14 +11,10 @@ import type { CompiledGeneratedUiArtifact, UiPlan } from "@ai-browser/contracts"
  * before it is allowed to answer `ready`.
  */
 
-/** Display-safe, plan-derived props. Contains no URL the sandbox could fetch and no server identifier. */
+/** Display-safe props. Contains no URL the sandbox could fetch and no server identifier. */
 export type GeneratedViewDisplayProps = Readonly<{
   goal: string;
   sources: readonly Readonly<Record<string, unknown>>[];
-  collections: readonly Readonly<Record<string, unknown>>[];
-  records: readonly Readonly<Record<string, unknown>>[];
-  facts: readonly Readonly<Record<string, unknown>>[];
-  media: readonly Readonly<Record<string, unknown>>[];
   coverage: Readonly<Record<string, unknown>>;
 }>;
 
@@ -28,7 +24,7 @@ export type GeneratedUiInstance = Readonly<{
   viewRef: string;
   ownerId: string;
   artifact: CompiledGeneratedUiArtifact;
-  planDigest: string;
+  implementationPromptDigest: string;
   inputDigest: string;
   revision: number;
   expiresAt: number;
@@ -37,15 +33,20 @@ export type GeneratedUiInstance = Readonly<{
 }>;
 
 /**
- * Derives the props the sandbox is handed from the plan. This is a
- * projection, not a pass-through: only display fields survive, and the
- * generated component receives no plan section describing policy, limits,
- * or constraints -- there is nothing there for it to reinterpret.
+ * Derives the props the sandbox is handed. This is display-safe trusted
+ * source metadata plus bounded coverage numbers -- there is no plan-derived
+ * record, fact, media, or collection data, and nothing describing policy,
+ * limits, or constraints for the generated component to reinterpret.
  */
-export function displayPropsForPlan(plan: UiPlan): GeneratedViewDisplayProps {
+export function displayPropsForSources(input: {
+  goal: string;
+  trustedSources: readonly TrustedGenerationSource[];
+  requestedSourceCount: number;
+  note?: string | null;
+}): GeneratedViewDisplayProps {
   return Object.freeze({
-    goal: plan.canonicalGoal,
-    sources: plan.sources.map((source) =>
+    goal: input.goal,
+    sources: input.trustedSources.map((source) =>
       Object.freeze({
         id: source.sourceId,
         title: source.title,
@@ -55,54 +56,10 @@ export function displayPropsForPlan(plan: UiPlan): GeneratedViewDisplayProps {
         captureStatus: source.captureStatus,
       }),
     ),
-    collections: plan.collections.map((collection) =>
-      Object.freeze({
-        id: collection.collectionId,
-        label: collection.label,
-        description: collection.description,
-        comparableFieldRoles: collection.comparableFieldRoles,
-      }),
-    ),
-    records: plan.records.map((record) =>
-      Object.freeze({
-        id: record.recordId,
-        collectionId: record.collectionId,
-        title: record.title,
-        sourceId: record.sourceId,
-        fields: record.fields.map((field) =>
-          Object.freeze({ id: field.fieldId, label: field.label, value: field.value, role: field.role, numericValue: field.numericValue }),
-        ),
-        mediaIds: record.mediaIds,
-        factIds: record.factIds,
-      }),
-    ),
-    facts: plan.facts.map((fact) =>
-      Object.freeze({
-        id: fact.factId,
-        label: fact.label,
-        value: fact.value,
-        kind: fact.kind,
-        unit: fact.unit,
-        numericValue: fact.numericValue,
-        sourceId: fact.sourceId,
-        note: fact.note,
-      }),
-    ),
-    media: plan.media.map((media) =>
-      Object.freeze({
-        id: media.mediaId,
-        kind: media.kind,
-        alternativeText: media.alternativeText,
-        caption: media.caption,
-        sourceId: media.sourceId,
-      }),
-    ),
     coverage: Object.freeze({
-      requestedSources: plan.coverage.requestedSources,
-      capturedSources: plan.coverage.capturedSources,
-      omissions: plan.coverage.omissions,
-      unsupportedRequests: plan.coverage.unsupportedRequests,
-      confidence: plan.coverage.confidence,
+      requestedSources: input.requestedSourceCount,
+      capturedSources: input.trustedSources.length,
+      note: input.note ?? null,
     }),
   });
 }
@@ -145,12 +102,12 @@ export class GeneratedUiInstanceStore {
    * forged or stale handshake for another instance, another owner, another
    * artifact, or another plan resolves nothing.
    */
-  markReady(input: { instanceId: string; ownerId: string; artifactId: string; planDigest: string; revision: number }): boolean {
+  markReady(input: { instanceId: string; ownerId: string; artifactId: string; implementationPromptDigest: string; revision: number }): boolean {
     const instance = this.get(input.instanceId, input.ownerId);
     if (!instance) return false;
     if (
       instance.artifact.artifactId !== input.artifactId ||
-      instance.planDigest !== input.planDigest ||
+      instance.implementationPromptDigest !== input.implementationPromptDigest ||
       instance.revision !== input.revision
     ) {
       return false;
@@ -167,11 +124,10 @@ export class GeneratedUiInstanceStore {
    * Waits for that handshake. Registration, artifact load start, and model
    * success are explicitly *not* readiness -- only this resolves.
    */
-  async waitForReady(input: { instanceId: string; timeoutMs: number; signal: AbortSignal }): Promise<boolean> {
+  async waitForReady(input: { instanceId: string; signal: AbortSignal }): Promise<boolean> {
     const pending = this.readiness.get(input.instanceId);
     if (!pending) return false;
     if (pending.settled) return true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     let onAbort: (() => void) | undefined;
     try {
       const raced = await Promise.race([
@@ -180,14 +136,12 @@ export class GeneratedUiInstanceStore {
         // returns promptly *and* reports not-ready.
         pending.promise.then(() => pending.settled),
         new Promise<false>((resolve) => {
-          timer = setTimeout(() => resolve(false), input.timeoutMs);
           onAbort = () => resolve(false);
           input.signal.addEventListener("abort", onAbort, { once: true });
         }),
       ]);
       return raced;
     } finally {
-      if (timer !== undefined) clearTimeout(timer);
       if (onAbort) input.signal.removeEventListener("abort", onAbort);
     }
   }

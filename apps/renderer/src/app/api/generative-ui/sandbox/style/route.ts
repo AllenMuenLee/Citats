@@ -39,7 +39,10 @@ ul,ol{margin:0;padding-left:var(--space-24)}
 
 function stylesheet(): string {
   if (cached !== null) return cached;
-  const require = createRequire(import.meta.url);
+  // Resolve from the working directory (a real path) rather than
+  // `import.meta.url`, which Turbopack rewrites to a virtual `[project]/...`
+  // path in the bundled route.
+  const require = createRequire(join(process.cwd(), "package.json"));
   const tokens = readFileSync(join(dirname(require.resolve("@ai-browser/ui/package.json")), "src", "tokens.css"), "utf8");
   cached = `${tokens}\n${RESET}`;
   return cached;

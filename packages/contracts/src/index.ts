@@ -24,7 +24,6 @@ export * from "./tool-definition";
 export * from "./tools/system-echo";
 export * from "./tools/navigate-and-extract";
 export * from "./page-understanding";
-export * from "./ui-plan";
 export * from "./generated-ui";
 export * from "./tools/ui-generate";
 export * from "./tools/explore-website";

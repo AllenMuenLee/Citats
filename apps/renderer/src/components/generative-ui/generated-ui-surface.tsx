@@ -28,7 +28,7 @@ import styles from "./generated-ui-surface.module.css";
 export type GeneratedUiSurfaceProps = Readonly<{
   instanceId: string;
   artifactId: string;
-  planDigest: string;
+  implementationPromptDigest: string;
   inputDigest: string;
   revision: number;
   expiresAt: string;
@@ -67,7 +67,6 @@ const COVERAGE_LABEL: Readonly<Record<"validated" | "partial", string>> = {
 export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
   const iframe = useRef<HTMLIFrameElement>(null);
   const lastSequence = useRef(0);
-  const lastHeartbeat = useRef(0);
   const readyReported = useRef(false);
   const [height, setHeight] = useState(320);
   const [failed, setFailed] = useState(false);
@@ -80,10 +79,9 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
     if (iframe.current) iframe.current.src = "about:blank";
   }, []);
 
-  const { instanceId, artifactId, planDigest, inputDigest, revision, expiresAt, onReady, onTelemetry } = props;
+  const { instanceId, artifactId, implementationPromptDigest, inputDigest, revision, onReady, onTelemetry } = props;
 
   useEffect(() => {
-    lastHeartbeat.current = Date.now();
     readyReported.current = false;
     lastSequence.current = 0;
     const surface = iframe.current;
@@ -104,7 +102,7 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
         message.channel !== channel ||
         message.instanceId !== instanceId ||
         message.artifactId !== artifactId ||
-        message.planDigest !== planDigest ||
+        message.implementationPromptDigest !== implementationPromptDigest ||
         message.inputDigest !== inputDigest ||
         message.revision !== revision ||
         message.sequence !== lastSequence.current + 1
@@ -112,7 +110,6 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
         return destroy();
       }
       lastSequence.current = message.sequence;
-      lastHeartbeat.current = Date.now();
       if (message.type === "ready") {
         if (readyReported.current) return;
         readyReported.current = true;
@@ -122,7 +119,7 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
         void fetch("/api/generative-ui/ready", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ instanceId, artifactId, planDigest, revision }),
+          body: JSON.stringify({ instanceId, artifactId, implementationPromptDigest, revision }),
         })
           .then(() => onReady?.())
           .catch(() => undefined);
@@ -152,7 +149,7 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
               channel,
               instanceId,
               artifactId,
-              planDigest,
+              implementationPromptDigest,
               inputDigest,
               revision,
               props: payload.displayProps,
@@ -165,19 +162,19 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
 
     window.addEventListener("message", onMessage);
     surface?.addEventListener("load", onLoad);
-    // A surface that stops reporting, or that outlives its artifact, is torn
-    // down rather than left showing stale content.
-    const monitor = window.setInterval(() => {
-      if (Date.now() - lastHeartbeat.current > 15_000 || Date.parse(expiresAt) <= Date.now()) destroy();
-    }, 2_500);
+    // The src is driven here, not from JSX: a Strict Mode remount (and any
+    // effect re-run) tears the frame down to about:blank in the cleanup
+    // below, and only re-assigning it here brings the sandbox back. A JSX
+    // `src` attribute is written once and never reapplied, so the frame
+    // would stay blank and the `ready` handshake would never arrive.
+    if (surface) surface.src = src;
     return () => {
       cancelled = true;
       window.removeEventListener("message", onMessage);
       surface?.removeEventListener("load", onLoad);
-      window.clearInterval(monitor);
       if (surface) surface.src = "about:blank";
     };
-  }, [channel, destroy, instanceId, artifactId, planDigest, inputDigest, revision, expiresAt, onReady, onTelemetry, key]);
+  }, [src, channel, destroy, instanceId, artifactId, implementationPromptDigest, inputDigest, revision, onReady, onTelemetry, key]);
 
   if (failed) {
     return (
@@ -187,7 +184,6 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
           type="button"
           onClick={() => {
             lastSequence.current = 0;
-            lastHeartbeat.current = Date.now();
             setChannel(randomChannel());
             setFailed(false);
             setKey((value) => value + 1);
@@ -214,7 +210,6 @@ export function GeneratedUiSurface(props: GeneratedUiSurfaceProps): ReactNode {
           className={styles.surface}
           title={`AI-generated view: ${props.title}`}
           sandbox="allow-scripts"
-          src={src}
           style={{ height }}
           referrerPolicy="no-referrer"
           allow=""

@@ -1,8 +1,9 @@
 /**
  * The opaque instance the renderer is handed so it can mount a generated
- * view. It carries no HTML, no TSX, no prompt, no plan, and no URL -- the
- * artifact is fetched from the app's own origin by id, and the display
- * props are the plan projection the instance store already validated.
+ * view. It carries no HTML, no TSX, no implementation prompt, and no URL --
+ * the artifact is fetched from the app's own origin by id, and the display
+ * props are the trusted source projection the instance store already
+ * validated.
  */
 export interface GeneratedViewEvent {
   type: "generated-ui";
@@ -10,7 +11,7 @@ export interface GeneratedViewEvent {
   view: {
     instanceId: string;
     artifactId: string;
-    planDigest: string;
+    implementationPromptDigest: string;
     inputDigest: string;
     revision: number;
     expiresAt: string;

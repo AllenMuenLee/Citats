@@ -7,7 +7,7 @@ function instance(): BridgeInstance {
     channel: "channel-1",
     instanceId: "instance-1",
     artifactId: `gui_${"a".repeat(64)}`,
-    planDigest: "b".repeat(64),
+    implementationPromptDigest: "b".repeat(64),
     inputDigest: "c".repeat(64),
     revision: 2,
     expiresAt: 10_000,
@@ -21,7 +21,7 @@ function message(type: "ready" | "resize" | "telemetry" = "ready", sequence = 1)
     channel: value.channel,
     instanceId: value.instanceId,
     artifactId: value.artifactId,
-    planDigest: value.planDigest,
+    implementationPromptDigest: value.implementationPromptDigest,
     inputDigest: value.inputDigest,
     revision: value.revision,
     sequence,
@@ -51,7 +51,7 @@ describe("generated UI bridge boundary", () => {
     expect(() => new BridgeMessageValidator(instance()).validate(forged, 1_000)).toThrow();
   });
 
-  it.each(["channel", "instanceId", "artifactId", "planDigest", "inputDigest", "revision"])("rejects forged %s", (field) => {
+  it.each(["channel", "instanceId", "artifactId", "implementationPromptDigest", "inputDigest", "revision"])("rejects forged %s", (field) => {
     const value = message();
     value[field] = field === "revision" ? 3 : "forged";
     expect(() => new BridgeMessageValidator(instance()).validate(value, 1_000)).toThrow();

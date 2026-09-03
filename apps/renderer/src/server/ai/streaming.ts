@@ -246,11 +246,9 @@ export interface StreamingProvider {
 
 /**
  * Wraps a provider's request-building and stream-parsing in the retry,
- * timeout, cancellation, and metrics behaviour every role depends on: a
- * single attempt is bounded by `timeoutMs`, retryable failures (429 and
- * 5xx/transport) back off exponentially up to `maxRetries` attempts and
- * `retryMaxElapsedMs` of total wall clock, and the caller's own
- * `AbortSignal` (the user's Stop control) always wins over both.
+ * cancellation, retry, and metrics behaviour every role depends on.
+ * Retryable failures back off up to `maxRetries`; only the caller's
+ * `AbortSignal` (the user's Stop control) ends an in-flight response.
  */
 export function createStreamingAdapter(
   provider: StreamingProvider,
@@ -272,10 +270,7 @@ export function createStreamingAdapter(
       let usage: Extract<ModelStreamEvent, { type: "usage" }> | undefined;
       let attemptCount = 0;
       let errorCode: ModelErrorCode | undefined;
-      const timeoutSignal = AbortSignal.timeout(config.timeoutMs);
-      const signal = request.signal
-        ? AbortSignal.any([request.signal, timeoutSignal])
-        : timeoutSignal;
+      const signal = request.signal ?? new AbortController().signal;
       const isRetryable = (code: ModelErrorCode): boolean =>
         code === "AI_RATE_LIMITED"
         || code === "AI_PROVIDER_UNAVAILABLE"
@@ -285,11 +280,8 @@ export function createStreamingAdapter(
       const backoff = async (minimumDelayMs = 0): Promise<boolean> => {
         if (attemptCount > config.maxRetries) return false;
         const delay = Math.max(minimumDelayMs, Math.floor((100 * (2 ** (attemptCount - 1))) + random() * 100));
-        // `timeoutSignal` spans the whole call, sleeps included, so a wait
-        // that would outlive it must be declined here rather than entered:
-        // sleeping into that abort would surface the provider's own
-        // "retry in 47s" as a raw timeout instead of AI_RATE_LIMITED.
-        if ((now() - startedAt) + delay > Math.min(config.retryMaxElapsedMs, config.timeoutMs)) return false;
+        // Retry delays remain caller-cancellable but have no elapsed-time
+        // budget of their own.
         await sleep(delay, signal);
         return true;
       };
@@ -307,9 +299,7 @@ export function createStreamingAdapter(
             });
           } catch (error) {
             if (request.signal?.aborted) throw error;
-            const mapped = timeoutSignal.aborted
-              ? providerError("AI_TIMEOUT", error)
-              : providerError("AI_PROVIDER_UNAVAILABLE", error);
+            const mapped = providerError("AI_PROVIDER_UNAVAILABLE", error);
             if (isRetryable(mapped.code) && await backoff()) continue;
             throw mapped;
           }
@@ -356,7 +346,6 @@ export function createStreamingAdapter(
             }
           } catch (error) {
             if (request.signal?.aborted) throw request.signal.reason;
-            if (timeoutSignal.aborted) throw providerError("AI_TIMEOUT", error);
             if (error instanceof ModelProviderError) {
               const causeMessage = error.cause instanceof Error ? error.cause.message : undefined;
               if (firstTokenAt === undefined && error.code !== "AI_MALFORMED_RESPONSE" && isRetryable(error.code) && await backoff(retryDelayFromMessage(causeMessage))) continue;

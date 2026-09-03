@@ -1,8 +1,31 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { computeGeneratedUiArtifactId } from "@ai-browser/contracts";
 import { ImmutableUiArtifactCache, uiArtifactCacheKey, type UiArtifactCacheIdentity } from "./cache";
 
 const identity: UiArtifactCacheIdentity = { tenantId: "tenant-a", userId: "user-a", inputDigest: "a".repeat(64), promptDigest: "b".repeat(64), modelIdentifier: "pinned-model", runtimeVersion: "1", compilerVersion: "1" };
-function artifact(valid = true) { const planDigest = "f".repeat(64); return { schemaVersion: 1, artifactId: `gui_${"c".repeat(64)}`, module: { kind: "bytes", encoding: "base64", value: "YQ==" }, manifest: { planDigest, sourceIds: [], recordIds: [], factIds: [], mediaIds: [], componentIds: [], localInteractions: [], accessibilityFeatures: [], responsiveRegions: [], runtimeImports: [], fallback: false }, validation: { valid, issues: valid ? [] : [{ code: "INVALID", severity: "error", location: null }] }, sourceMapPolicy: "omitted", planDigest, inputDigest: identity.inputDigest, promptDigest: identity.promptDigest, modelDigest: "d".repeat(64), toolchainDigest: "e".repeat(64), expiresAt: "2030-01-01T00:00:00Z", fallbackText: null }; }
+function digest(value: string) { return createHash("sha256").update(value, "utf8").digest("hex"); }
+function artifact(valid = true) {
+  const implementationPromptDigest = "e".repeat(64);
+  const bytes = Buffer.from("a");
+  const modelDigest = digest(identity.modelIdentifier);
+  const toolchainDigest = digest(identity.compilerVersion);
+  return {
+    schemaVersion: 1,
+    artifactId: computeGeneratedUiArtifactId({ bytes, implementationPromptDigest, inputDigest: identity.inputDigest, promptDigest: identity.promptDigest, modelDigest, toolchainDigest }),
+    module: { kind: "bytes", encoding: "base64", value: bytes.toString("base64") },
+    manifest: { sourceIds: [], localInteractions: [], accessibilityFeatures: [], responsiveRegions: [], runtimeImports: [], fallback: false },
+    validation: { valid, issues: valid ? [] : [{ code: "INVALID", severity: "error", location: null }] },
+    sourceMapPolicy: "omitted",
+    implementationPromptDigest,
+    inputDigest: identity.inputDigest,
+    promptDigest: identity.promptDigest,
+    modelDigest,
+    toolchainDigest,
+    expiresAt: "2030-01-01T00:00:00Z",
+    fallbackText: "This generated view is unavailable.",
+  };
+}
 
 describe("immutable generated artifact cache", () => {
   it("invalidates keys on every model/runtime/prompt/compiler input", () => {
@@ -14,6 +37,7 @@ describe("immutable generated artifact cache", () => {
     cache.putValidated(identity, artifact());
     expect(cache.get(identity)?.artifactId).toMatch(/^gui_/);
     expect(cache.get({ ...identity, userId: "user-b" })).toBeUndefined();
-    expect(() => cache.putValidated({ ...identity, inputDigest: "f".repeat(64) }, artifact(false))).toThrow(/validated/);
+    expect(() => cache.putValidated({ ...identity, inputDigest: "f".repeat(64) }, artifact(false))).toThrow(/validation/);
+    expect(() => cache.putValidated({ ...identity, modelIdentifier: "other" }, artifact())).toThrow(/identity/);
   });
 });

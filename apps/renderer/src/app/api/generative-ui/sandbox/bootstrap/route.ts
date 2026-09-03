@@ -25,7 +25,7 @@ var p=new URLSearchParams(location.hash.slice(1));
 var ch=p.get("channel");
 if(!ch||!/^[A-Za-z0-9_-]{1,128}$/.test(ch))return;
 var env=null,seq=0,readySent=false,mounted=false;
-function send(msg){if(!env)return;seq+=1;var out={bridgeVersion:V,channel:env.channel,instanceId:env.instanceId,artifactId:env.artifactId,planDigest:env.planDigest,inputDigest:env.inputDigest,revision:env.revision,sequence:seq};for(var k in msg)out[k]=msg[k];parent.postMessage(out,"*");}
+function send(msg){if(!env)return;seq+=1;var out={bridgeVersion:V,channel:env.channel,instanceId:env.instanceId,artifactId:env.artifactId,implementationPromptDigest:env.implementationPromptDigest,inputDigest:env.inputDigest,revision:env.revision,sequence:seq};for(var k in msg)out[k]=msg[k];parent.postMessage(out,"*");}
 function fail(code){send({type:"telemetry",event:"render_error",code:code});}
 function mount(){
   if(mounted)return;
@@ -35,7 +35,8 @@ function mount(){
   if(!root){fail("NO_ROOT");return;}
   mounted=true;
   var ok=false;
-  try{ok=bridge.mount(root,env.props,function(code){fail(code);});}catch(e){ok=false;}
+  var props=Object.assign({instanceRevision:env.revision},env.props);
+  try{ok=bridge.mount(root,props,function(code){fail(code);});}catch(e){ok=false;}
   if(!ok){fail("MOUNT_FAILED");return;}
   // One frame after the commit: the handshake means "this rendered", not
   // "this was asked to render".
@@ -59,7 +60,7 @@ addEventListener("message",function(e){
   var d=e.data;
   if(!d||d.type!=="init"||d.bridgeVersion!==V||d.channel!==ch)return;
   if(env)return;
-  env={channel:d.channel,instanceId:d.instanceId,artifactId:d.artifactId,planDigest:d.planDigest,inputDigest:d.inputDigest,revision:d.revision,props:d.props};
+  env={channel:d.channel,instanceId:d.instanceId,artifactId:d.artifactId,implementationPromptDigest:d.implementationPromptDigest,inputDigest:d.inputDigest,revision:d.revision,props:d.props};
   if(!/^gui_[a-f0-9]{64}$/.test(String(env.artifactId))){env=null;return;}
   var s=document.createElement("script");
   s.src="/api/generative-ui/artifacts/"+env.artifactId;

@@ -34,6 +34,9 @@ Pydantic rejects a mismatched value on its own (see
 
 from __future__ import annotations
 
+import base64
+import hashlib
+
 from pydantic import field_validator, model_validator
 
 from browser_service.contracts._validators import (
@@ -49,7 +52,7 @@ from browser_service.contracts.generated.cancellation_result import (
     CancellationResult as _GeneratedCancellationResult,
 )
 from browser_service.contracts.generated.compiled_generated_ui_artifact import (
-    CompiledGeneratedUiArtifact,
+    CompiledGeneratedUiArtifact as _GeneratedCompiledGeneratedUiArtifact,
 )
 from browser_service.contracts.generated.correlation_metadata import (
     CorrelationMetadata,
@@ -87,6 +90,11 @@ from browser_service.contracts.generated.success_result_system_echo import (
     SuccessResultSystemEcho as _GeneratedSuccessResultSystemEcho,
 )
 from browser_service.contracts.generated.tool_definition import ToolDefinition
+from browser_service.contracts.generated.ui_generate_args import (
+    UiGenerateArgs as _GeneratedUiGenerateArgs,
+)
+from browser_service.contracts.generated.ui_generate_progress_event import UiGenerateProgressEvent
+from browser_service.contracts.generated.ui_generate_result import UiGenerateResult
 from browser_service.contracts.generated.ui_generation_request import UiGenerationRequest
 from browser_service.contracts.generated.ui_generation_response import (
     UiGenerationResponse as _GeneratedUiGenerationResponse,
@@ -114,6 +122,9 @@ __all__ = [
     "UiGenerationRequest",
     "UiGenerationResponse",
     "CompiledGeneratedUiArtifact",
+    "UiGenerateArgs",
+    "UiGenerateProgressEvent",
+    "UiGenerateResult",
 ]
 
 
@@ -126,6 +137,26 @@ class EvidenceItem(_GeneratedEvidenceItem):
         if not is_http_or_https_url(value):
             raise ValueError("sourceUrl scheme must be 'http' or 'https'")
         return value
+
+
+class UiGenerateArgs(_GeneratedUiGenerateArgs):
+    """`ui.generate` takes no arguments -- the generated closed-empty model
+    is the whole contract, so there is nothing to validate here."""
+
+
+class CompiledGeneratedUiArtifact(_GeneratedCompiledGeneratedUiArtifact):
+    @model_validator(mode="after")
+    def _verify_content_address(self) -> CompiledGeneratedUiArtifact:
+        digest = hashlib.sha256()
+        digest.update(base64.b64decode(self.module.value, validate=True))
+        digest.update(self.implementationPromptDigest.encode())
+        digest.update(self.inputDigest.encode())
+        digest.update(self.promptDigest.encode())
+        digest.update(self.modelDigest.encode())
+        digest.update(self.toolchainDigest.encode())
+        if self.artifactId != f"gui_{digest.hexdigest()}":
+            raise ValueError("artifactId does not match compiled bytes and identity digests")
+        return self
 
 
 class UiGenerationResponse(_GeneratedUiGenerationResponse):

@@ -65,17 +65,17 @@ describe("AI provider configuration", () => {
       .toThrow("CHAT model configuration is invalid (GEMINI_API_BASE_URL).");
   });
 
-  it("applies the shared transport budget to every role", () => {
+  it("applies the shared retry count without a time budget", () => {
     const config = readAiConfig({
       ...base,
       SOURCE_FINDING_MODEL_PROVIDER: "groq",
       SOURCE_FINDING_MODEL: "groq-extraction",
-      AI_TIMEOUT_MS: "5000",
       AI_MAX_RETRIES: "1",
-      AI_RETRY_MAX_ELAPSED_MS: "9000",
     });
     for (const role of [config.chat, config.sourceFinding!]) {
-      expect(role).toMatchObject({ timeoutMs: 5_000, maxRetries: 1, retryMaxElapsedMs: 9_000 });
+      expect(role).toEqual(expect.objectContaining({ maxRetries: 1 }));
+      expect(role).not.toHaveProperty("timeoutMs");
+      expect(role).not.toHaveProperty("retryMaxElapsedMs");
     }
   });
 });

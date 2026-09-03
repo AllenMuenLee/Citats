@@ -3,7 +3,6 @@ import "server-only";
 import {
   UI_GENERATE_ARGS_JSON_SCHEMA,
   UI_GENERATE_TOOL_NAME,
-  UiGenerateArgsSchema,
   UiGenerateResultSchema,
   UiGenerateToolDefinition,
   uiGenerateFailure,
@@ -73,16 +72,13 @@ export function createToolRegistry(options: { uiGenerate?: UiGenerateExecutor })
       parameters: UI_GENERATE_ARGS_JSON_SCHEMA as unknown as Record<string, unknown>,
     },
     sensitive: false,
-    parseArguments: (value) => UiGenerateArgsSchema.parse(value),
-    async execute(args, context) {
-      const parsed = UiGenerateArgsSchema.parse(args);
-      if (parsed.request !== context.requestText) {
-        throw new Error("ui.generate request must exactly match the current user request.");
-      }
-      // The pipeline runs against the turn's own text, never against the
-      // string the model produced. A model that paraphrases, appends to, or
-      // substitutes the request therefore cannot steer source finding: the
-      // argument is validated for shape, and then the trusted text is used.
+    // `ui.generate` has no arguments. Whatever the model emits alongside the
+    // call is discarded -- the pipeline always runs against `requestText`.
+    parseArguments: () => ({}),
+    async execute(_args, context) {
+      // The pipeline runs against the turn's own text, never against
+      // anything the model produced, so a model that tries to attach a
+      // paraphrased or substituted request cannot steer source finding.
       const result = await uiGenerate(context.requestText, {
         correlationId: context.requestId,
         ownerId: context.userId,

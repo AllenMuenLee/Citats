@@ -4,7 +4,6 @@ import type {
   UiGenerateFailureCategory,
   UiGenerateProgressState,
   UiGenerateResult,
-  UiPlan,
 } from "@ai-browser/contracts";
 
 /**
@@ -61,8 +60,28 @@ export interface CaptureStage {
   capture(input: { sources: readonly ValidatedSource[]; correlationId: string; signal: AbortSignal }): Promise<CaptureOutcome>;
 }
 
+/** One captured website as trusted code recorded it -- the provenance the generated view may attribute. */
+export interface TrustedSource {
+  readonly sourceId: string;
+  readonly finalUrl: string;
+  readonly origin: string;
+  readonly title: string;
+  readonly retrievedAt: string;
+  readonly captureStatus: "complete" | "truncated" | "partial";
+}
+
+/**
+ * The planning stage's output: one free-form implementation prompt plus the
+ * trusted source records it drew on. The prompt is untrusted text and is
+ * never parsed or validated against a structure.
+ */
+export interface PlannerOutput {
+  readonly implementationPrompt: string;
+  readonly trustedSources: readonly TrustedSource[];
+}
+
 export interface PlanningStage {
-  plan(input: { request: string; captures: readonly PageCapture[]; correlationId: string; signal: AbortSignal }): Promise<UiPlan>;
+  plan(input: { request: string; captures: readonly PageCapture[]; correlationId: string; signal: AbortSignal }): Promise<PlannerOutput>;
 }
 
 /** What the generation + validation + registration stages hand to rendering. */
@@ -70,7 +89,7 @@ export interface RegisteredView {
   readonly instanceId: string;
   readonly viewRef: string;
   readonly artifactId: string;
-  readonly planDigest: string;
+  readonly implementationPromptDigest: string;
   readonly inputDigest: string;
   readonly revision: number;
   readonly expiresAt: string;
@@ -81,12 +100,20 @@ export interface RegisteredView {
 }
 
 export interface GenerationStage {
-  generate(input: { plan: UiPlan; ownerId: string; correlationId: string; signal: AbortSignal }): Promise<RegisteredView>;
+  generate(input: {
+    implementationPrompt: string;
+    trustedSources: readonly TrustedSource[];
+    requestedSourceCount: number;
+    request: string;
+    ownerId: string;
+    correlationId: string;
+    signal: AbortSignal;
+  }): Promise<RegisteredView>;
 }
 
 export interface RenderStage {
   /** Resolves only on a valid, instance-bound ready handshake from the mounted surface. */
-  awaitReady(input: { instanceId: string; timeoutMs: number; signal: AbortSignal }): Promise<boolean>;
+  awaitReady(input: { instanceId: string; signal: AbortSignal }): Promise<boolean>;
   /** Tears down a surface that never became ready. */
   destroy(input: { instanceId: string; ownerId: string }): void;
 }

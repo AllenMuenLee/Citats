@@ -16,13 +16,32 @@ import type { StaticValidationInput, StaticValidationIssue, StaticValidationResu
 
 const RUNTIME_MODULE = "@ai-browser/generated-ui-runtime";
 
+/**
+ * Codes that describe a mismatch, a nitpick, or a style preference rather
+ * than an actual safety or compilability problem. They are reported as
+ * warnings and do not block: the generated view still compiles and
+ * renders. The security denylist (forbidden globals, `eval`, network, DOM,
+ * `iframe`, prototype escapes, dynamic import, external assets, dangerous
+ * attributes) and the "it must actually compile" checks stay hard errors.
+ */
+const WARNING_CODES: ReadonlySet<string> = new Set([
+  "MANIFEST_RUNTIME_IMPORTS_MISMATCH",
+  "MANIFEST_SOURCE_IDS_MISMATCH",
+  "MANIFEST_RESPONSIVE_REGIONS_MISMATCH",
+  "MANIFEST_LOCAL_INTERACTIONS_MISMATCH",
+  "STABLE_KEY_REQUIRED",
+  "BUTTON_TYPE_REQUIRED",
+  "DYNAMIC_REGION_LABEL",
+  "THEME_TOKEN_NOT_ALLOWED",
+  "RAW_COLOR_VALUE",
+]);
+
 /** Mirrors the exports of `packages/generated-ui-runtime/src/index.tsx`. */
 export const RUNTIME_EXPORTS: ReadonlySet<string> = new Set([
-  "GeneratedViewProps", "OpaqueId", "DisplaySource", "DisplayFact", "DisplayRecord", "DisplayRecordField",
-  "DisplayCollection", "DisplayMedia", "DisplayCoverage", "semanticTokens",
+  "GeneratedViewProps", "OpaqueId", "DisplaySource", "DisplayCoverage", "semanticTokens",
   "Stack", "Inline", "Grid", "Card", "Region", "Text", "Heading", "Badge", "List", "ListItem",
   "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell",
-  "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal",
+  "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Modal",
   "useBoundedState", "useLocalCollection", "formatNumber", "formatCurrency", "formatDate",
   "createElement", "Fragment",
 ]);
@@ -43,14 +62,11 @@ const ALLOWED_INTRINSICS = new Set([
   "h1", "h2", "h3", "h4", "table", "thead", "tbody", "tr", "th", "td", "caption", "button", "label",
 ]);
 
-type ReferenceKey = "sourceIds" | "recordIds" | "factIds" | "mediaIds";
+type ReferenceKey = "sourceIds";
 
-/** Runtime accessors whose literal argument is a plan id the manifest must also declare. */
+/** Runtime accessors whose literal argument is a trusted source id the manifest must also declare. */
 const ID_LOOKUPS: Readonly<Record<string, ReferenceKey>> = {
   getSource: "sourceIds",
-  getRecord: "recordIds",
-  getFact: "factIds",
-  getMedia: "mediaIds",
 };
 
 export function validateGeneratedUiSource(input: StaticValidationInput): StaticValidationResult {
@@ -64,18 +80,20 @@ export function validateGeneratedUiSource(input: StaticValidationInput): StaticV
   let generatedViewDeclarations = 0;
   let runtimeImportDeclarations = 0;
   let boundedStateCalls = 0;
+  let renderNodes = 0;
   const imports = new Set<string>();
   const references = {
     sourceIds: new Set<string>(),
-    recordIds: new Set<string>(),
-    factIds: new Set<string>(),
-    mediaIds: new Set<string>(),
-    componentIds: new Set<string>(),
   };
+  const responsiveRegions = new Set<string>();
 
   const add = (code: string, node?: ts.Node) => {
     const position = node ? sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile, false)) : null;
-    issues.push({ code, severity: "error", location: position ? { line: position.line + 1, column: position.character } : null });
+    issues.push({
+      code,
+      severity: WARNING_CODES.has(code) ? "warning" : "error",
+      location: position ? { line: position.line + 1, column: position.character } : null,
+    });
   };
   const literalArgument = (call: ts.CallExpression, index: number) => {
     const argument = call.arguments[index];
@@ -162,19 +180,25 @@ export function validateGeneratedUiSource(input: StaticValidationInput): StaticV
       if ((name === "href" || name === "src" || name === "action" || name === "formAction" || name === "poster") && node.initializer) add("EXTERNAL_ASSET_LITERAL", node);
       if (name === "style" && node.initializer) {
         const text = node.initializer.getText(sourceFile);
-        if (/(?:#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|url\(|expression\(|image-set\()/i.test(text)) add("RAW_STYLE_ESCAPE", node);
+        // A functional CSS value that can fetch or execute is a real hole.
+        if (/(?:url\s*\(|expression\s*\(|image-set\s*\(|@import|behavior\s*:)/i.test(text)) add("CSS_EXFILTRATION", node);
+        // A raw colour is just off-theme -- a warning, not a rejection.
+        else if (/(?:#[0-9a-f]{3,8}\b|rgba?\(|hsla?\()/i.test(text)) add("RAW_COLOR_VALUE", node);
       }
     }
+    if (ts.isJsxSpreadAttribute(node)) add("JSX_SPREAD_NOT_ALLOWED", node);
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      renderNodes += 1;
       const tag = node.tagName.getText(sourceFile);
       if (FORBIDDEN_JSX.has(tag)) add("FORBIDDEN_JSX_ELEMENT", node);
       else if (/^[a-z]/.test(tag) && !ALLOWED_INTRINSICS.has(tag)) add("INTRINSIC_NOT_ALLOWED", node);
       if (tag === "button" && !hasJsxAttribute(node, "type")) add("BUTTON_TYPE_REQUIRED", node);
       if (tag === "Region") {
-        const componentId = jsxStringAttribute(node, "componentId");
-        if (componentId) references.componentIds.add(componentId);
-        else add("DYNAMIC_REFERENCE_ID", node);
+        const label = jsxStringAttribute(node, "label");
+        if (label) responsiveRegions.add(label);
+        else add("DYNAMIC_REGION_LABEL", node);
       }
+      if (isReturnedFromArrayMap(node) && !hasJsxAttribute(node, "key")) add("STABLE_KEY_REQUIRED", node);
     }
     // A semantic token is the only way to name a colour. `semanticTokens.x`
     // is checked against the theme's own allowlist so a token the theme does
@@ -197,16 +221,25 @@ export function validateGeneratedUiSource(input: StaticValidationInput): StaticV
   if (maximumDepth > 80) add("DEPTH_LIMIT_EXCEEDED");
   if (complexity > input.limits.maxComplexity) add("COMPLEXITY_LIMIT_EXCEEDED");
   if (boundedStateCalls > input.limits.maxLocalStateEntries) add("LOCAL_STATE_LIMIT_EXCEEDED");
+  if (renderNodes > input.limits.maxRenderNodes) add("RENDER_NODE_LIMIT_EXCEEDED");
   if (sourceFile.statements.filter(ts.isFunctionDeclaration).some((fn) => fn.name && functionCallsName(fn, fn.name.text))) add("RECURSION_NOT_ALLOWED");
 
   compareSet("RUNTIME_IMPORTS", imports, input.manifest.runtimeImports, add);
   compareSet("SOURCE_IDS", references.sourceIds, input.manifest.sourceIds, add);
-  compareSet("RECORD_IDS", references.recordIds, input.manifest.recordIds, add);
-  compareSet("FACT_IDS", references.factIds, input.manifest.factIds, add);
-  compareSet("MEDIA_IDS", references.mediaIds, input.manifest.mediaIds, add);
-  compareSet("COMPONENT_IDS", references.componentIds, input.manifest.componentIds, add);
+  // Responsive regions and local interactions are checked for *agreement*
+  // with the code, not exact equality: the manifest may not claim a region
+  // the source never renders or more bounded-state hooks than it calls.
+  if ([...input.manifest.responsiveRegions].some((label) => !responsiveRegions.has(label))) add("MANIFEST_RESPONSIVE_REGIONS_MISMATCH");
+  if (input.manifest.localInteractions.length > boundedStateCalls) add("MANIFEST_LOCAL_INTERACTIONS_MISMATCH");
 
-  return { valid: issues.length === 0, issues, astNodes, complexity, maximumDepth };
+  return {
+    valid: !issues.some((issue) => issue.severity === "error"),
+    issues,
+    astNodes,
+    complexity,
+    maximumDepth,
+    imports: [...imports],
+  };
 }
 
 function isDeclarationName(node: ts.Identifier): boolean {
@@ -259,4 +292,16 @@ function functionCallsName(fn: ts.FunctionDeclaration, name: string): boolean {
   };
   if (fn.body) scan(fn.body);
   return found;
+}
+
+function isReturnedFromArrayMap(node: ts.JsxOpeningLikeElement): boolean {
+  let current: ts.Node | undefined = node.parent;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression) && current.expression.name.text === "map") {
+      return true;
+    }
+    if (ts.isFunctionDeclaration(current)) return false;
+    current = current.parent;
+  }
+  return false;
 }

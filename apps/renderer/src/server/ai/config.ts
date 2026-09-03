@@ -31,16 +31,7 @@ const BaseUrlSchema = z.url().transform((value, context) => {
 });
 
 const TransportSchema = z.object({
-  timeoutMs: z.coerce.number().int().min(1_000).max(300_000),
   maxRetries: z.coerce.number().int().min(0).max(5),
-  /**
-   * Total wall-clock budget for retrying a rate-limited or 5xx request,
-   * kept independent of `timeoutMs` (which bounds a single attempt). A
-   * `Retry-After` is honored verbatim, so one rate-limit wait must not be
-   * able to exhaust a single attempt's budget and surface as a failure even
-   * though the server said exactly how long to wait.
-   */
-  retryMaxElapsedMs: z.coerce.number().int().min(1_000).max(600_000),
 });
 
 export type TransportConfig = z.infer<typeof TransportSchema>;
@@ -73,10 +64,10 @@ export type ModelRoleConfig = z.infer<typeof ModelRoleSchema>;
  *   `SOURCE_FINDING_MODEL`). It never decides URL safety -- trusted code
  *   does, in `server/ui-generate/source-finding/url-policy.ts`.
  * - `uiPlanning` reads every successful rendered-HTML capture and returns
- *   one validated `UiPlan` (`UI_PLANNING_MODEL_PROVIDER` /
+ *   one free-form implementation prompt (`UI_PLANNING_MODEL_PROVIDER` /
  *   `UI_PLANNING_MODEL`).
- * - `ui` writes the React component from that plan (`UI_MODEL_PROVIDER` /
- *   `UI_MODEL`).
+ * - `ui` writes the React component from that implementation prompt
+ *   (`UI_MODEL_PROVIDER` / `UI_MODEL`).
  *
  * Only `chat` is required. `ui.generate` needs all three internal roles: if
  * any is unset the tool is not offered at all, rather than being offered and
@@ -107,9 +98,7 @@ export class AiConfigError extends Error {
 
 function readTransport(environment: Environment): TransportConfig {
   const parsed = TransportSchema.safeParse({
-    timeoutMs: environment.AI_TIMEOUT_MS ?? "60000",
     maxRetries: environment.AI_MAX_RETRIES ?? "2",
-    retryMaxElapsedMs: environment.AI_RETRY_MAX_ELAPSED_MS ?? "120000",
   });
   if (!parsed.success) {
     throw new AiConfigError(`AI transport configuration is invalid (${fieldList(parsed.error)}).`);

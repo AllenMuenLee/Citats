@@ -1,28 +1,60 @@
 {
   "schemaVersion": 1,
-  "promptVersion": "ui-prompt-v1",
-  "promptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "plan": {
-    "schemaVersion": 1,
-    "canonicalGoal": "Compare the available items",
-    "sources": [{ "sourceId": "source-one", "requestedUrl": "https://example.com/items", "finalUrl": "https://example.com/items", "origin": "example.com", "title": "Available items", "retrievedAt": "2026-08-25T00:00:00Z", "captureStatus": "complete" }],
-    "facts": [], "collections": [], "records": [], "media": [],
-    "components": [{ "componentId": "root", "role": "root", "label": "Available items", "description": "Comparison view", "childIds": [], "collectionId": null, "recordIds": [], "factIds": [], "mediaIds": [] }],
-    "informationArchitecture": { "primaryEntity": "Items", "grouping": "none", "ordering": "source_order", "orderingFieldRole": null, "sectionIds": ["root"] },
-    "layout": { "structure": "single_column", "density": "comfortable", "maxColumns": 1 },
-    "visualDirection": { "tone": "neutral", "accentToken": "accent", "surfaceTokens": ["surface"], "emphasis": "Clear comparison" },
-    "typography": { "headingLevels": 2, "bodySizePx": 16, "auxiliarySizePx": 12, "monospaceFor": ["none"] },
-    "spacing": { "baseUnitPx": 4, "sectionGapPx": 24, "itemGapPx": 12 },
-    "responsive": { "breakpoints": [{ "name": "compact", "minWidthPx": 320, "columns": 1, "collapse": [] }], "minimumViewport": { "width": 800, "height": 600 } },
-    "accessibility": { "landmarks": ["main"], "headingOutline": [{ "level": 1, "componentId": "root" }], "features": ["heading_order", "landmarks"], "notes": [] },
-    "localInteractions": [],
-    "states": { "empty": { "headline": "No items", "body": "No comparable items were captured." }, "loading": { "headline": "Loading", "body": "Preparing the comparison." }, "error": { "headline": "Unavailable", "body": "The comparison could not be prepared." }, "partial": { "headline": "Partial results", "body": "Some requested information is unavailable." } },
-    "coverage": { "requestedSources": 1, "capturedSources": 1, "omissions": [], "unsupportedRequests": [], "confidence": "high" },
-    "constraints": { "maxRecordsRendered": 1, "maxComponentsRendered": 1, "requireSourceAttribution": true, "allowExternalActions": false, "allowNetworkAccess": false }
+  "plannerPromptVersion": "ui-planner-v1",
+  "plannerPromptDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "promptVersion": "ui-generation-v5",
+  "promptDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "trustedRequest": "Compare the available items",
+  "implementationPrompt": "Build a single-column comparison of the available items. Lead with a short summary sentence, then a two-row table with Price and Rating columns. Attribute every figure to src-1 in visible text. Use the accent token for the summary rule and surface for the table background. Collapse the table to stacked cards below 800px. Provide empty, loading, error, and partial-coverage copy.",
+  "implementationPromptDigest": "afb20b7c34fe1ee5b26a709e3d370be264c16e8e0b4136e5891ea507b7b79f8c",
+  "trustedSources": [
+    {
+      "sourceId": "src-1",
+      "finalUrl": "https://example.com/items",
+      "origin": "example.com",
+      "title": "Available items",
+      "retrievedAt": "2026-08-25T00:00:00Z",
+      "captureStatus": "complete"
+    }
+  ],
+  "runtime": {
+    "module": "@ai-browser/generated-ui-runtime",
+    "apiVersion": "3.0.0",
+    "exports": [
+      "Stack",
+      "Text",
+      "Region"
+    ]
   },
-  "planDigest": "fb1d87fdb3825292f23544d192fe88a92f414c88a80de816e397111b78a222ab",
-  "runtime": { "module": "@ai-browser/generated-ui-runtime", "apiVersion": "1.0.0", "exports": ["Stack"] },
-  "theme": { "allowedTokens": ["accent", "surface"], "minimumTargetSize": 44, "supportedThemes": ["light", "dark"], "supportsReducedMotion": true, "minimumViewport": { "width": 800, "height": 600 }, "maximumZoomPercent": 200 },
-  "limits": { "maxSourceBytes": 65536, "maxAstNodes": 10000, "maxComplexity": 100, "maxRenderNodes": 2000, "maxLocalStateEntries": 16 },
-  "correlation": { "requestId": "req-1", "userId": "user-1" }
+  "theme": {
+    "allowedTokens": [
+      "canvas",
+      "surface",
+      "accent",
+      "text-primary",
+      "border"
+    ],
+    "minimumTargetSize": 40,
+    "supportedThemes": [
+      "light",
+      "dark"
+    ],
+    "supportsReducedMotion": true,
+    "minimumViewport": {
+      "width": 800,
+      "height": 600
+    },
+    "maximumZoomPercent": 200
+  },
+  "limits": {
+    "maxSourceBytes": 65536,
+    "maxAstNodes": 20000,
+    "maxComplexity": 200,
+    "maxRenderNodes": 5000,
+    "maxLocalStateEntries": 24
+  },
+  "correlation": {
+    "requestId": "req-1",
+    "userId": "user-1"
+  }
 }

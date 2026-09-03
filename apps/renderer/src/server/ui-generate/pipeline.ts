@@ -32,8 +32,6 @@ export interface UiGeneratePipelineDependencies {
   readonly planning: PlanningStage;
   readonly generation: GenerationStage;
   readonly render: RenderStage;
-  /** How long a mounted surface has to send its instance-bound ready handshake. */
-  readonly readyTimeoutMs?: number;
 }
 
 export type UiGeneratePipeline = (request: string, context: UiGenerateContext) => Promise<UiGenerateResult>;
@@ -51,7 +49,6 @@ function toResult(error: unknown, signal: AbortSignal): UiGenerateResult {
 }
 
 export function createUiGeneratePipeline(dependencies: UiGeneratePipelineDependencies): UiGeneratePipeline {
-  const readyTimeoutMs = dependencies.readyTimeoutMs ?? 20_000;
   return async function generateUi(request: string, context: UiGenerateContext): Promise<UiGenerateResult> {
     const { signal, correlationId, ownerId } = context;
     let mountedInstanceId: string | null = null;
@@ -60,29 +57,41 @@ export function createUiGeneratePipeline(dependencies: UiGeneratePipelineDepende
 
       context.emitProgress("source_finding");
       const sources = await dependencies.sourceFinding.find({ request, correlationId, signal });
-      context.trace?.("ui-generate-sources", { count: sources.length, origins: sources.map((source) => source.origin) });
+      context.trace?.("ui-generate-sources", {
+        count: sources.length,
+        origins: sources.map((source) => source.origin),
+        urls: sources.map((source) => source.url),
+      });
 
       context.emitProgress("page_capture");
       const { captures, failures } = await dependencies.capture.capture({ sources, correlationId, signal });
       context.trace?.("ui-generate-captures", { captured: captures.length, failures: failures.map((failure) => failure.category) });
 
       context.emitProgress("ui_planning");
-      const plan = await dependencies.planning.plan({ request, captures, correlationId, signal });
-      context.trace?.("ui-generate-plan", { records: plan.records.length, components: plan.components.length, confidence: plan.coverage.confidence });
+      const { implementationPrompt, trustedSources } = await dependencies.planning.plan({ request, captures, correlationId, signal });
+      context.trace?.("ui-generate-plan", { implementationPromptChars: implementationPrompt.length, trustedSources: trustedSources.length });
 
       // Generation, validation/compilation, and registration are one stage
       // boundary from the caller's side but two progress states, because the
       // second is where a well-formed but unsafe component is rejected.
       context.emitProgress("ui_generation");
       context.emitProgress("validation");
-      const view = await dependencies.generation.generate({ plan, ownerId, correlationId, signal });
+      const view = await dependencies.generation.generate({
+        implementationPrompt,
+        trustedSources,
+        requestedSourceCount: sources.length,
+        request,
+        ownerId,
+        correlationId,
+        signal,
+      });
       mountedInstanceId = view.instanceId;
 
       // The renderer is handed the instance only now, and readiness is what
       // it reports back. Emitting the view is not the result.
       context.emitProgress("rendering");
       context.emitView(view);
-      const ready = await dependencies.render.awaitReady({ instanceId: view.instanceId, timeoutMs: readyTimeoutMs, signal });
+      const ready = await dependencies.render.awaitReady({ instanceId: view.instanceId, signal });
       if (!ready) {
         dependencies.render.destroy({ instanceId: view.instanceId, ownerId });
         mountedInstanceId = null;

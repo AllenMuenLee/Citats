@@ -1,7 +1,7 @@
 import { Component, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import * as runtime from "./index";
-import type { GeneratedViewProps } from "./index";
+import type { GeneratedViewProps, OpaqueId } from "./index";
 
 /**
  * The sandbox-side entry point.
@@ -22,8 +22,32 @@ type GeneratedViewComponent = (props: GeneratedViewProps) => ReactNode;
 interface SandboxBridge {
   readonly runtime: typeof runtime;
   register(component: GeneratedViewComponent): void;
-  mount(container: Element, props: GeneratedViewProps, onError: (code: string) => void): boolean;
+  mount(container: Element, rawProps: unknown, onError: (code: string) => void): boolean;
   hasComponent(): boolean;
+}
+
+/**
+ * Builds the frozen `GeneratedViewProps` the component receives from the
+ * display-safe payload the host forwarded. Functions cannot cross
+ * `postMessage`, so `getSource` is reconstructed here over the supplied
+ * source list -- the host never sends a callable.
+ */
+function buildProps(raw: unknown): GeneratedViewProps {
+  const record = (raw ?? {}) as Record<string, unknown>;
+  const sources = Array.isArray(record.sources) ? (record.sources as GeneratedViewProps["sources"]) : [];
+  const byId = new Map(sources.map((source) => [source.id, source] as const));
+  const coverage = (record.coverage ?? {}) as Record<string, unknown>;
+  return Object.freeze({
+    instanceRevision: typeof record.instanceRevision === "number" ? record.instanceRevision : 0,
+    goal: typeof record.goal === "string" ? record.goal : "",
+    sources,
+    coverage: Object.freeze({
+      requestedSources: typeof coverage.requestedSources === "number" ? coverage.requestedSources : sources.length,
+      capturedSources: typeof coverage.capturedSources === "number" ? coverage.capturedSources : sources.length,
+      note: typeof coverage.note === "string" ? coverage.note : null,
+    }),
+    getSource: (id: OpaqueId) => byId.get(id),
+  });
 }
 
 class MountBoundary extends Component<{ readonly onError: (code: string) => void; readonly children: ReactNode }, { failed: boolean }> {
@@ -55,10 +79,11 @@ const bridge: SandboxBridge = {
   hasComponent() {
     return registered !== null;
   },
-  mount(container, props, onError) {
+  mount(container, rawProps, onError) {
     if (registered === null || root !== null) return false;
+    const props = buildProps(rawProps);
     root = createRoot(container, { onUncaughtError: () => onError("RENDER_THREW"), onCaughtError: () => onError("RENDER_THREW") });
-    root.render(createElement(MountBoundary, { onError }, createElement(registered, props)));
+    root.render(createElement(MountBoundary, { onError, children: createElement(registered, props) }));
     return true;
   },
 };

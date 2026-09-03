@@ -49,26 +49,6 @@
           "maxItems": 16,
           "type": "array"
         },
-        "componentIds": {
-          "items": {
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
-            "type": "string"
-          },
-          "maxItems": 256,
-          "type": "array"
-        },
-        "factIds": {
-          "items": {
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
-            "type": "string"
-          },
-          "maxItems": 256,
-          "type": "array"
-        },
         "fallback": {
           "type": "boolean"
         },
@@ -110,30 +90,6 @@
           "maxItems": 32,
           "type": "array"
         },
-        "mediaIds": {
-          "items": {
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
-            "type": "string"
-          },
-          "maxItems": 256,
-          "type": "array"
-        },
-        "planDigest": {
-          "pattern": "^[a-f0-9]{64}$",
-          "type": "string"
-        },
-        "recordIds": {
-          "items": {
-            "maxLength": 64,
-            "minLength": 1,
-            "pattern": "^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$",
-            "type": "string"
-          },
-          "maxItems": 256,
-          "type": "array"
-        },
         "responsiveRegions": {
           "items": {
             "maxLength": 100,
@@ -165,12 +121,7 @@
         }
       },
       "required": [
-        "planDigest",
         "sourceIds",
-        "recordIds",
-        "factIds",
-        "mediaIds",
-        "componentIds",
         "localInteractions",
         "accessibilityFeatures",
         "responsiveRegions",

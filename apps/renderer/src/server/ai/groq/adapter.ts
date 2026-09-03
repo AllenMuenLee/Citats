@@ -231,7 +231,6 @@ export function createGroqCompletion(
   fetchImpl: typeof fetch = fetch,
 ): TextCompletion {
   return async (request, signal) => {
-    const startedAt = Date.now();
     for (let attempt = 0; ; attempt += 1) {
       const response = await fetchImpl(new URL("chat/completions", config.baseUrl), {
         method: "POST",
@@ -251,7 +250,9 @@ export function createGroqCompletion(
           ],
           tools: [],
           tool_choice: "none",
-          response_format: responseFormatPayload(request, config.model),
+          ...(request.responseFormat
+            ? { response_format: responseFormatPayload(request, config.model) }
+            : {}),
         }),
       });
       if (!response.ok) {
@@ -260,7 +261,7 @@ export function createGroqCompletion(
         const mapped = mapHttpStatus(response.status, detail);
         const delay = Math.max(retryDelayMs(response), retryDelayFromMessage(detail.message), 100 * (2 ** attempt));
         const retryable = mapped.code === "AI_RATE_LIMITED" || mapped.code === "AI_PROVIDER_UNAVAILABLE";
-        if (retryable && attempt < config.maxRetries && (Date.now() - startedAt) + delay <= config.retryMaxElapsedMs) {
+        if (retryable && attempt < config.maxRetries) {
           await defaultSleep(delay, signal);
           continue;
         }

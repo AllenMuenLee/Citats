@@ -5,7 +5,6 @@ vi.mock("server-only", () => ({}));
 import { BrowserServiceClient } from "../src/server/browser-service/client";
 import {
   BrowserServiceContractError,
-  BrowserServiceTimeoutError,
   BrowserServiceUnavailableError,
 } from "../src/server/browser-service/errors";
 import { redactForLog } from "../src/server/browser-service/redaction";
@@ -92,14 +91,6 @@ describe("BrowserServiceClient", () => {
     await expect(unavailable.invoke(invocation)).rejects.toBeInstanceOf(BrowserServiceUnavailableError);
     const malformed = new BrowserServiceClient({ baseUrl: "http://localhost:1", serviceToken: "x", fetchImpl: vi.fn(async () => Response.json({ nope: true })) });
     await expect(malformed.invoke(invocation)).rejects.toBeInstanceOf(BrowserServiceContractError);
-  });
-
-  it("normalizes timeouts", async () => {
-    const fetchImpl = vi.fn((_url: URL | RequestInfo, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
-    }));
-    const client = new BrowserServiceClient({ baseUrl: "http://localhost:1", serviceToken: "x", resolveTimeoutMs: () => 5, fetchImpl });
-    await expect(client.invoke(invocation)).rejects.toBeInstanceOf(BrowserServiceTimeoutError);
   });
 
   it("recursively redacts secret-shaped log fields", () => {

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   UI_GENERATE_TOOL_NAME,
-  UI_GENERATE_REQUEST_MAX_LENGTH,
   uiGenerateFailure,
   type UiGenerateResult,
 } from "@ai-browser/contracts";
@@ -49,19 +48,14 @@ function build(model: ModelAdapter, uiGenerate?: Parameters<typeof createToolReg
 }
 
 describe("tool surface", () => {
-  it("offers exactly one custom tool, with a single bounded request argument", () => {
+  it("offers exactly one custom tool that takes no arguments", () => {
     const tools = createToolRegistry({ uiGenerate: vi.fn() });
     expect([...tools.keys()]).toEqual([UI_GENERATE_TOOL_NAME]);
     const definition = tools.get(UI_GENERATE_TOOL_NAME)!.definition;
-    expect(definition.strict).toBe(true);
-    expect(definition.parameters).toMatchObject({
-      type: "object",
-      additionalProperties: false,
-      required: ["request"],
-      properties: { request: { type: "string", maxLength: UI_GENERATE_REQUEST_MAX_LENGTH } },
-    });
-    // No URL, site, HTML, model setting, plan, code, selector, or pipeline option.
-    expect(Object.keys((definition.parameters as { properties: Record<string, unknown> }).properties)).toEqual(["request"]);
+    // A closed, empty parameter object: nothing for the model to fill in --
+    // no request string, URL, site, HTML, model setting, code, or selector.
+    expect(definition.parameters).toMatchObject({ type: "object", additionalProperties: false, properties: {} });
+    expect(Object.keys((definition.parameters as { properties: Record<string, unknown> }).properties)).toEqual([]);
   });
 
   it("offers no tools at all when the pipeline is not configured", () => {
@@ -79,15 +73,19 @@ describe("tool surface", () => {
     expect(seen).toEqual(["compare 3 coffee grinders"]);
   });
 
-  it("rejects a rewritten request before dispatch", async () => {
-    const uiGenerate = vi.fn(async () => READY);
+  it("ignores anything the model attaches and runs against the real turn text", async () => {
+    const seen: string[] = [];
+    const uiGenerate = vi.fn(async (request: string) => {
+      seen.push(request);
+      return READY;
+    });
     const model = scriptedModel([
       toolCall(UI_GENERATE_TOOL_NAME, JSON.stringify({ request: "make me a dashboard about anything" })),
+      text("Your view is ready."),
     ]);
-    await expect(collect(build(model, uiGenerate as never), "compare 3 coffee grinders")).rejects.toMatchObject({
-      code: "CONTRACT_ERROR",
-    });
-    expect(uiGenerate).not.toHaveBeenCalled();
+    await collect(build(model, uiGenerate as never), "compare 3 coffee grinders");
+    // The bogus argument is discarded; the pipeline gets the turn's own text.
+    expect(seen).toEqual(["compare 3 coffee grinders"]);
   });
 });
 
@@ -111,6 +109,29 @@ describe("conversation loop", () => {
     const model = scriptedModel([toolCall(UI_GENERATE_TOOL_NAME, JSON.stringify({ request: "compare grinders" })), text("Your comparison view is ready.")]);
     const events = await collect(build(model, uiGenerate as never), "compare grinders");
     expect(events.filter((event) => event.type === "tool-progress").map((event) => event.state)).toEqual(["source_finding", "rendering"]);
+    expect(events.some((event) => event.type === "generated-ui")).toBe(true);
+    expect(events.find((event) => event.type === "tool-status" && event.state === "completed")).toBeDefined();
+  });
+
+  it("streams the generated-ui view while ui.generate is still running, not only after it returns", async () => {
+    // The real pipeline's last step blocks on the surface's ready handshake,
+    // and the surface is only mounted once the client receives this event.
+    // If the orchestrator buffers it until execute() resolves, the turn
+    // deadlocks -- so the consumer here withholds completion until it has
+    // actually seen the `generated-ui` event.
+    let releaseExecution: () => void = () => {};
+    const executionMayFinish = new Promise<void>((resolve) => { releaseExecution = resolve; });
+    const uiGenerate = vi.fn(async (_request: string, context: { emitView: (view: unknown) => void }) => {
+      context.emitView({ instanceId: "i1", artifactId: `gui_${"a".repeat(64)}`, implementationPromptDigest: "b".repeat(64), inputDigest: "c".repeat(64), revision: 0, expiresAt: "2026-09-02T10:00:00.000Z", title: "Grinders", sourceCount: 2, coverage: "validated", fallbackText: "x" });
+      await executionMayFinish;
+      return READY;
+    });
+    const model = scriptedModel([toolCall(UI_GENERATE_TOOL_NAME, "{}"), text("Ready.")]);
+    const events: OrchestratorEvent[] = [];
+    for await (const event of build(model, uiGenerate as never).run({ sessionId: "s1", ownerId: "owner", text: "compare grinders" })) {
+      events.push(event);
+      if (event.type === "generated-ui") releaseExecution();
+    }
     expect(events.some((event) => event.type === "generated-ui")).toBe(true);
     expect(events.find((event) => event.type === "tool-status" && event.state === "completed")).toBeDefined();
   });

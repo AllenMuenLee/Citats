@@ -174,8 +174,9 @@ export function sanitizeRenderedDocument(options: SanitizeOptions): SanitizedCap
   // Collapse the runs of whitespace a formatter left behind; they are a
   // large fraction of a typical serialized DOM and carry nothing.
   html = html.replace(/\s{2,}/g, " ").replace(/>\s+</g, "><");
-  if (html.length > options.maxBytes) {
-    html = html.slice(0, options.maxBytes);
+  const encoded = new TextEncoder().encode(html);
+  if (encoded.byteLength > options.maxBytes) {
+    html = new TextDecoder().decode(encoded.slice(0, options.maxBytes));
     truncated = true;
   }
   return { html, title, truncated, removedHiddenNodes };

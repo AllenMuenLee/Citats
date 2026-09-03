@@ -27,6 +27,8 @@ export interface StaticValidationResult {
   readonly astNodes: number;
   readonly complexity: number;
   readonly maximumDepth: number;
+  /** The runtime export names actually imported by the source, in first-seen order. */
+  readonly imports: readonly string[];
 }
 
 export interface CompiledModule {

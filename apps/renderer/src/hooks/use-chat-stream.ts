@@ -6,6 +6,17 @@ import type { ChatPart, ChatStatus, ChatStreamEvent } from "../components/chat/c
 export const MAX_MESSAGE_LENGTH = 16_000;
 const localId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
+/**
+ * Trims a finished turn's transient parts: the still-"…" stage-progress
+ * lines (superseded by the tool's "Done:" status and the final answer) and
+ * an assistant bubble that never received any text.
+ */
+const finalizeParts = (assistantId: string) => (current: ChatPart[]): ChatPart[] =>
+  current.filter((part) =>
+    part.type !== "tool-progress" &&
+    (part.id !== assistantId || part.type !== "assistant" || part.text.length > 0),
+  );
+
 function parseEvent(block: string): ChatStreamEvent | null {
   const data = block.split("\n").filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart()).join("\n");
@@ -89,15 +100,15 @@ export function useChatStream() {
         if (event.type === "error") throw Object.assign(new Error(event.message), { retryable: event.retryable });
       });
       if (!controller.signal.aborted) {
-        setParts((current) => current.filter((part) => part.id !== assistantId || part.type !== "assistant" || part.text.length > 0));
+        setParts(finalizeParts(assistantId));
         setStatus("completed");
       }
     } catch (error) {
-      if (controller.signal.aborted) setStatus("stopped");
+      if (controller.signal.aborted) { setParts(finalizeParts(assistantId)); setStatus("stopped"); }
       else {
         const message = error instanceof Error ? error.message : "The response failed. Try again.";
         const retryable = !(error instanceof Error && "retryable" in error && error.retryable === false);
-        setParts((current) => [...current.filter((part) => part.id !== assistantId || part.type !== "assistant" || part.text.length > 0), { id: localId("error"), type: "error", message, retryable }]);
+        setParts((current) => [...finalizeParts(assistantId)(current), { id: localId("error"), type: "error", message, retryable }]);
         setStatus("failed");
       }
     } finally { if (controllerRef.current === controller) controllerRef.current = null; }

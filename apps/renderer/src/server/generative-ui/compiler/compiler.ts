@@ -1,11 +1,20 @@
 import ts from "typescript";
+import { GENERATED_UI_RUNTIME_DTS } from "./runtime-dts";
 import { RUNTIME_EXPORTS, validateGeneratedUiSource } from "./static-validator";
 import type { CompiledModule, StaticValidationInput } from "./types";
 
-export const GENERATED_UI_TOOLCHAIN_VERSION = `typescript-${ts.version}-gui-2`;
+export const GENERATED_UI_TOOLCHAIN_VERSION = `typescript-${ts.version}-gui-3`;
 
 export class GeneratedUiCompilationError extends Error {
-  constructor(readonly codes: readonly string[]) {
+  constructor(
+    readonly codes: readonly string[],
+    /**
+     * Optional, already-sanitized one-liners for the bounded repair turn.
+     * Only ever the names TypeScript could not resolve in the model's own
+     * generated source -- no free diagnostic text, no page content.
+     */
+    readonly details: readonly string[] = [],
+  ) {
     super("Generated UI compilation rejected");
     this.name = "GeneratedUiCompilationError";
   }
@@ -32,7 +41,12 @@ export function compileGeneratedUi(input: StaticValidationInput): CompiledModule
   const validation = validateGeneratedUiSource(input);
   if (!validation.valid) throw new GeneratedUiCompilationError(validation.issues.map((issue) => issue.code));
   const typeErrors = typeCheckIsolated(input.source);
-  if (typeErrors.length) throw new GeneratedUiCompilationError(typeErrors);
+  if (typeErrors.length) {
+    throw new GeneratedUiCompilationError(
+      typeErrors.map((error) => error.code),
+      typeErrors.map((error) => error.detail ?? ""),
+    );
+  }
   const result = ts.transpileModule(input.source, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,
@@ -52,7 +66,10 @@ export function compileGeneratedUi(input: StaticValidationInput): CompiledModule
   if (result.diagnostics?.some((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)) {
     throw new GeneratedUiCompilationError(["TYPE_OR_TRANSPILE_ERROR"]);
   }
-  const wrapped = wrapForSandbox(result.outputText, input.manifest.runtimeImports);
+  // The sandbox destructure is built from the imports the source actually
+  // declares, not from the manifest -- so a manifest that disagrees with
+  // the code cannot break the bundle (the disagreement is a warning).
+  const wrapped = wrapForSandbox(result.outputText, validation.imports);
   if (/sourceMappingURL|sourceURL/.test(wrapped)) throw new GeneratedUiCompilationError(["SOURCE_MAP_LEAKAGE"]);
   return { bytes: new TextEncoder().encode(wrapped), validation, toolchainVersion: GENERATED_UI_TOOLCHAIN_VERSION, sourceMapPolicy: "omitted" };
 }
@@ -116,36 +133,31 @@ type Record<K extends string, T> = { readonly [P in K]: T }; type Readonly<T> = 
 declare const Math: { max(...values: number[]): number; min(...values: number[]): number; round(value: number): number; abs(value: number): number; };
 declare const JSON: { stringify(value: unknown): string };
 declare namespace JSX { interface Element {} interface ElementChildrenAttribute { children: {} } interface IntrinsicElements { [name: string]: any } }
-declare module "@ai-browser/generated-ui-runtime" {
-  export type OpaqueId = string;
-  export interface DisplaySource { readonly id: OpaqueId; readonly title: string; readonly origin: string; readonly finalUrl: string; readonly retrievedAt: string; readonly captureStatus: "complete" | "truncated" | "partial"; }
-  export interface DisplayFact { readonly id: OpaqueId; readonly label: string; readonly value: string; readonly kind: string; readonly unit: string | null; readonly numericValue: number | null; readonly sourceId: OpaqueId; readonly note: string | null; }
-  export interface DisplayRecordField { readonly id: OpaqueId; readonly label: string; readonly value: string; readonly role: string; readonly numericValue: number | null; }
-  export interface DisplayRecord { readonly id: OpaqueId; readonly collectionId: OpaqueId; readonly title: string; readonly sourceId: OpaqueId; readonly fields: readonly DisplayRecordField[]; readonly mediaIds: readonly OpaqueId[]; readonly factIds: readonly OpaqueId[]; }
-  export interface DisplayCollection { readonly id: OpaqueId; readonly label: string; readonly description: string; readonly comparableFieldRoles: readonly string[]; }
-  export interface DisplayMedia { readonly id: OpaqueId; readonly kind: "image" | "illustration" | "chart" | "video" | "audio" | "icon"; readonly alternativeText: string; readonly caption: string | null; readonly sourceId: OpaqueId; }
-  export interface DisplayCoverage { readonly requestedSources: number; readonly capturedSources: number; readonly omissions: readonly string[]; readonly unsupportedRequests: readonly string[]; readonly confidence: "high" | "medium" | "low"; }
-  export interface GeneratedViewProps {
-    readonly instanceRevision: number; readonly goal: string;
-    readonly sources: readonly DisplaySource[]; readonly collections: readonly DisplayCollection[];
-    readonly records: readonly DisplayRecord[]; readonly facts: readonly DisplayFact[];
-    readonly media: readonly DisplayMedia[]; readonly coverage: DisplayCoverage;
-    getSource(id: OpaqueId): DisplaySource | undefined; getCollection(id: OpaqueId): DisplayCollection | undefined;
-    getRecord(id: OpaqueId): DisplayRecord | undefined; getFact(id: OpaqueId): DisplayFact | undefined;
-    getMedia(id: OpaqueId): DisplayMedia | undefined;
-  }
-  export const semanticTokens: Readonly<Record<string, string>>;
-  export const Stack: any, Inline: any, Grid: any, Card: any, Region: any, Text: any, Heading: any, Badge: any, List: any, ListItem: any, Table: any, TableHead: any, TableBody: any, TableRow: any, TableHeader: any, TableCell: any, Label: any, Select: any, Option: any, Status: any, Warning: any, Source: any, Freshness: any, Icon: any, Media: any, Modal: any;
-  export function useBoundedState<T>(initial: T, allowed: readonly T[]): readonly [T, (next: T) => void];
-  export function useLocalCollection<T>(items: readonly T[], options: { readonly filter?: (item: T) => boolean; readonly compare?: (a: T, b: T) => number }): readonly T[];
-  export function formatNumber(value: number, locale?: string): string;
-  export function formatCurrency(value: number, currency: string, locale?: string): string;
-  export function formatDate(value: string, locale?: string): string;
-  export const createElement: any; export const Fragment: any;
-}
+${GENERATED_UI_RUNTIME_DTS}
 `;
 
-function typeCheckIsolated(source: string): string[] {
+interface IsolatedTypeError {
+  readonly code: string;
+  /** A sanitized one-liner naming the unresolved identifier, when the diagnostic is a "cannot find name". */
+  readonly detail?: string;
+}
+
+/**
+ * Pulls only the quoted identifier out of a "Cannot find name 'X'" / "did
+ * you mean 'Y'" diagnostic and rebuilds a fixed sentence from it. The
+ * diagnostic's own message text is never forwarded -- an identifier matched
+ * by this pattern is at most 40 word-characters and cannot carry page
+ * content or an instruction.
+ */
+function nameResolutionDetail(diagnostic: ts.Diagnostic): string | undefined {
+  if (diagnostic.code !== 2304 && diagnostic.code !== 2552 && diagnostic.code !== 2551) return undefined;
+  const text = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+  const names = [...text.matchAll(/'([A-Za-z_$][\w$]{0,40})'/g)].map((match) => match[1]);
+  if (names.length === 0) return undefined;
+  return `Unresolved name ${names[0]}${names[1] ? ` (did you mean ${names[1]}?)` : ""} -- import it from "@ai-browser/generated-ui-runtime" or declare it before use.`;
+}
+
+function typeCheckIsolated(source: string): IsolatedTypeError[] {
   const files = new Map([
     ["/generated-view.tsx", source],
     ["/ambient.d.ts", AMBIENT],
@@ -178,5 +190,8 @@ function typeCheckIsolated(source: string): string[] {
     getNewLine: () => "\n",
   };
   const program = ts.createProgram([...files.keys()], options, host);
-  return ts.getPreEmitDiagnostics(program).map((diagnostic) => `TYPE_CHECK_${diagnostic.code}`);
+  return ts.getPreEmitDiagnostics(program).map((diagnostic) => {
+    const detail = nameResolutionDetail(diagnostic);
+    return { code: `TYPE_CHECK_${diagnostic.code}`, ...(detail ? { detail } : {}) };
+  });
 }

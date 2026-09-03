@@ -7,7 +7,8 @@ import { createAdaptiveGeneratedUi } from "../../generative-ui/flow";
 import { generatedUiInstances, type GeneratedUiInstanceStore } from "../../generative-ui/instance-store";
 import { buildUiGenerationRequest } from "../../generative-ui/request-builder";
 import { createUiGenerationAdapter } from "../../generative-ui/ui-adapter";
-import { GENERATED_UI_TOOLCHAIN_VERSION, validateGeneratedUiSource } from "../../generative-ui/compiler";
+import { compileGeneratedUi, GeneratedUiCompilationError, GENERATED_UI_TOOLCHAIN_VERSION, validateGeneratedUiSource } from "../../generative-ui/compiler";
+import { UI_PLANNING_PROMPT_DIGEST, UI_PLANNING_PROMPT_VERSION } from "../planning/system-prompt";
 import { UiGenerateStageError, type GenerationStage, type RegisteredView, type RenderStage } from "../types";
 
 /**
@@ -15,15 +16,15 @@ import { UiGenerateStageError, type GenerationStage, type RegisteredView, type R
  * validates, compiles, content-addresses, and registers it (P04-F02,
  * P04-F05 step 1).
  *
- * Nothing here reads the plan for policy: the request builder fixes the
- * runtime, theme, and limits, and the compiler and static validator decide
- * what is safe. The model's contribution is source and a manifest, both of
- * which have to agree with the plan before anything is registered.
+ * Nothing here reads the implementation prompt for policy: the request
+ * builder fixes the runtime, theme, and limits, and the compiler and static
+ * validator decide what is safe. The model's contribution is source and a
+ * manifest, both of which have to agree with the request and the generated
+ * code before anything is registered.
  */
 export interface GenerationStageOptions {
   readonly role: ModelRoleConfig;
   readonly instances?: GeneratedUiInstanceStore;
-  readonly deadlineMs?: number;
   readonly ttlMs?: number;
   readonly log?: (line: Record<string, unknown>) => void;
 }
@@ -32,8 +33,16 @@ export function createGenerationStage(options: GenerationStageOptions): Generati
   const instances = options.instances ?? generatedUiInstances;
   const transport = createTextCompletion(options.role);
   return {
-    async generate({ plan, ownerId, correlationId, signal }): Promise<RegisteredView> {
-      const request = buildUiGenerationRequest({ plan, requestId: correlationId, userId: ownerId });
+    async generate({ implementationPrompt, trustedSources, requestedSourceCount, request: trustedRequest, ownerId, correlationId, signal }): Promise<RegisteredView> {
+      const request = buildUiGenerationRequest({
+        implementationPrompt,
+        trustedRequest,
+        trustedSources,
+        plannerPromptVersion: UI_PLANNING_PROMPT_VERSION,
+        plannerPromptDigest: UI_PLANNING_PROMPT_DIGEST,
+        requestId: correlationId,
+        userId: ownerId,
+      });
       const adapter = createUiGenerationAdapter({
         model: options.role.model,
         compilerVersion: GENERATED_UI_TOOLCHAIN_VERSION,
@@ -41,26 +50,44 @@ export function createGenerationStage(options: GenerationStageOptions): Generati
         // follows the provider rather than being one number that is wrong for
         // one of them.
         maxTokens: options.role.provider === "groq" ? 8_000 : 24_000,
-        deadlineMs: options.deadlineMs ?? 120_000,
         transport,
         emitMetric: (metric) => {
           const line = { stage: "ui_generation", correlationId, model: options.role.model, ...metric };
           if (metric.validationCategory === "accepted") options.log?.(line);
           else options.log?.({ ...line, outcome: "no_view" });
         },
-        validate: async (response) =>
-          response.tsxSource
-            ? validateGeneratedUiSource({
-                source: response.tsxSource,
-                manifest: response.manifest,
-                limits: request.limits,
-                allowedTokens: request.theme.allowedTokens,
-              }).issues
-            : [],
+        validate: async (response) => {
+          if (!response.tsxSource) return [];
+          const input = {
+            source: response.tsxSource,
+            manifest: response.manifest,
+            limits: request.limits,
+            allowedTokens: request.theme.allowedTokens,
+          };
+          const staticErrors = validateGeneratedUiSource(input).issues.filter((issue) => issue.severity === "error");
+          if (staticErrors.length > 0) return staticErrors;
+          // The type-check and transpile the compiler runs are also a gate the
+          // model gets one repair attempt against: a well-formed component
+          // that calls a runtime export with the wrong shape comes back as
+          // normalized codes rather than dying uncaught at registration.
+          try {
+            compileGeneratedUi(input);
+            return [];
+          } catch (error) {
+            if (error instanceof GeneratedUiCompilationError) {
+              const details = error.details;
+              return error.codes.map((code, index) => ({
+                code,
+                ...(details[index] ? { message: details[index] } : {}),
+              }));
+            }
+            throw error;
+          }
+        },
       });
       const generated = await createAdaptiveGeneratedUi(
         { generate: adapter.generate, registerArtifact: registerGeneratedUiArtifact, instances, ...(options.ttlMs === undefined ? {} : { ttlMs: options.ttlMs }) },
-        { ownerId, request, signal },
+        { ownerId, request, requestedSourceCount, signal },
       );
       if (!generated.reference) {
         if (signal.aborted) throw new UiGenerateStageError("cancelled", "UI generation was cancelled");
@@ -76,7 +103,7 @@ export function createGenerationStage(options: GenerationStageOptions): Generati
         instanceId: reference.instanceId,
         viewRef: reference.viewRef,
         artifactId: reference.artifactId,
-        planDigest: reference.planDigest,
+        implementationPromptDigest: reference.implementationPromptDigest,
         inputDigest: reference.inputDigest,
         revision: reference.revision,
         expiresAt: reference.expiresAt,

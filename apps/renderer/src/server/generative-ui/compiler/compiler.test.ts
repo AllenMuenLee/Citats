@@ -7,15 +7,10 @@ const limits = { maxSourceBytes: 65_536, maxAstNodes: 20_000, maxComplexity: 200
 const allowedTokens = ["surface", "accent", "text-primary", "border"];
 
 const manifest: GeneratedUiArtifactManifest = {
-  planDigest: "a".repeat(64),
   sourceIds: ["src-1"],
-  recordIds: ["rec-1"],
-  factIds: [],
-  mediaIds: [],
-  componentIds: ["root", "table"],
   localInteractions: [{ stateKey: "sortBy", kind: "sort", boundedValues: 2 }],
   accessibilityFeatures: ["heading_order", "keyboard"],
-  responsiveRegions: ["main"],
+  responsiveRegions: ["Results", "Comparison"],
   runtimeImports: ["GeneratedViewProps", "Region", "Heading", "Source", "Text", "useBoundedState"],
   fallback: false,
 };
@@ -23,12 +18,11 @@ const manifest: GeneratedUiArtifactManifest = {
 const valid = `import { type GeneratedViewProps, Region, Heading, Source, Text, useBoundedState } from "@ai-browser/generated-ui-runtime";
 export default function GeneratedView(props: GeneratedViewProps) {
  const source = props.getSource("src-1");
- const record = props.getRecord("rec-1");
  const [sortBy, setSortBy] = useBoundedState("price", ["price", "rating"]);
- return <Region componentId="root" label="Results">
+ return <Region label="Results">
   <Heading level={1}>Results</Heading>
-  <Region componentId="table" label="Comparison">
-   <Text>{record ? record.title : ""}</Text>
+  <Region label="Comparison">
+   <Text>Grinder One: 199</Text>
    <button type="button" onClick={() => setSortBy("rating")}>{sortBy}</button>
   </Region>
   {source ? <Source source={source} /> : null}
@@ -41,8 +35,6 @@ describe("generated UI compiler", () => {
     const emitted = new TextDecoder().decode(result.bytes);
     expect(result.validation.valid).toBe(true);
     expect(emitted).not.toContain("sourceMappingURL");
-    // The sandbox runs a classic script, not an ES module: the runtime
-    // import is bound from the frozen bridge and the default export is gone.
     expect(emitted).not.toMatch(/(?:^|[\s;])(?:import|export)[\s({]/);
     expect(emitted).toContain("__bridge.register(GeneratedView)");
     expect(emitted).toContain("var { GeneratedViewProps, Region, Heading, Source, Text, useBoundedState } = __rt;");
@@ -68,11 +60,11 @@ describe("generated UI compiler", () => {
     ["image", `<img src="https://evil.test/x.png" />`, "FORBIDDEN_JSX_ELEMENT"],
     ["form", `<form><span>x</span></form>`, "FORBIDDEN_JSX_ELEMENT"],
     ["ref abuse", `<div ref={() => undefined} />`, "DANGEROUS_JSX_ATTRIBUTE"],
+    ["spread props", `<div {...props} />`, "JSX_SPREAD_NOT_ALLOWED"],
     ["loop", `while (true) {}`, "LOOP_NOT_ALLOWED"],
     ["construction", `new Date()`, "CONSTRUCTION_NOT_ALLOWED"],
     ["memory bomb", `"x".repeat(999999)`, "MEMORY_LIMIT_EXCEEDED"],
-    ["CSS exfiltration", `<div style={{background:"url(https://evil.test)"}} />`, "RAW_STYLE_ESCAPE"],
-    ["raw colour", `<div style={{color:"#ff0000"}} />`, "RAW_STYLE_ESCAPE"],
+    ["CSS exfiltration", `<div style={{background:"url(https://evil.test)"}} />`, "CSS_EXFILTRATION"],
     ["dynamic import", `import("evil")`, "DYNAMIC_IMPORT"],
     ["absolute URL literal", `const u = "https://evil.test/x";`, "EXECUTABLE_OR_EXTERNAL_URL"],
     ["data URL literal", `const u = "data:text/html,x";`, "EXECUTABLE_OR_EXTERNAL_URL"],
@@ -81,14 +73,34 @@ describe("generated UI compiler", () => {
     expect(validateGeneratedUiSource({ source, manifest, limits, allowedTokens }).issues.map((item) => item.code)).toContain(code);
   });
 
-  it("rejects a forged plan reference and the manifest disagreement it causes", () => {
-    const source = valid.replace('getRecord("rec-1")', 'getRecord("rec-forged")');
-    expect(validateGeneratedUiSource({ source, manifest, limits, allowedTokens }).issues.map((item) => item.code)).toContain("MANIFEST_RECORD_IDS_MISMATCH");
+  it("flags a forged source reference and manifest drift as non-blocking warnings", () => {
+    const source = valid.replace('getSource("src-1")', 'getSource("src-forged")');
+    const result = validateGeneratedUiSource({ source, manifest, limits, allowedTokens });
+    expect(result.issues.map((item) => item.code)).toContain("MANIFEST_SOURCE_IDS_MISMATCH");
+    expect(result.issues.find((item) => item.code === "MANIFEST_SOURCE_IDS_MISMATCH")?.severity).toBe("warning");
+    expect(result.valid).toBe(true);
   });
 
-  it("rejects a component id the plan never declared", () => {
-    const source = valid.replace('componentId="table"', 'componentId="ghost"');
-    expect(validateGeneratedUiSource({ source, manifest, limits, allowedTokens }).issues.map((item) => item.code)).toContain("MANIFEST_COMPONENT_IDS_MISMATCH");
+  it("treats a raw colour as a warning but still compiles the view", () => {
+    const withColour = valid.replace("<Text>Grinder One: 199</Text>", '<Text style={{ color: "#ff0000" }}>Grinder One: 199</Text>');
+    const result = validateGeneratedUiSource({ source: withColour, manifest, limits, allowedTokens });
+    expect(result.issues.map((item) => item.code)).toContain("RAW_COLOR_VALUE");
+    expect(result.valid).toBe(true);
+    expect(() => compileGeneratedUi({ source: withColour, manifest, limits, allowedTokens })).not.toThrow();
+  });
+
+  it("still rejects a functional CSS value outright", () => {
+    const withUrl = valid.replace("<Text>Grinder One: 199</Text>", '<Text style={{ background: "url(https://evil.test)" }}>x</Text>');
+    const result = validateGeneratedUiSource({ source: withUrl, manifest, limits, allowedTokens });
+    expect(result.issues.map((item) => item.code)).toContain("CSS_EXFILTRATION");
+    expect(result.valid).toBe(false);
+  });
+
+  it("warns on a manifest responsive region the source never renders", () => {
+    const drifted: GeneratedUiArtifactManifest = { ...manifest, responsiveRegions: ["Results", "Ghost"] };
+    const result = validateGeneratedUiSource({ source: valid, manifest: drifted, limits, allowedTokens });
+    expect(result.issues.map((item) => item.code)).toContain("MANIFEST_RESPONSIVE_REGIONS_MISMATCH");
+    expect(result.valid).toBe(true);
   });
 
   it("rejects an import from anywhere but the runtime module", () => {
@@ -110,6 +122,20 @@ describe("generated UI compiler", () => {
     );
     const codes = validateGeneratedUiSource({ source: extra, manifest, limits: { ...limits, maxLocalStateEntries: 1 }, allowedTokens }).issues.map((item) => item.code);
     expect(codes).toContain("LOCAL_STATE_LIMIT_EXCEEDED");
+  });
+
+  it("enforces render-node limits", () => {
+    const codes = validateGeneratedUiSource({ source: valid, manifest, limits: { ...limits, maxRenderNodes: 2 }, allowedTokens }).issues.map((item) => item.code);
+    expect(codes).toContain("RENDER_NODE_LIMIT_EXCEEDED");
+  });
+
+  it("requires stable keys for JSX emitted from array maps", () => {
+    const mapped = valid.replace(
+      " return <Region",
+      ' const rows = props.sources.map((item) => <Text>{item.title}</Text>);\n return <Region',
+    );
+    const codes = validateGeneratedUiSource({ source: mapped, manifest, limits, allowedTokens }).issues.map((item) => item.code);
+    expect(codes).toContain("STABLE_KEY_REQUIRED");
   });
 
   it("fails closed before compilation", () => {

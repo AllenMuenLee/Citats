@@ -27,6 +27,7 @@ export type UrlRejectionReason =
   | "port"
   | "host"
   | "blocked_origin"
+  | "irrelevant_source"
   | "not_allowlisted"
   | "duplicate"
   | "private_destination"
@@ -58,6 +59,32 @@ export const DEFAULT_SOURCE_ORIGIN_POLICY: SourceOriginPolicy = Object.freeze({
  * rather than range-checked.
  */
 const ALLOWED_PORTS = new Set(["", "80", "443"]);
+
+const UI_RESOURCE_HOSTS = new Set(["v0.dev", "ui.shadcn.com"]);
+
+/**
+ * Search-engine redirect/click-tracking wrappers. A grounded model routinely
+ * cites one of these instead of the page it actually found -- Gemini's
+ * `groundingChunks[].web.uri` is always a `vertexaisearch.cloud.google.com`
+ * redirect token, never the destination. The token is opaque, short-lived,
+ * and resolves to whatever third party the search engine indexed (often a
+ * bot-walled page), so it is never "rendered evidence" and is refused here
+ * rather than followed.
+ */
+const REDIRECTOR_HOSTS = new Set([
+  "vertexaisearch.cloud.google.com",
+  "r.jina.ai",
+]);
+
+/** `https://www.google.com/url?q=...`, `https://news.google.com/rss/articles/...` and friends: a wrapper, not a page. */
+function isSearchRedirector(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (REDIRECTOR_HOSTS.has(host)) return true;
+  if ((host === "www.google.com" || host === "google.com") && url.pathname === "/url") return true;
+  if (host === "news.google.com") return true;
+  if ((host === "www.bing.com" || host === "bing.com") && url.pathname === "/ck/a") return true;
+  return false;
+}
 
 function ipv4Parts(value: string): readonly number[] | null {
   if (isIP(value) !== 4) return null;
@@ -141,6 +168,11 @@ export function normalizeCandidateUrl(raw: string, policy: SourceOriginPolicy = 
   if (!ALLOWED_PORTS.has(url.port)) return { ok: false, reason: "port" };
   const host = url.hostname.replace(/^\[|\]$/g, "");
   if (!host || host.length > UI_SOURCE_HOST_MAX_LENGTH) return { ok: false, reason: "host" };
+  const loweredHost = host.toLowerCase().replace(/\.$/, "");
+  if ([...UI_RESOURCE_HOSTS].some((blocked) => loweredHost === blocked || loweredHost.endsWith(`.${blocked}`))) {
+    return { ok: false, reason: "irrelevant_source" };
+  }
+  if (isSearchRedirector(url)) return { ok: false, reason: "irrelevant_source" };
   if (isBlockedHostname(host)) return { ok: false, reason: "private_destination" };
   if (isIP(host) !== 0 && isPrivateAddress(host)) return { ok: false, reason: "private_destination" };
 
@@ -179,6 +211,7 @@ const defaultLookup: AddressLookup = async (hostname) => {
 export async function assertPublicDestination(
   urlString: string,
   resolve: AddressLookup = defaultLookup,
+  signal?: AbortSignal,
 ): Promise<UrlDecision> {
   let url: URL;
   try {
@@ -194,8 +227,9 @@ export async function assertPublicDestination(
   }
   let addresses: readonly string[];
   try {
-    addresses = await resolve(host);
+    addresses = await abortable(resolve(host), signal);
   } catch {
+    if (signal?.aborted) throw signal.reason;
     return { ok: false, reason: "unresolvable" };
   }
   if (addresses.length === 0) return { ok: false, reason: "unresolvable" };
@@ -224,13 +258,14 @@ export interface CandidateValidationResult {
  */
 export async function validateCandidateUrls(
   candidates: readonly { readonly url: string; readonly reason: string }[],
-  options: { policy?: SourceOriginPolicy; maxAccepted: number; resolve?: AddressLookup } ,
+  options: { policy?: SourceOriginPolicy; maxAccepted: number; resolve?: AddressLookup; signal?: AbortSignal } ,
 ): Promise<CandidateValidationResult> {
   const policy = options.policy ?? DEFAULT_SOURCE_ORIGIN_POLICY;
   const accepted: ValidatedCandidate[] = [];
   const rejected: UrlRejectionReason[] = [];
   const seen = new Set<string>();
   for (const candidate of candidates) {
+    options.signal?.throwIfAborted();
     if (accepted.length >= options.maxAccepted) break;
     const normalized = normalizeCandidateUrl(candidate.url, policy);
     if (!normalized.ok) {
@@ -242,7 +277,7 @@ export async function validateCandidateUrls(
       continue;
     }
     seen.add(normalized.url);
-    const resolved = await assertPublicDestination(normalized.url, options.resolve);
+    const resolved = await assertPublicDestination(normalized.url, options.resolve, options.signal);
     if (!resolved.ok) {
       rejected.push(resolved.reason);
       continue;
@@ -250,6 +285,16 @@ export async function validateCandidateUrls(
     accepted.push({ url: normalized.url, origin: normalized.origin, reason: candidate.reason });
   }
   return { accepted, rejected };
+}
+
+function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
 }
 
 /** Reads the deployment's origin policy. Unset means "any public origin". */

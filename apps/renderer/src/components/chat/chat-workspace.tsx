@@ -90,7 +90,7 @@ export function ChatWorkspace() {
             <GeneratedUiSurface
               instanceId={generatedUi.view.instanceId}
               artifactId={generatedUi.view.artifactId}
-              planDigest={generatedUi.view.planDigest}
+              implementationPromptDigest={generatedUi.view.implementationPromptDigest}
               inputDigest={generatedUi.view.inputDigest}
               revision={generatedUi.view.revision}
               expiresAt={generatedUi.view.expiresAt}

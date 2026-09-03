@@ -35,6 +35,7 @@ export interface CaptureBounds {
   readonly perPageTotalMs: number;
   readonly totalMs: number;
   readonly maxHtmlBytes: number;
+  readonly maxBatchHtmlBytes: number;
   readonly maxNodes: number;
 }
 
@@ -46,6 +47,7 @@ export const DEFAULT_CAPTURE_BOUNDS: CaptureBounds = Object.freeze({
   perPageTotalMs: 35_000,
   totalMs: 150_000,
   maxHtmlBytes: 400_000,
+  maxBatchHtmlBytes: 1_200_000,
   maxNodes: 6_000,
 });
 
@@ -96,7 +98,8 @@ export interface CaptureOptions {
 function withDeadline(signal: AbortSignal, ms: number): { signal: AbortSignal; dispose(): void } {
   const controller = new AbortController();
   const onAbort = () => controller.abort(signal.reason);
-  signal.addEventListener("abort", onAbort, { once: true });
+  if (signal.aborted) onAbort();
+  else signal.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(new Error("deadline exceeded")), ms);
   return {
     signal: controller.signal,
@@ -158,9 +161,13 @@ async function capturePage(
   policy: SourceOriginPolicy,
   resolve: AddressLookup | undefined,
   now: () => number,
+  signal: AbortSignal,
 ): Promise<PageCapture> {
   const startedAt = now();
   const page = await context.newPage();
+  let navigationPolicyFailure: Error | undefined;
+  const abortPage = () => void page.close({ runBeforeUnload: false }).catch(() => {});
+  signal.addEventListener("abort", abortPage, { once: true });
   try {
     page.setDefaultTimeout(bounds.navigationTimeoutMs);
     page.setDefaultNavigationTimeout(bounds.navigationTimeoutMs);
@@ -168,11 +175,32 @@ async function capturePage(
     // navigate the capture somewhere else through script.
     page.on("dialog", (dialog) => void dialog.dismiss().catch(() => {}));
     page.on("download", (download) => void download.cancel().catch(() => {}));
+    await page.route("**/*", async (route) => {
+      const request = route.request();
+      if (!request.isNavigationRequest()) {
+        await route.continue().catch(() => {});
+        return;
+      }
+      const normalized = normalizeCandidateUrl(request.url(), policy);
+      const resolved = normalized.ok ? await assertPublicDestination(normalized.url, resolve) : normalized;
+      if (!resolved.ok) {
+        navigationPolicyFailure = new Error(`redirect hop rejected: ${resolved.reason}`);
+        await route.abort("blockedbyclient").catch(() => {});
+        return;
+      }
+      await route.continue().catch(() => {});
+    });
 
-    const response = await page.goto(source.url, { waitUntil: "domcontentloaded", timeout: bounds.navigationTimeoutMs });
+    const response = await page.goto(source.url, { waitUntil: "domcontentloaded", timeout: bounds.navigationTimeoutMs }).catch((error: unknown) => {
+      throw navigationPolicyFailure ?? error;
+    });
     if (!response) throw new Error("navigation produced no response");
     if (!response.ok() && response.status() >= 400) throw new Error(`navigation returned HTTP ${response.status()}`);
     await assertRedirectChainIsPublic(response, bounds, policy, resolve);
+    const responseContentType = (response.headers()["content-type"] ?? "").toLowerCase();
+    if (responseContentType && !responseContentType.startsWith("text/html") && !responseContentType.startsWith("application/xhtml+xml")) {
+      throw new Error("unsupported content type");
+    }
     await settle(page, bounds);
 
     const finalUrl = page.url();
@@ -198,6 +226,7 @@ async function capturePage(
       truncated: sanitized.truncated,
     };
   } finally {
+    signal.removeEventListener("abort", abortPage);
     await page.close({ runBeforeUnload: false }).catch(() => {});
   }
 }
@@ -214,6 +243,9 @@ export function createCaptureStage(options: CaptureOptions): CaptureStage {
       let lease: BrowserLease | undefined;
       let context: BrowserContext | undefined;
       try {
+        if (deadline.signal.aborted) {
+          throw new UiGenerateStageError("cancelled", "Capture was cancelled");
+        }
         try {
           lease = await options.browserProvider();
         } catch (error) {
@@ -232,9 +264,15 @@ export function createCaptureStage(options: CaptureOptions): CaptureStage {
           ignoreHTTPSErrors: false,
         });
         // Popups are closed rather than followed -- a capture reads exactly
-        // the page it was pointed at.
+        // the page it was pointed at. `page.opener()` is async: a page this
+        // stage opened itself resolves to a null opener, a popup to the page
+        // that spawned it. Comparing the promise directly would be truthy for
+        // every page and would close the capture page out from under `goto`.
         context.on("page", (opened) => {
-          if (opened.opener() !== null) void opened.close().catch(() => {});
+          void opened
+            .opener()
+            .then((opener) => (opener ? opened.close() : undefined))
+            .catch(() => {});
         });
         await context.route("**/*", (route) => {
           const type = route.request().resourceType();
@@ -247,7 +285,7 @@ export function createCaptureStage(options: CaptureOptions): CaptureStage {
           const pageDeadline = withDeadline(deadline.signal, bounds.perPageTotalMs);
           try {
             const capture = await Promise.race([
-              capturePage(context, source, bounds, policy, options.resolve, now),
+              capturePage(context, source, bounds, policy, options.resolve, now, pageDeadline.signal),
               new Promise<never>((_resolve, reject) => {
                 pageDeadline.signal.addEventListener(
                   "abort",
@@ -256,6 +294,11 @@ export function createCaptureStage(options: CaptureOptions): CaptureStage {
                 );
               }),
             ]);
+            const batchBytes = captures.reduce((total, item) => total + Buffer.byteLength(item.html, "utf8"), 0);
+            if (batchBytes + Buffer.byteLength(capture.html, "utf8") > bounds.maxBatchHtmlBytes) {
+              failures.push({ sourceId: source.sourceId, category: "batch_limit" });
+              break;
+            }
             captures.push(capture);
           } catch (error) {
             // An individual failure costs that source, not the request.
@@ -277,11 +320,11 @@ export function createCaptureStage(options: CaptureOptions): CaptureStage {
         requested: sources.length,
         captured: captures.length,
         failures: failures.map((failure) => failure.category),
-        bytes: captures.reduce((total, capture) => total + capture.html.length, 0),
+        bytes: captures.reduce((total, capture) => total + Buffer.byteLength(capture.html, "utf8"), 0),
       });
 
+      if (signal.aborted) throw new UiGenerateStageError("cancelled", "Capture was cancelled");
       if (captures.length === 0) {
-        if (signal.aborted) throw new UiGenerateStageError("cancelled", "Capture was cancelled");
         throw new UiGenerateStageError("capture_failed", "No source website could be captured");
       }
       return { captures, failures };
@@ -297,5 +340,6 @@ function categorize(error: unknown): string {
   if (/budget exhausted|Timeout|timeout/.test(message)) return "timeout";
   if (/HTTP \d{3}/.test(message)) return "http_error";
   if (/no content/.test(message)) return "empty";
+  if (/unsupported content type/.test(message)) return "content_type";
   return "navigation_failed";
 }

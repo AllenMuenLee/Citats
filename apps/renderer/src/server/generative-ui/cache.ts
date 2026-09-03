@@ -51,6 +51,16 @@ export class ImmutableUiArtifactCache {
     if (!artifact.validation.valid || artifact.validation.issues.some((issue) => issue.severity === "error")) {
       throw new Error("Only fully validated compiled artifacts may be cached");
     }
+    const modelDigest = createHash("sha256").update(identity.modelIdentifier, "utf8").digest("hex");
+    const toolchainDigest = createHash("sha256").update(identity.compilerVersion, "utf8").digest("hex");
+    if (
+      artifact.inputDigest !== identity.inputDigest ||
+      artifact.promptDigest !== identity.promptDigest ||
+      artifact.modelDigest !== modelDigest ||
+      artifact.toolchainDigest !== toolchainDigest
+    ) {
+      throw new Error("Artifact identity does not match its cache identity");
+    }
     const key = this.scopedKey(identity);
     if (this.entries.has(key)) return;
     const byteSize = Buffer.byteLength(JSON.stringify(artifact), "utf8");

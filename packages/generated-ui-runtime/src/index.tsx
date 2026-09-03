@@ -31,76 +31,25 @@ export interface DisplaySource {
   readonly captureStatus: "complete" | "truncated" | "partial";
 }
 
-export interface DisplayFact {
-  readonly id: OpaqueId;
-  readonly label: string;
-  readonly value: string;
-  readonly kind: string;
-  readonly unit: string | null;
-  readonly numericValue: number | null;
-  readonly sourceId: OpaqueId;
-  readonly note: string | null;
-}
-
-export interface DisplayRecordField {
-  readonly id: OpaqueId;
-  readonly label: string;
-  readonly value: string;
-  readonly role: string;
-  readonly numericValue: number | null;
-}
-
-export interface DisplayRecord {
-  readonly id: OpaqueId;
-  readonly collectionId: OpaqueId;
-  readonly title: string;
-  readonly sourceId: OpaqueId;
-  readonly fields: readonly DisplayRecordField[];
-  readonly mediaIds: readonly OpaqueId[];
-  readonly factIds: readonly OpaqueId[];
-}
-
-export interface DisplayCollection {
-  readonly id: OpaqueId;
-  readonly label: string;
-  readonly description: string;
-  readonly comparableFieldRoles: readonly string[];
-}
-
-/**
- * Media is described, never fetched. The sandbox has no network, so a
- * generated view renders the accessible alternative rather than an image.
- */
-export interface DisplayMedia {
-  readonly id: OpaqueId;
-  readonly kind: "image" | "illustration" | "chart" | "video" | "audio" | "icon";
-  readonly alternativeText: string;
-  readonly caption: string | null;
-  readonly sourceId: OpaqueId;
-}
-
 export interface DisplayCoverage {
   readonly requestedSources: number;
   readonly capturedSources: number;
-  readonly omissions: readonly string[];
-  readonly unsupportedRequests: readonly string[];
-  readonly confidence: "high" | "medium" | "low";
+  readonly note: string | null;
 }
 
+/**
+ * Everything the sandbox is handed. There is no plan-derived record, fact,
+ * media, or collection data: the grounded content lives in the generated
+ * source itself, written from the planner's implementation prompt. What the
+ * host supplies is the trusted request label, the trusted source metadata
+ * the view may attribute, and bounded coverage numbers.
+ */
 export interface GeneratedViewProps {
   readonly instanceRevision: number;
   readonly goal: string;
   readonly sources: readonly DisplaySource[];
-  readonly collections: readonly DisplayCollection[];
-  readonly records: readonly DisplayRecord[];
-  readonly facts: readonly DisplayFact[];
-  readonly media: readonly DisplayMedia[];
   readonly coverage: DisplayCoverage;
   readonly getSource: (id: OpaqueId) => DisplaySource | undefined;
-  readonly getCollection: (id: OpaqueId) => DisplayCollection | undefined;
-  readonly getRecord: (id: OpaqueId) => DisplayRecord | undefined;
-  readonly getFact: (id: OpaqueId) => DisplayFact | undefined;
-  readonly getMedia: (id: OpaqueId) => DisplayMedia | undefined;
 }
 
 export const semanticTokens = Object.freeze({
@@ -144,18 +93,17 @@ export function Card({ style, ...props }: BoxProps) {
 }
 
 /**
- * One planned component, rendered as a landmark-capable region. The
- * `componentId` ties the rendered tree back to the plan's component tree,
- * and the compiler checks that every id used here was planned.
+ * A landmark-capable region. `label` names it for assistive technology and
+ * the static validator collects it as one of the manifest's responsive
+ * regions.
  */
-export function Region({ componentId, label, as = "section", style, children }: {
-  readonly componentId: OpaqueId;
+export function Region({ label, as = "section", style, children }: {
   readonly label: string;
   readonly as?: "section" | "header" | "footer" | "nav" | "main" | "article" | "div";
   readonly style?: CSSProperties;
   readonly children?: ReactNode;
 }) {
-  return createElement(as, { "aria-label": label, "data-component-id": componentId, style: { ...base, ...style } }, children);
+  return createElement(as, { "aria-label": label, style: { ...base, ...style } }, children);
 }
 
 export function Text(props: ComponentPropsWithoutRef<"p">) { return <p {...props} />; }
@@ -193,16 +141,6 @@ export const Icon = ({ name, label }: {
   readonly name: "search" | "filter" | "sort" | "info" | "warning" | "close" | "expand";
   readonly label: string;
 }) => <span role="img" aria-label={label} data-icon={name} />;
-
-/** The accessible alternative, always. There is no image loading path in the sandbox. */
-export const Media = ({ media }: { readonly media: DisplayMedia }) => (
-  <figure style={{ margin: 0 }}>
-    <div role="img" aria-label={media.alternativeText} style={{ background: semanticTokens.elevated, border: `1px solid ${semanticTokens.border}`, borderRadius: semanticTokens.radiusControl, padding: semanticTokens.space12, color: semanticTokens.textSecondary }}>
-      {media.alternativeText}
-    </div>
-    {media.caption === null ? null : <figcaption style={{ color: semanticTokens.textSecondary }}>{media.caption}</figcaption>}
-  </figure>
-);
 
 export function Modal({ open, title, onClose, children }: {
   readonly open: boolean;

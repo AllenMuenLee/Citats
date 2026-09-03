@@ -14,7 +14,7 @@ export type BridgeInstance = Readonly<{
   channel: string;
   instanceId: string;
   artifactId: string;
-  planDigest: string;
+  implementationPromptDigest: string;
   inputDigest: string;
   revision: number;
   expiresAt: number;
@@ -34,7 +34,7 @@ export class BridgeMessageValidator {
     }
     const message = GeneratedUiMessageSchema.parse(value);
     if (now >= this.instance.expiresAt) throw new Error("generated UI instance expired");
-    for (const key of ["channel", "instanceId", "artifactId", "planDigest", "inputDigest", "revision"] as const) {
+    for (const key of ["channel", "instanceId", "artifactId", "implementationPromptDigest", "inputDigest", "revision"] as const) {
       if (message[key] !== this.instance[key]) throw new Error(`bridge ${key} mismatch`);
     }
     if (message.sequence !== this.sequence + 1) throw new Error("bridge sequence is stale or out of order");

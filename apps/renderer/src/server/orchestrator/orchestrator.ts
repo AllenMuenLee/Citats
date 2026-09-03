@@ -30,7 +30,6 @@ export interface OrchestratorOptions {
   conversations: ConversationRepository;
   tools: ReadonlyMap<string, RegisteredTool>;
   maxSteps?: number;
-  deadlineMs?: number;
   maxMessages?: number;
   maxEstimatedTokens?: number;
   createId?: () => string;
@@ -90,8 +89,6 @@ const PROGRESS_LABELS: Readonly<Record<UiGenerateProgressState, string>> = Objec
 
 export class ChatOrchestrator {
   private readonly maxSteps: number;
-  /** No default: an overall time budget is opt-in only, so a turn ends when the model finishes, `maxSteps` is hit, or the user stops it. */
-  private readonly deadlineMs: number | undefined;
   private readonly maxMessages: number;
   private readonly maxEstimatedTokens: number;
   private readonly createId: () => string;
@@ -100,7 +97,6 @@ export class ChatOrchestrator {
     // Two steps is the whole shape of a turn now: at most one tool call,
     // then the answer that reports it.
     this.maxSteps = options.maxSteps ?? 3;
-    this.deadlineMs = options.deadlineMs;
     this.maxMessages = options.maxMessages ?? 50;
     this.maxEstimatedTokens = options.maxEstimatedTokens ?? 16_000;
     this.createId = options.createId ?? randomUUID;
@@ -110,13 +106,8 @@ export class ChatOrchestrator {
     const parsed = InputSchema.parse({ sessionId: rawInput.sessionId, ownerId: rawInput.ownerId, text: rawInput.text });
     const requestId = this.createId();
     const release = this.options.conversations.acquireRequest(parsed.sessionId, parsed.ownerId, requestId);
-    const deadlineSignal = this.deadlineMs !== undefined ? AbortSignal.timeout(this.deadlineMs) : undefined;
-    const callerAndDeadline = [rawInput.signal, deadlineSignal].filter((candidate): candidate is AbortSignal => candidate !== undefined);
-    const signal = callerAndDeadline.length > 0 ? AbortSignal.any(callerAndDeadline) : new AbortController().signal;
-    const abortError = () =>
-      deadlineSignal?.aborted
-        ? new OrchestratorError("DEADLINE", "The request deadline was reached.")
-        : new OrchestratorError("CANCELLED", "The request was stopped.");
+    const signal = rawInput.signal ?? new AbortController().signal;
+    const abortError = () => new OrchestratorError("CANCELLED", "The request was stopped.");
     const prior = this.options.conversations.read(parsed.sessionId, parsed.ownerId);
     const selected = selectConversationContext(prior, { maxMessages: this.maxMessages, maxEstimatedTokens: this.maxEstimatedTokens });
     const modelTurns: ConversationTurn[] = [...selected.messages.map(toModelTurn), { role: "user", content: parsed.text }];
@@ -218,14 +209,38 @@ export class ChatOrchestrator {
           throw new OrchestratorError("REPEATED_TOOL_CALL", "The model called ui.generate more than once in one turn.");
         }
 
-        let result: unknown;
+        let args: unknown;
         try {
-          const json: unknown = JSON.parse(call.arguments);
-          const args = tool.parseArguments(json);
-          state = "tool-execution";
-          if (call.name === UI_GENERATE_TOOL_NAME) uiGenerateCalls += 1;
-          yield { type: "tool-status", id: call.id, label: call.name, state: "running" };
-          result = await tool.execute(args, {
+          const json: unknown = call.arguments.trim() ? JSON.parse(call.arguments) : {};
+          args = tool.parseArguments(json);
+        } catch (error) {
+          if (signal.aborted) throw abortError();
+          // A malformed argument payload is a contract failure, not a
+          // browsing error: there is nothing to retry against.
+          trace("tool-call-invalid", { step, name: call.name, error: error instanceof Error ? error.name : "unknown" });
+          throw new OrchestratorError("CONTRACT_ERROR", "The model produced an invalid tool call.");
+        }
+
+        state = "tool-execution";
+        if (call.name === UI_GENERATE_TOOL_NAME) uiGenerateCalls += 1;
+        yield { type: "tool-status", id: call.id, label: call.name, state: "running" };
+
+        // The tool runs inside an `await` and cannot yield the generator, so
+        // its progress and view events land in `pending`. They must be
+        // streamed to the client *while the tool is still running*, not after
+        // it returns: `ui.generate`'s final step blocks on the ready
+        // handshake from the surface the client only mounts once it receives
+        // the `generated-ui` view event, so draining `pending` after
+        // `execute()` resolves would deadlock the turn.
+        let executionSettled = false;
+        let wakeDrain: (() => void) | null = null;
+        const nudgeDrain = (): void => {
+          const resume = wakeDrain;
+          wakeDrain = null;
+          resume?.();
+        };
+        const execution = Promise.resolve(
+          tool.execute(args, {
             requestId,
             userId: parsed.ownerId,
             sessionId: parsed.sessionId,
@@ -235,24 +250,44 @@ export class ChatOrchestrator {
             emitProgress: (progressState) => {
               const label = PROGRESS_LABELS[progressState as UiGenerateProgressState] ?? progressState;
               pending.push({ type: "tool-progress", id: this.createId(), toolCallId: call.id, state: String(progressState), label });
+              nudgeDrain();
             },
             emitView: (view) => {
               const reference = view as GeneratedViewEvent["view"];
               pending.push({ type: "generated-ui", id: this.createId(), view: reference });
+              nudgeDrain();
             },
             ...(traceSink ? { trace } : {}),
+          }),
+        );
+        const outcome = execution.then(
+          (value) => ({ ok: true as const, value }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+        void execution.catch(() => undefined).then(() => {
+          executionSettled = true;
+          nudgeDrain();
+        });
+
+        while (true) {
+          while (pending.length > 0) yield pending.shift()!;
+          if (executionSettled) break;
+          await new Promise<void>((resolve) => {
+            wakeDrain = resolve;
+            // A push that landed between the drain above and this assignment
+            // would otherwise be a lost wakeup.
+            if (pending.length > 0 || executionSettled) nudgeDrain();
           });
-        } catch (error) {
-          if (signal.aborted) throw abortError();
-          // A malformed argument payload is a contract failure, not a
-          // browsing error: there is nothing to retry against.
-          trace("tool-call-invalid", { step, name: call.name, error: error instanceof Error ? error.name : "unknown" });
-          throw new OrchestratorError("CONTRACT_ERROR", "The model produced an invalid tool call.");
         }
 
-        // Progress and view events raised during execution are surfaced in
-        // the order they happened, before the terminal status.
+        const settled = await outcome;
         while (pending.length > 0) yield pending.shift()!;
+        if (!settled.ok) {
+          if (signal.aborted) throw abortError();
+          trace("tool-call-invalid", { step, name: call.name, error: settled.error instanceof Error ? settled.error.name : "unknown" });
+          throw new OrchestratorError("CONTRACT_ERROR", "The model produced an invalid tool call.");
+        }
+        const result: unknown = settled.value;
 
         const status = (result as { status?: unknown } | null)?.status;
         yield status === "ready"

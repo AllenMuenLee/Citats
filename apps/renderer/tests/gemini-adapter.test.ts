@@ -3,18 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { createGeminiAdapter, createGeminiCompletion, type ModelRoleConfig, type ModelStreamEvent } from "../src/server/ai";
-import { UI_PLAN_RESPONSE_JSON_SCHEMA } from "../src/server/ui-generate/planning/plan-schema";
-
-const UI_PLAN_RESPONSE_FORMAT = { name: "ui_plan", strict: true, schema: UI_PLAN_RESPONSE_JSON_SCHEMA } as const;
+const TEST_RESPONSE_SCHEMA = { type: "object", properties: { ok: { type: "boolean" } } } as const;
+const TEST_RESPONSE_FORMAT = { name: "test_response", strict: true, schema: TEST_RESPONSE_SCHEMA } as const;
 
 const config: ModelRoleConfig = {
   provider: "gemini",
   apiKey: "test-key",
   model: "gemini-3.5-flash",
   baseUrl: new URL("https://gemini.test/v1beta/"),
-  timeoutMs: 1_000,
   maxRetries: 2,
-  retryMaxElapsedMs: 60_000,
 };
 
 function sse(...chunks: unknown[]): Response {
@@ -183,11 +180,11 @@ describe("Gemini adapter", () => {
    */
   it("forwards the canonical UI-plan schema with no tool advertised", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse({ candidates: [{ content: { parts: [{ text: "{}" }] } }] }));
-    await collect(createGeminiAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: UI_PLAN_RESPONSE_FORMAT }));
+    await collect(createGeminiAdapter(config, { fetchImpl }).stream({ ...request, responseFormat: TEST_RESPONSE_FORMAT }));
     const body = bodyOf(fetchImpl);
     expect(body.generationConfig).toEqual({
       responseMimeType: "application/json",
-      responseJsonSchema: UI_PLAN_RESPONSE_JSON_SCHEMA,
+      responseJsonSchema: TEST_RESPONSE_SCHEMA,
     });
     expect(body.tools).toBeUndefined();
   });
@@ -227,29 +224,6 @@ describe("Gemini adapter", () => {
     expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ attemptCount: 2 }));
   });
 
-  it("stops retrying once the total retry budget would be exceeded", async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 429 }));
-    const adapter = createGeminiAdapter({ ...config, maxRetries: 5, retryMaxElapsedMs: 1_000 }, {
-      fetchImpl, sleep: vi.fn().mockResolvedValue(undefined), random: () => 0,
-      // Each attempt burns 900ms of wall clock against a 1,000ms budget, so the
-      // budget -- not maxRetries: 5 -- is what ends the loop, after one retry.
-      now: (() => { let value = 0; return () => (value += 900); })(),
-    });
-    await expect(collect(adapter.stream(request))).rejects.toMatchObject({ code: "AI_RATE_LIMITED" });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-  });
-
-  it("maps a timeout and reports its stable error code", async () => {
-    const metrics = vi.fn();
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation((_input, init) => new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
-    }));
-    const adapter = createGeminiAdapter({ ...config, timeoutMs: 10, maxRetries: 0 }, { fetchImpl, emitMetrics: metrics });
-
-    await expect(collect(adapter.stream(request))).rejects.toMatchObject({ code: "AI_TIMEOUT" });
-    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "AI_TIMEOUT" }));
-  });
-
   it("propagates caller cancellation without remapping or retrying", async () => {
     const controller = new AbortController();
     const reason = new Error("caller stopped");
@@ -273,6 +247,24 @@ describe("Gemini adapter", () => {
 });
 
 describe("Gemini non-streaming completion", () => {
+  it("enables Google Search for a hosted-search completion", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+      modelVersion: "gemini-3.5-flash-lite",
+      candidates: [{ content: { parts: [{ text: '{"websites":[]}' }] }, finishReason: "STOP" }],
+    }));
+    const complete = createGeminiCompletion(config, fetchImpl);
+
+    await complete({
+      model: "gemini-3.5-flash-lite", temperature: 0, maxTokens: 1024,
+      systemInstruction: "Find sources", userContent: "Seattle stays",
+      hostedTools: ["web_search"],
+      responseFormat: { name: "sources", schema: { type: "object" }, strict: true },
+    }, new AbortController().signal);
+
+    const body = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body));
+    expect(body.tools).toEqual([{ googleSearch: {} }]);
+  });
+
   it("sends a tool-free, schema-constrained request and returns the joined answer text", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
       modelVersion: "gemini-3.5-flash-001",
@@ -294,5 +286,75 @@ describe("Gemini non-streaming completion", () => {
       temperature: 0, maxOutputTokens: 512,
       responseMimeType: "application/json", responseJsonSchema: { type: "object" },
     });
+  });
+
+  it("omits provider structured-output arguments for a prompt-only completion", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+      modelVersion: "gemini-3.1-flash-lite",
+      candidates: [{ content: { parts: [{ text: '{"ok":true}' }] }, finishReason: "STOP" }],
+    }));
+    const complete = createGeminiCompletion(config, fetchImpl);
+
+    await complete({
+      model: "gemini-3.1-flash-lite", temperature: 0, maxTokens: 16_000,
+      systemInstruction: "Define the JSON output here.", userContent: "canonical input",
+    }, new AbortController().signal);
+
+    const body = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body)) as {
+      generationConfig: Record<string, unknown>;
+    };
+    expect(body.generationConfig).toEqual({ temperature: 0, maxOutputTokens: 16_000 });
+  });
+
+  it("rejects a reply cut off at the token ceiling instead of returning truncated text", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({
+      modelVersion: "gemini-3.5-flash-lite",
+      candidates: [{ content: { parts: [{ text: '{"tsxSource":"export default function GeneratedView(' }] }, finishReason: "MAX_TOKENS" }],
+      usageMetadata: { promptTokenCount: 4000, candidatesTokenCount: 24000, totalTokenCount: 28000 },
+    }));
+    const complete = createGeminiCompletion(config, fetchImpl);
+
+    await expect(complete({
+      model: "gemini-3.5-flash-lite", temperature: 0, maxTokens: 24_000,
+      systemInstruction: "UI policy", userContent: "canonical input",
+    }, new AbortController().signal)).rejects.toMatchObject({ code: "AI_MALFORMED_RESPONSE" });
+  });
+
+  it("retries a transient 503 before returning the completion", async () => {
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ error: { message: "high demand" } }, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({
+        modelVersion: "gemini-3.1-flash-lite",
+        candidates: [{ content: { parts: [{ text: '{"ok":true}' }] }, finishReason: "STOP" }],
+      }));
+    const complete = createGeminiCompletion({ ...config, maxRetries: 2 }, fetchImpl);
+
+    await expect(complete({
+      model: "gemini-3.1-flash-lite", temperature: 0, maxTokens: 512,
+      systemInstruction: "UI policy", userContent: "canonical input",
+    }, new AbortController().signal)).resolves.toEqual({ model: "gemini-3.1-flash-lite", content: '{"ok":true}' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up on a 503 once the retry budget is spent, mapping it to unavailable", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error: { message: "high demand" } }, { status: 503 }));
+    const complete = createGeminiCompletion({ ...config, maxRetries: 0 }, fetchImpl);
+
+    await expect(complete({
+      model: "gemini-3.1-flash-lite", temperature: 0, maxTokens: 512,
+      systemInstruction: "UI policy", userContent: "canonical input",
+    }, new AbortController().signal)).rejects.toMatchObject({ code: "AI_PROVIDER_UNAVAILABLE" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a 400 rejected request", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error: { message: "bad field" } }, { status: 400 }));
+    const complete = createGeminiCompletion({ ...config, maxRetries: 3 }, fetchImpl);
+
+    await expect(complete({
+      model: "gemini-3.1-flash-lite", temperature: 0, maxTokens: 512,
+      systemInstruction: "UI policy", userContent: "canonical input",
+    }, new AbortController().signal)).rejects.toMatchObject({ code: "AI_REQUEST_REJECTED" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

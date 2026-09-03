@@ -33,21 +33,14 @@ export const UI_GENERATE_ARGS_SCHEMA_REF = "ui.generate.v1" as const;
  */
 export const UI_GENERATE_REQUEST_MAX_LENGTH = 2_000;
 
-export const UiGenerateArgsSchema = z
-  .object({
-    /**
-     * The current user request, copied exactly. Trusted code re-checks this
-     * against the actual turn text after transport validation, so a model
-     * that paraphrases, appends, or substitutes fails the call rather than
-     * steering the pipeline.
-     */
-    request: z
-      .string()
-      .min(1)
-      .max(UI_GENERATE_REQUEST_MAX_LENGTH)
-      .refine((request) => request.trim().length > 0, "request must contain non-whitespace text"),
-  })
-  .strict();
+/**
+ * `ui.generate` takes NO arguments. It is a pure trigger: the pipeline runs
+ * against the verbatim text of the turn being answered, which trusted code
+ * already holds -- so a model cannot paraphrase, append to, or substitute
+ * the request to steer source finding. The conversation model is given no
+ * argument schema to fill in at all.
+ */
+export const UiGenerateArgsSchema = z.object({}).strict();
 
 export type UiGenerateArgs = z.infer<typeof UiGenerateArgsSchema>;
 
@@ -184,26 +177,22 @@ export const UiGenerateToolDefinition = ToolDefinitionSchema.parse({
   contractVersion: 1,
   name: UI_GENERATE_TOOL_NAME,
   description:
-    "Builds an interactive generated interface for the user's current request and opens it beside " +
-    "the conversation. Call it at most once per turn, with the user's request copied exactly, when " +
-    "an interactive or visual interface would materially help. Everything else -- finding sources, " +
+    "Builds an interactive generated interface for the user's current turn and opens it beside " +
+    "the conversation. Takes no arguments -- call it (at most once per turn) when an interactive or " +
+    "visual interface would materially help. Everything else -- reading the request, finding sources, " +
     "reading them, designing, generating, and rendering -- is handled by the server.",
   argsSchemaVersion: UI_GENERATE_ARGS_SCHEMA_VERSION,
   argsSchemaRef: UI_GENERATE_ARGS_SCHEMA_REF,
   sensitiveByDefault: false,
 });
 
-/** The JSON Schema offered to the provider for this tool's arguments. Mirrors `UiGenerateArgsSchema`. */
+/**
+ * The parameter schema offered to the provider: a closed, empty object.
+ * `ui.generate` has no arguments, so there is nothing here for the model to
+ * fill in -- the function declaration is just the name and the description.
+ */
 export const UI_GENERATE_ARGS_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["request"],
-  properties: {
-    request: {
-      type: "string",
-      minLength: 1,
-      maxLength: UI_GENERATE_REQUEST_MAX_LENGTH,
-      description: "The user's current request, copied exactly and unchanged.",
-    },
-  },
+  properties: {},
 } as const;

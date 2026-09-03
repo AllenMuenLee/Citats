@@ -18,10 +18,6 @@ from pydantic import (BaseModel, ConfigDict, Field, RootModel, StrictBool,
                       StrictInt, StrictStr)
 
 
-class CapabilityId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
 class LocalInteraction(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -29,18 +25,6 @@ class LocalInteraction(BaseModel):
     boundedValues: StrictInt = Field(..., gt=0, le=10000)
     kind: Literal['selection', 'filter', 'sort', 'expansion', 'tab', 'gallery', 'modal']
     stateKey: StrictStr = Field(..., max_length=100, min_length=1, pattern='^[A-Za-z][A-Za-z0-9_-]*$')
-
-
-class MediaId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
-class ObservationId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
-class RecordId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
 class ResponsiveRegion(RootModel[StrictStr]):
@@ -52,7 +36,7 @@ class RuntimeImport(RootModel[StrictStr]):
 
 
 class SourceId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    root: StrictStr = Field(..., max_length=64, min_length=1, pattern='^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$')
 
 
 class Manifest(BaseModel):
@@ -60,13 +44,8 @@ class Manifest(BaseModel):
         extra='forbid',
     )
     accessibilityFeatures: list[Literal['heading_order', 'landmarks', 'labels', 'descriptions', 'table_relationships', 'live_status', 'keyboard', 'visible_focus', 'accessible_media', 'modal_escape']] = Field(..., max_length=16)
-    capabilityIds: list[CapabilityId] = Field(..., max_length=256)
-    emittedCommandKinds: list[Literal['activate', 'select', 'set_value', 'open_detail', 'media_control']] = Field(..., max_length=16)
     fallback: StrictBool
     localInteractions: list[LocalInteraction] = Field(..., max_length=32)
-    mediaIds: list[MediaId] = Field(..., max_length=256)
-    observationIds: list[ObservationId] = Field(..., max_length=256, min_length=1)
-    recordIds: list[RecordId] = Field(..., max_length=256)
     responsiveRegions: list[ResponsiveRegion] = Field(..., max_length=64)
     runtimeImports: list[RuntimeImport] = Field(..., max_length=64)
     sourceIds: list[SourceId] = Field(..., max_length=256)

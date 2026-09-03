@@ -1,19 +1,18 @@
 import {
   UiGenerationRequestSchema,
-  digestUiPlan,
+  digestImplementationPrompt,
+  type TrustedGenerationSource,
   type UiGenerationRequest,
-  type UiPlan,
 } from "@ai-browser/contracts";
 import { UI_GENERATION_PROMPT_DIGEST, UI_GENERATION_PROMPT_VERSION } from "./system-prompt";
 
-export const GENERATED_UI_RUNTIME_API_VERSION = "2.0.0";
+export const GENERATED_UI_RUNTIME_API_VERSION = "3.0.0";
 
 /**
  * The semantic tokens a generated view may name, and the same list the
  * planning model is given. These mirror the theme table in
  * `docs/desktop-architecture-and-ui-specification.md`; a token outside this
- * set is rejected by the request schema, the static validator, and the
- * plan's own visual direction check.
+ * set is rejected by the request schema and the static validator.
  */
 export const GENERATED_UI_ALLOWED_TOKENS: readonly string[] = Object.freeze([
   "canvas",
@@ -41,11 +40,10 @@ export const GENERATED_UI_ALLOWED_TOKENS: readonly string[] = Object.freeze([
 
 /** The runtime exports offered to one generation. Server-owned; the model cannot extend it. */
 export const GENERATED_UI_RUNTIME_EXPORTS: readonly string[] = Object.freeze([
-  "GeneratedViewProps", "OpaqueId", "DisplaySource", "DisplayFact", "DisplayRecord", "DisplayRecordField",
-  "DisplayCollection", "DisplayMedia", "DisplayCoverage", "semanticTokens",
+  "GeneratedViewProps", "OpaqueId", "DisplaySource", "DisplayCoverage", "semanticTokens",
   "Stack", "Inline", "Grid", "Card", "Region", "Text", "Heading", "Badge", "List", "ListItem",
   "Table", "TableHead", "TableBody", "TableRow", "TableHeader", "TableCell",
-  "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Media", "Modal",
+  "Label", "Select", "Option", "Status", "Warning", "Source", "Freshness", "Icon", "Modal",
   "useBoundedState", "useLocalCollection", "formatNumber", "formatCurrency", "formatDate",
 ]);
 
@@ -57,25 +55,40 @@ export const GENERATED_UI_LIMITS = Object.freeze({
   maxLocalStateEntries: 24,
 });
 
-/**
- * Builds the closed Phase 4 generation request from a validated `UiPlan`.
- *
- * The plan is the only variable input. Everything else here -- prompt
- * identity, runtime, theme, limits -- is fixed server policy, which is what
- * makes the request digest a usable cache key and what stops a plan from
- * widening its own envelope.
- */
-export function buildUiGenerationRequest(input: {
-  plan: UiPlan;
+export interface BuildUiGenerationRequestInput {
+  /** The planner's free-form implementation prompt -- untrusted text, carried verbatim. */
+  implementationPrompt: string;
+  /** The trusted user request, for the display label and pane title. */
+  trustedRequest: string;
+  /** Trusted source records from the capture stage. */
+  trustedSources: readonly TrustedGenerationSource[];
+  /** Versioned planner policy identity. */
+  plannerPromptVersion: string;
+  plannerPromptDigest: string;
   requestId: string;
   userId: string;
-}): UiGenerationRequest {
+}
+
+/**
+ * Builds the closed Phase 4 generation request.
+ *
+ * The implementation prompt and the trusted sources are the only variable
+ * inputs. Everything else -- prompt identity for both policies, runtime,
+ * theme, limits -- is fixed server policy, which is what makes the request
+ * digest a usable cache key and what stops the model from widening its own
+ * envelope.
+ */
+export function buildUiGenerationRequest(input: BuildUiGenerationRequestInput): UiGenerationRequest {
   return UiGenerationRequestSchema.parse({
     schemaVersion: 1,
+    plannerPromptVersion: input.plannerPromptVersion,
+    plannerPromptDigest: input.plannerPromptDigest,
     promptVersion: UI_GENERATION_PROMPT_VERSION,
     promptDigest: UI_GENERATION_PROMPT_DIGEST,
-    plan: input.plan,
-    planDigest: digestUiPlan(input.plan),
+    trustedRequest: input.trustedRequest,
+    implementationPrompt: input.implementationPrompt,
+    implementationPromptDigest: digestImplementationPrompt(input.implementationPrompt),
+    trustedSources: input.trustedSources,
     runtime: {
       module: "@ai-browser/generated-ui-runtime",
       apiVersion: GENERATED_UI_RUNTIME_API_VERSION,

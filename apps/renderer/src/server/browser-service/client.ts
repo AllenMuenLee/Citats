@@ -28,24 +28,13 @@ import {
 
 import {
   BrowserServiceContractError,
-  BrowserServiceTimeoutError,
   BrowserServiceUnavailableError,
 } from "./errors";
 import { redactForLog } from "./redaction";
-import { resolveToolTimeoutMs } from "./timeouts";
 
 export interface BrowserServiceClientOptions {
   baseUrl: string;
   serviceToken: string;
-  /**
-   * Server-owned per-tool deadline resolution (P03-R01 step 1). Deliberately
-   * a function of the tool name rather than one scalar: a single budget for
-   * every tool is exactly what put a five-second bridge timeout in front of
-   * a thirty-second exploration. Overridable only from trusted server code
-   * and tests -- the model, the renderer client, page content, and tool
-   * arguments cannot reach this constructor.
-   */
-  resolveTimeoutMs?: (toolName: string) => number;
   fetchImpl?: typeof fetch;
   log?: (record: Record<string, unknown>) => void;
 }
@@ -97,7 +86,6 @@ function validateLoopbackBaseUrl(raw: string): URL {
 export class BrowserServiceClient {
   readonly #baseUrl: URL;
   readonly #serviceToken: string;
-  readonly #resolveTimeoutMs: (toolName: string) => number;
   readonly #fetch: typeof fetch;
   readonly #log: (record: Record<string, unknown>) => void;
 
@@ -105,7 +93,6 @@ export class BrowserServiceClient {
     this.#baseUrl = validateLoopbackBaseUrl(options.baseUrl);
     if (!options.serviceToken) throw new TypeError("A service token is required.");
     this.#serviceToken = options.serviceToken;
-    this.#resolveTimeoutMs = options.resolveTimeoutMs ?? resolveToolTimeoutMs;
     this.#fetch = options.fetchImpl ?? fetch;
     this.#log = options.log ?? (() => undefined);
   }
@@ -120,14 +107,10 @@ export class BrowserServiceClient {
       throw new TypeError(`Unknown tool '${invocation.toolName}'.`);
     }
     const payload = invocationSchema.parse(invocation) as TInvocation;
-    const deadlineMs = this.#resolveTimeoutMs(invocation.toolName);
     const startedAt = Date.now();
-    const timeout = AbortSignal.timeout(deadlineMs);
-    const combinedSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     /**
-     * P03-R01 step 5. Carries correlation, tool, phase, elapsed, the
-     * configured deadline, and a typed failure category -- and nothing
-     * else. The service token lives only in the request header and never in
+     * Carries correlation, tool, phase, elapsed, and a typed failure
+     * category -- and nothing else. The service token lives only in the request header and never in
      * this record; arguments, response payloads, and provider/browser
      * exception text are all excluded because any of them may quote
      * untrusted page content.
@@ -138,7 +121,6 @@ export class BrowserServiceClient {
         phase,
         toolName: invocation.toolName,
         ...payload.correlation,
-        deadlineMs,
         elapsedMs: Date.now() - startedAt,
         ...extra,
       }) as Record<string, unknown>);
@@ -154,16 +136,9 @@ export class BrowserServiceClient {
           "x-request-id": payload.correlation.requestId,
         },
         body: JSON.stringify(payload),
-        signal: combinedSignal,
+        signal,
       });
     } catch (error) {
-      // Deadline first: when the caller stops a request that had already run
-      // out of budget both signals read as aborted, and the exhausted
-      // deadline is the cause worth reporting.
-      if (timeout.aborted) {
-        trace("failed", { failure: "browser_service_timeout" });
-        throw new BrowserServiceTimeoutError("Browser service request timed out.", { cause: error });
-      }
       if (signal?.aborted) {
         trace("failed", { failure: "cancelled" });
         throw error;

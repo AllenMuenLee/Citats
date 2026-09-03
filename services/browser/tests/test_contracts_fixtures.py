@@ -35,6 +35,9 @@ from browser_service.contracts import (
     SuccessResultNavigateAndExtract,
     SuccessResultSystemEcho,
     ToolDefinition,
+    UiGenerateArgs,
+    UiGenerateProgressEvent,
+    UiGenerateResult,
     UiGenerationRequest,
     UiGenerationResponse,
 )
@@ -62,6 +65,9 @@ FIXTURE_MODEL_REGISTRY: dict[str, type[BaseModel]] = {
     "ui-generation-request": UiGenerationRequest,
     "ui-generation-response": UiGenerationResponse,
     "compiled-generated-ui-artifact": CompiledGeneratedUiArtifact,
+    "ui-generate-args": UiGenerateArgs,
+    "ui-generate-progress-event": UiGenerateProgressEvent,
+    "ui-generate-result": UiGenerateResult,
 }
 
 

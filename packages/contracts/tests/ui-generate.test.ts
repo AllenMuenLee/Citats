@@ -3,7 +3,6 @@ import {
   UI_GENERATE_FAILURE_CATEGORIES,
   UI_GENERATE_FAILURE_MESSAGES,
   UI_GENERATE_PROGRESS_STATES,
-  UI_GENERATE_REQUEST_MAX_LENGTH,
   UiGenerateArgsSchema,
   UiGenerateProgressEventSchema,
   UiGenerateResultSchema,
@@ -11,16 +10,13 @@ import {
 } from "../src/index.js";
 
 describe("ui.generate contracts", () => {
-  it("preserves the exact validated request", () => {
-    const request = "  Compare these options visually.  ";
-    expect(UiGenerateArgsSchema.parse({ request }).request).toBe(request);
+  it("takes no arguments -- an empty object is the only valid call", () => {
+    expect(UiGenerateArgsSchema.parse({})).toEqual({});
   });
 
-  it("enforces request bounds and rejects unknown fields", () => {
-    expect(UiGenerateArgsSchema.safeParse({ request: "x".repeat(UI_GENERATE_REQUEST_MAX_LENGTH) }).success).toBe(true);
-    expect(UiGenerateArgsSchema.safeParse({ request: "x".repeat(UI_GENERATE_REQUEST_MAX_LENGTH + 1) }).success).toBe(false);
-    expect(UiGenerateArgsSchema.safeParse({ request: "  \n" }).success).toBe(false);
-    expect(UiGenerateArgsSchema.safeParse({ request: "Build a table", url: "https://example.com" }).success).toBe(false);
+  it("rejects any argument the model tries to attach", () => {
+    expect(UiGenerateArgsSchema.safeParse({ request: "Build a table" }).success).toBe(false);
+    expect(UiGenerateArgsSchema.safeParse({ url: "https://example.com" }).success).toBe(false);
   });
 
   it("accepts only the fixed ordered progress states", () => {

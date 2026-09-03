@@ -22,10 +22,6 @@ class FallbackText(RootModel[StrictStr]):
     root: StrictStr = Field(..., max_length=4000)
 
 
-class CapabilityId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
 class LocalInteraction(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -33,18 +29,6 @@ class LocalInteraction(BaseModel):
     boundedValues: StrictInt = Field(..., gt=0, le=10000)
     kind: Literal['selection', 'filter', 'sort', 'expansion', 'tab', 'gallery', 'modal']
     stateKey: StrictStr = Field(..., max_length=100, min_length=1, pattern='^[A-Za-z][A-Za-z0-9_-]*$')
-
-
-class MediaId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
-class ObservationId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
-
-
-class RecordId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
 
 
 class ResponsiveRegion(RootModel[StrictStr]):
@@ -56,7 +40,7 @@ class RuntimeImport(RootModel[StrictStr]):
 
 
 class SourceId(RootModel[StrictStr]):
-    root: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    root: StrictStr = Field(..., max_length=64, min_length=1, pattern='^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*$')
 
 
 class Manifest(BaseModel):
@@ -64,13 +48,8 @@ class Manifest(BaseModel):
         extra='forbid',
     )
     accessibilityFeatures: list[Literal['heading_order', 'landmarks', 'labels', 'descriptions', 'table_relationships', 'live_status', 'keyboard', 'visible_focus', 'accessible_media', 'modal_escape']] = Field(..., max_length=16)
-    capabilityIds: list[CapabilityId] = Field(..., max_length=256)
-    emittedCommandKinds: list[Literal['activate', 'select', 'set_value', 'open_detail', 'media_control']] = Field(..., max_length=16)
     fallback: StrictBool
     localInteractions: list[LocalInteraction] = Field(..., max_length=32)
-    mediaIds: list[MediaId] = Field(..., max_length=256)
-    observationIds: list[ObservationId] = Field(..., max_length=256, min_length=1)
-    recordIds: list[RecordId] = Field(..., max_length=256)
     responsiveRegions: list[ResponsiveRegion] = Field(..., max_length=64)
     runtimeImports: list[RuntimeImport] = Field(..., max_length=64)
     sourceIds: list[SourceId] = Field(..., max_length=256)
@@ -82,16 +61,7 @@ class Module(BaseModel):
     )
     encoding: Literal['base64']
     kind: Literal['bytes']
-    value: StrictStr = Field(..., max_length=512000)
-
-
-class Module1(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    byteLength: StrictInt = Field(..., ge=0, le=384000)
-    kind: Literal['bundle_reference']
-    reference: StrictStr = Field(..., max_length=128, min_length=1, pattern='^[A-Za-z0-9._:-]+$')
+    value: StrictStr = Field(..., max_length=512000, min_length=4, pattern='^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$')
 
 
 class Location(BaseModel):
@@ -126,10 +96,11 @@ class CompiledGeneratedUiArtifact(BaseModel):
     artifactId: StrictStr = Field(..., pattern='^gui_[a-f0-9]{64}$')
     expiresAt: AwareDatetime
     fallbackText: FallbackText | None
+    implementationPromptDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
     inputDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
     manifest: Manifest
     modelDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
-    module: Module | Module1
+    module: Module
     promptDigest: StrictStr = Field(..., pattern='^[a-f0-9]{64}$')
     schemaVersion: Literal[1]
     sourceMapPolicy: Literal['omitted']

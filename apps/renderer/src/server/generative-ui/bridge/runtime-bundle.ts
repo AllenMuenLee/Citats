@@ -31,7 +31,10 @@ export function generatedUiRuntimeBundle(): Promise<{ code: string; etag: string
 
 async function build(): Promise<{ code: string; etag: string }> {
   const esbuild = await import("esbuild");
-  const require = createRequire(import.meta.url);
+  // Resolve from the working directory (a real path) rather than
+  // `import.meta.url`, which Turbopack rewrites to a virtual `[project]/...`
+  // path in the bundled server module.
+  const require = createRequire(join(process.cwd(), "package.json"));
   const entry = join(dirname(require.resolve("@ai-browser/generated-ui-runtime/package.json")), "src", "sandbox-entry.tsx");
   const result = await esbuild.build({
     entryPoints: [entry],

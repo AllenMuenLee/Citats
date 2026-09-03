@@ -2,13 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { UI_GENERATE_PROGRESS_STATES, type UiGenerateProgressState } from "@ai-browser/contracts";
 import { createUiGeneratePipeline } from "../../src/server/ui-generate/pipeline";
 import { UiGenerateStageError, type RegisteredView, type UiGenerateContext } from "../../src/server/ui-generate/types";
-import { validUiPlan } from "../helpers/ui-plan";
 
 const view: RegisteredView = {
   instanceId: "instance-1",
   viewRef: "uiv_abcdefgh",
   artifactId: `gui_${"a".repeat(64)}`,
-  planDigest: "b".repeat(64),
+  implementationPromptDigest: "b".repeat(64),
   inputDigest: "c".repeat(64),
   revision: 0,
   expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -56,7 +55,19 @@ function harness(overrides: Partial<Parameters<typeof createUiGeneratePipeline>[
     planning: {
       plan: vi.fn(async () => {
         order.push("ui_planning");
-        return validUiPlan();
+        return {
+          implementationPrompt: "Build a single-column comparison of the two grinders.",
+          trustedSources: [
+            {
+              sourceId: "src-1",
+              finalUrl: "https://example.com/",
+              origin: "https://example.com",
+              title: "t",
+              retrievedAt: new Date().toISOString(),
+              captureStatus: "complete" as const,
+            },
+          ],
+        };
       }),
     },
     generation: {

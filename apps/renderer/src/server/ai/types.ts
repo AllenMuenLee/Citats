@@ -197,9 +197,8 @@ export interface ModelAdapter {
 }
 
 /**
- * One non-streaming, JSON-schema-constrained completion. The UI-generation
- * agent (`server/generative-ui/ui-adapter.ts`) needs the whole response at
- * once rather than a token stream, and never gets a tool of any kind.
+ * One non-streaming completion. Callers may request provider-enforced
+ * structured output, but prompt-only callers omit `responseFormat`.
  */
 export interface TextCompletionRequest {
   readonly model: string;
@@ -207,7 +206,8 @@ export interface TextCompletionRequest {
   readonly maxTokens: number;
   readonly systemInstruction: string;
   readonly userContent: string;
-  readonly responseFormat: ModelResponseFormat;
+  readonly hostedTools?: readonly HostedToolName[];
+  readonly responseFormat?: ModelResponseFormat;
 }
 
 export interface TextCompletionResult {

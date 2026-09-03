@@ -12,6 +12,10 @@ function stream(...events: object[]) {
   return new Response(new ReadableStream({ start(controller) { for (const event of events) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); controller.close(); } }), { status: 200 });
 }
 
+function generatedViewEvent(sourceCount = 1, coverage: "validated" | "partial" = "validated") {
+  return { type: "generated-ui", id: "gen-1", view: { instanceId: "inst-1", artifactId: `gui_${"a".repeat(64)}`, planDigest: "b".repeat(64), inputDigest: "c".repeat(64), revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), title: "Generated view", sourceCount, coverage, fallbackText: "Fallback text" } };
+}
+
 describe("ChatWorkspace", () => {
   beforeEach(() => {
     let id = 0;
@@ -83,7 +87,7 @@ describe("ChatWorkspace", () => {
     let id = 0;
     vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
-      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 1, coverageLabel: "Full coverage", fallbackText: "Fallback text" },
+      generatedViewEvent(),
       { type: "done" },
     )));
     const user = userEvent.setup(); render(<ChatWorkspace />);
@@ -94,15 +98,15 @@ describe("ChatWorkspace", () => {
 
   it("shows a failed tool response and reason", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
-      { type: "tool-status", id: "tool-1", label: "browser.explore_website", state: "running", url: "https://example.com/search?q=test" },
-      { type: "tool-status", id: "tool-1", label: "browser.explore_website", state: "failed", url: "https://example.com/search?q=test", response: "UPSTREAM_UNAVAILABLE", reason: "The browser could not load the page." },
+      { type: "tool-status", id: "tool-1", label: "ui.generate", state: "running" },
+      { type: "tool-status", id: "tool-1", label: "ui.generate", state: "failed", response: "GENERATION_FAILED", reason: "The generated view could not be created." },
       { type: "done" },
     )));
     const user = userEvent.setup(); render(<ChatWorkspace />);
     await user.type(screen.getByRole("textbox"), "Explore{enter}");
-    expect(await screen.findByText("UPSTREAM_UNAVAILABLE")).toBeInTheDocument();
-    expect(screen.getByText("The browser could not load the page.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "https://example.com/search?q=test" })).toHaveAttribute("href", "https://example.com/search?q=test");
+    expect(await screen.findByText("GENERATION_FAILED")).toBeInTheDocument();
+    expect(screen.getByText("The generated view could not be created.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("renders an inline citation marker and its resolved source details on demand", async () => {
@@ -176,7 +180,7 @@ describe("ChatWorkspace", () => {
     vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
     const fetchMock = vi.fn().mockResolvedValue(stream(
       { type: "text-delta", delta: "Here is a view." },
-      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 2, coverageLabel: "Full coverage", fallbackText: "Fallback text" },
+      generatedViewEvent(2),
       { type: "done" },
     ));
     vi.stubGlobal("fetch", fetchMock);
@@ -200,7 +204,7 @@ describe("ChatWorkspace", () => {
     let id = 0;
     vi.stubGlobal("crypto", { randomUUID: () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`, getRandomValues: (array: Uint8Array) => array });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(stream(
-      { type: "generated-ui", id: "gen-1", instanceId: "inst-1", artifactId: "artifact-1", inputDigest: "in-1", observationDigest: "obs-1", revision: 1, expiresAt: new Date(Date.now() + 60_000).toISOString(), displayProps: {}, sourceCount: 1, coverageLabel: "Partial coverage", fallbackText: "Fallback text" },
+      generatedViewEvent(1, "partial"),
       { type: "done" },
     )));
     const user = userEvent.setup(); render(<ChatWorkspace />);
